@@ -77,3 +77,60 @@
 }
 
 .deleteBtn:hover { border-color: var(--red); color: var(--red); }
+
+.savedBanner {
+  background: var(--accent-dim); border: 1px solid var(--accent);
+  color: var(--accent); border-radius: 8px; padding: 12px 16px; font-size: 14px;
+}
+
+.actions { display: flex; gap: 8px; }
+
+.editBtn {
+  border: 1px solid var(--border2); background: transparent; color: var(--text2);
+  border-radius: 6px; padding: 7px 14px; font-size: 12px; transition: all 0.15s;
+}
+
+.editBtn:hover { border-color: var(--accent); color: var(--accent); }
+
+.editForm {
+  border-top: 1px solid var(--border); padding: 16px;
+  display: flex; flex-direction: column; gap: 12px;
+}
+
+.editRow { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+.editField { display: flex; flex-direction: column; gap: 4px; }
+
+.editLabel {
+  font-size: 11px; color: var(--text3); font-family: 'DM Mono', monospace;
+  text-transform: uppercase; letter-spacing: 0.05em;
+}
+
+.editInput, .editTextarea, .editPriceInput, .editTrendSelect {
+  background: var(--bg3); border: 1px solid var(--border2); border-radius: 6px;
+  padding: 8px 12px; color: var(--text); font-size: 13px; outline: none;
+  transition: border-color 0.2s; font-family: inherit;
+}
+
+.editInput:focus, .editTextarea:focus, .editPriceInput:focus { border-color: var(--accent); }
+.editTextarea { resize: vertical; }
+
+.editPriceRow { display: grid; grid-template-columns: 60px 1fr 130px; align-items: center; gap: 8px; }
+.editProductLabel { font-size: 12px; font-family: 'DM Mono', monospace; color: var(--text2); }
+
+.editActions { display: flex; gap: 8px; margin-top: 4px; }
+
+.cancelEditBtn {
+  background: transparent; border: 1px solid var(--border2); color: var(--text2);
+  border-radius: 8px; padding: 10px 18px; font-size: 14px; transition: all 0.15s;
+}
+
+.cancelEditBtn:hover { border-color: var(--red); color: var(--red); }
+
+.saveEditBtn {
+  background: var(--accent); color: #0e0f0c; border: none;
+  border-radius: 8px; padding: 10px 20px; font-size: 14px; font-weight: 700;
+  transition: all 0.15s; flex: 1;
+}
+
+.saveEditBtn:hover { background: var(--accent2); }
