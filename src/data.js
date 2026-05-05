@@ -96,3 +96,9 @@ export function buildMarketSignals(calls) {
 
   return signals
 }
+
+export function editCall(calls, id, updates) {
+  const updated = calls.map(c => c.id === id ? { ...c, ...updates } : c)
+  saveCalls(updated)
+  return updated
+}
