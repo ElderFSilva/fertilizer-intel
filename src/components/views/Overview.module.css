@@ -1,0 +1,140 @@
+.wrap { display: flex; flex-direction: column; gap: 32px; }
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.title {
+  font-family: 'Fraunces', serif;
+  font-size: 32px;
+  font-weight: 600;
+  letter-spacing: -0.5px;
+}
+
+.sub { color: var(--text3); font-size: 14px; margin-top: 4px; font-family: 'DM Mono', monospace; }
+
+.dateChip {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 6px 14px;
+  font-size: 12px;
+  font-family: 'DM Mono', monospace;
+  color: var(--text2);
+  white-space: nowrap;
+}
+
+.section { display: flex; flex-direction: column; gap: 14px; }
+
+.sectionTitle {
+  font-size: 12px;
+  font-family: 'DM Mono', monospace;
+  color: var(--text3);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.signals { display: flex; flex-direction: column; gap: 8px; }
+
+.signal {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 16px;
+  font-size: 14px;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 32px;
+}
+
+.callList { display: flex; flex-direction: column; gap: 8px; }
+
+.callCard {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.callTop { display: flex; justify-content: space-between; align-items: center; }
+.callClient { font-weight: 700; font-size: 14px; }
+.callDate { font-size: 11px; color: var(--text3); font-family: 'DM Mono', monospace; }
+.callDemand { font-size: 12px; color: var(--amber); font-style: italic; }
+.callRemarks { font-size: 12px; color: var(--text2); }
+
+.productList { display: flex; flex-direction: column; gap: 10px; }
+
+.productRow { display: flex; align-items: center; gap: 10px; }
+.productName { font-size: 13px; font-family: 'DM Mono', monospace; width: 50px; color: var(--text2); }
+
+.barWrap {
+  flex: 1;
+  height: 6px;
+  background: var(--bg3);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.bar {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 3px;
+  transition: width 0.5s ease;
+  min-width: 2px;
+}
+
+.productCount { font-size: 12px; color: var(--text3); font-family: 'DM Mono', monospace; width: 20px; text-align: right; }
+
+.clientGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 8px;
+}
+
+.clientCard {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.clientName { font-size: 14px; font-weight: 600; }
+
+.clientStatus {
+  font-size: 11px;
+  font-family: 'DM Mono', monospace;
+  border: 1px solid;
+  border-radius: 20px;
+  padding: 2px 8px;
+  align-self: flex-start;
+}
+
+.empty {
+  text-align: center;
+  padding: 60px 20px;
+  color: var(--text3);
+}
+
+.emptySub { margin-top: 8px; font-size: 14px; }
+.none { color: var(--text3); font-size: 14px; }
+
+@media (max-width: 768px) {
+  .grid { grid-template-columns: 1fr; }
+}

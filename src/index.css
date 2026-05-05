@@ -1,0 +1,36 @@
+:root {
+  --bg: #0e0f0c;
+  --bg2: #161713;
+  --bg3: #1e1f1a;
+  --border: #2a2b26;
+  --border2: #383930;
+  --text: #e8e9e2;
+  --text2: #9a9b93;
+  --text3: #5a5b54;
+  --accent: #c8f060;
+  --accent2: #a8d040;
+  --accent-dim: #c8f06018;
+  --red: #ff6b5b;
+  --red-dim: #ff6b5b18;
+  --amber: #f0b840;
+  --amber-dim: #f0b84018;
+  --blue: #60b8f0;
+  --blue-dim: #60b8f018;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'Cabinet Grotesk', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: var(--bg2); }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+button { font-family: inherit; cursor: pointer; }
+input, textarea, select { font-family: inherit; }
