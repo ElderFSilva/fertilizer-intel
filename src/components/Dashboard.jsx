@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { loadCalls, addCall, deleteCall, buildMarketSignals } from '../data.js'
+import { loadCalls, addCall, deleteCall, editCall, buildMarketSignals } from '../data.js'
 import Sidebar from './Sidebar.jsx'
 import Overview from './views/Overview.jsx'
 import Calls from './views/Calls.jsx'
@@ -13,13 +13,9 @@ export default function Dashboard({ onLogout }) {
 
   useEffect(() => { setCalls(loadCalls()) }, [])
 
-  function handleAdd(entry) {
-    setCalls(prev => addCall(prev, entry))
-  }
-
-  function handleDelete(id) {
-    setCalls(prev => deleteCall(prev, id))
-  }
+  function handleAdd(entry) { setCalls(prev => addCall(prev, entry)) }
+  function handleDelete(id) { setCalls(prev => deleteCall(prev, id)) }
+  function handleEdit(id, updates) { setCalls(prev => editCall(prev, id, updates)) }
 
   const signals = buildMarketSignals(calls)
 
@@ -29,7 +25,7 @@ export default function Dashboard({ onLogout }) {
       <main className={styles.main}>
         {view === 'overview' && <Overview calls={calls} signals={signals} />}
         {view === 'upload' && <Upload onAdd={handleAdd} />}
-        {view === 'calls' && <Calls calls={calls} onDelete={handleDelete} />}
+        {view === 'calls' && <Calls calls={calls} onDelete={handleDelete} onEdit={handleEdit} />}
         {view === 'prices' && <PriceTrends calls={calls} />}
       </main>
     </div>
