@@ -95,3 +95,42 @@
   .row { grid-template-columns: 1fr; }
   .priceRow { grid-template-columns: 60px 1fr 110px; }
 }
+
+.reviewHeader {
+  display: flex; align-items: center; gap: 14px;
+  padding-bottom: 16px; border-bottom: 1px solid var(--border);
+}
+
+.backBtn {
+  background: var(--bg3); border: 1px solid var(--border2); color: var(--text2);
+  border-radius: 8px; padding: 8px 14px; font-size: 13px; transition: all 0.15s;
+}
+
+.backBtn:hover { border-color: var(--accent); color: var(--accent); }
+
+.reviewingLabel { font-size: 14px; color: var(--text2); }
+
+.reviewActions { display: flex; gap: 10px; }
+
+.cancelBtn {
+  background: transparent; border: 1px solid var(--border2); color: var(--text2);
+  border-radius: 8px; padding: 14px 20px; font-size: 15px; transition: all 0.15s;
+}
+
+.cancelBtn:hover { border-color: var(--red); color: var(--red); }
+
+.extractedTop { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+.savedBadge {
+  margin-left: auto; font-size: 11px; color: var(--accent);
+  font-family: 'DM Mono', monospace; border: 1px solid var(--accent);
+  border-radius: 20px; padding: 2px 8px;
+}
+
+.extractedSaved { opacity: 0.5; cursor: default !important; }
+
+.allSavedMsg {
+  color: var(--accent); font-size: 13px; font-family: 'DM Mono', monospace;
+  background: var(--accent-dim); border: 1px solid var(--accent);
+  border-radius: 8px; padding: 10px 14px;
+}
