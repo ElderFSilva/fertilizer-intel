@@ -76,11 +76,11 @@
 
 .pricesGrid { display: flex; flex-direction: column; gap: 6px; }
 
-.priceRow { display: grid; grid-template-columns: 70px 1fr 140px; align-items: center; gap: 8px; }
+.priceRow { display: grid; grid-template-columns: 70px 1fr 100px 120px; align-items: center; gap: 6px; }
 
 .productLabel { font-size: 13px; font-family: 'DM Mono', monospace; color: var(--text2); }
 
-.trendSelect { padding: 10px 10px; appearance: none; cursor: pointer; }
+.trendSelect { padding: 9px 6px; appearance: none; cursor: pointer; font-size: 12px; }
 
 .error { color: var(--red); font-size: 13px; font-family: 'DM Mono', monospace; }
 
@@ -93,7 +93,7 @@
 
 @media (max-width: 600px) {
   .row { grid-template-columns: 1fr; }
-  .priceRow { grid-template-columns: 60px 1fr 110px; }
+  .priceRow { grid-template-columns: 55px 1fr 85px 100px; }
 }
 
 .reviewHeader {
