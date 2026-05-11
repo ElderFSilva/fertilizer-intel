@@ -74,6 +74,7 @@ export default function PriceTrends({ calls }) {
               <thead>
                 <tr>
                   <th className={styles.th}>Client</th>
+                  <th className={styles.thDate}>Date</th>
                   {PRODUCTS.map(p => <th key={p} className={styles.th}>{p}</th>)}
                 </tr>
               </thead>
@@ -83,6 +84,7 @@ export default function PriceTrends({ calls }) {
                   return (
                     <tr key={cl} className={styles.tr}>
                       <td className={styles.tdClient}>{cl}</td>
+                      <td className={styles.tdDate}>{latest?.date || '—'}</td>
                       {PRODUCTS.map(p => {
                         const pr = latest?.prices?.[p]
                         return (
