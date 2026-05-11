@@ -102,6 +102,21 @@ export default function Calls({ calls, onDelete, onEdit }) {
                   </div>
                   {c.demand && <div className={styles.block}><span className={styles.blockLabel}>Demand</span><p className={styles.blockText}>{c.demand}</p></div>}
                   {c.remarks && <div className={styles.block}><span className={styles.blockLabel}>Remarks</span><p className={styles.blockText}>{c.remarks}</p></div>}
+                  {c.competitorOffers?.length > 0 && (
+                    <div className={styles.block}>
+                      <span className={styles.blockLabel}>Competitor Offers</span>
+                      <div className={styles.compOfferList}>
+                        {c.competitorOffers.map((o, i) => (
+                          <div key={i} className={styles.compOfferRow}>
+                            <span className={styles.compName}>{o.competitor}</span>
+                            <span className={styles.compProduct}>{o.product}</span>
+                            <span className={styles.compPrice}>{o.price}</span>
+
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                   <div className={styles.actions}>
                     <button className={styles.editBtn} onClick={() => startEdit(c)}>✎ Edit</button>
                     <button className={styles.deleteBtn} onClick={() => onDelete(c.id)}>⊗ Delete</button>
@@ -155,3 +170,4 @@ export default function Calls({ calls, onDelete, onEdit }) {
     </div>
   )
 }
+
