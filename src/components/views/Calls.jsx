@@ -4,11 +4,13 @@ import styles from './Calls.module.css'
 
 const TREND_OPTIONS = ['up', 'stable', 'down', 'none']
 const TREND_LABEL = { up: '↑ Up', stable: '↔ Stable', down: '↓ Down', none: '—' }
+const TYPE_OPTIONS = ['', 'bid', 'offer', 'target']
+const TYPE_LABEL = { '': '—', bid: 'Bid', offer: 'Offer', target: 'Target' }
 const TREND_ICON = { up: '↑', stable: '↔', down: '↓', none: '—' }
 const TREND_COLOR = { up: 'var(--accent)', stable: 'var(--blue)', down: 'var(--red)', none: 'var(--text3)' }
 
 function emptyPrices() {
-  return Object.fromEntries(PRODUCTS.map(p => [p, { value: '', trend: 'none' }]))
+  return Object.fromEntries(PRODUCTS.map(p => [p, { value: '', type: '', trend: 'none' }]))
 }
 
 export default function Calls({ calls, onDelete, onEdit }) {
@@ -95,6 +97,7 @@ export default function Calls({ calls, onDelete, onEdit }) {
                         <div key={p} className={styles.priceRow}>
                           <span className={styles.priceProduct}>{p}</span>
                           <span className={styles.priceVal}>{pr.value || '—'}</span>
+                          {pr.type && <span className={styles.priceType}>{pr.type}</span>}
                           <span style={{ color: TREND_COLOR[pr.trend || 'none'] }}>{TREND_ICON[pr.trend || 'none']}</span>
                         </div>
                       )
@@ -170,4 +173,3 @@ export default function Calls({ calls, onDelete, onEdit }) {
     </div>
   )
 }
-
