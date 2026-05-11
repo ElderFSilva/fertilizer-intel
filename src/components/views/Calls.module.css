@@ -147,3 +147,16 @@
 .compProduct { color: var(--accent); min-width: 50px; }
 .compPrice { color: var(--text); min-width: 60px; }
 .compTerms { color: var(--text3); }
+
+.priceType {
+  font-size: 10px; font-family: 'DM Mono', monospace;
+  color: var(--accent); border: 1px solid var(--accent);
+  border-radius: 20px; padding: 1px 6px; margin-left: 4px;
+  text-transform: capitalize;
+}
+
+.editTypeSelect {
+  background: var(--bg3); border: 1px solid var(--border2); border-radius: 6px;
+  padding: 8px 6px; color: var(--text); font-size: 12px; outline: none;
+  font-family: inherit; cursor: pointer;
+}
