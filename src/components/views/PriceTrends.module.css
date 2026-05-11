@@ -55,3 +55,15 @@
 .price { font-family: 'DM Mono', monospace; }
 .dash { color: var(--text3); }
 .none { color: var(--text3); font-size: 14px; }
+
+.thDate {
+  text-align: left; padding: 10px 14px; font-size: 11px;
+  font-family: 'DM Mono', monospace; color: var(--text3);
+  border-bottom: 1px solid var(--border); white-space: nowrap;
+}
+
+.tdDate {
+  padding: 10px 14px; font-size: 11px;
+  font-family: 'DM Mono', monospace; color: var(--text3);
+  white-space: nowrap;
+}
