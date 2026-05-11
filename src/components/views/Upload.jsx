@@ -322,3 +322,4 @@ function fileToBase64(file) {
     r.readAsDataURL(file)
   })
 }
+
