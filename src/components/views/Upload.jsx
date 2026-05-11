@@ -3,11 +3,13 @@ import { PRODUCTS } from '../../data.js'
 import styles from './Upload.module.css'
 
 const TREND_OPTIONS = ['up', 'stable', 'down', 'none']
+const TYPE_OPTIONS = ['', 'bid', 'offer', 'target']
+const TYPE_LABEL = { '': '—', bid: 'Bid', offer: 'Offer', target: 'Target' }
 const TREND_LABEL = { up: '↑ Up', stable: '↔ Stable', down: '↓ Down', none: '—' }
 
 
 function emptyPrices() {
-  return Object.fromEntries(PRODUCTS.map(p => [p, { value: '', trend: 'none' }]))
+  return Object.fromEntries(PRODUCTS.map(p => [p, { value: '', type: '', trend: 'none' }]))
 }
 
 function emptyCompOffer() {
@@ -25,6 +27,7 @@ function entryToForm(entry) {
       ...Object.fromEntries(
         PRODUCTS.map(p => [p, {
           value: entry.prices?.[p]?.value || '',
+          type: entry.prices?.[p]?.type || '',
           trend: entry.prices?.[p]?.trend || 'none'
         }])
       )
@@ -116,7 +119,7 @@ export default function Upload({ onAdd }) {
 - date (string, format YYYY-MM-DD, always use year 2026 if year is not written)
 - demand (string, the demand section text including volume in tons and laycan/timeframe if mentioned)
 - remarks (string, the remarks section text)
-- prices (object with keys: Amsul, Urea, MAP, SSP, TSP, NP — each having value (string price or empty) and trend (one of: up, stable, down, none based on arrow checked))
+- prices (object with keys: Amsul, Urea, MAP, SSP, TSP, NP — each having value (string price or empty), type (one of: bid, offer, target, or empty string — infer from context e.g. 'target' if client is targeting a price, 'offer' if seller is offering, 'bid' if buyer is bidding), and trend (one of: up, stable, down, none based on arrow checked))
 - competitorOffers (array of objects, each with: competitor (string), product (one of Amsul/Urea/MAP/SSP/TSP/NP), price (string). Extract these from the remarks section — look for mentions of companies offering products at specific prices)
 
 Return ONLY a valid JSON array, no markdown, no explanation.` }
@@ -196,6 +199,9 @@ Return ONLY a valid JSON array, no markdown, no explanation.` }
             <div key={p} className={styles.priceRow}>
               <span className={styles.productLabel}>{p}</span>
               <input className={styles.priceInput} placeholder="Price" value={form.prices[p].value} onChange={e => setPriceField(p, 'value', e.target.value)} />
+              <select className={styles.typeSelect} value={form.prices[p].type} onChange={e => setPriceField(p, 'type', e.target.value)}>
+                {TYPE_OPTIONS.map(t => <option key={t} value={t}>{TYPE_LABEL[t]}</option>)}
+              </select>
               <select className={styles.trendSelect} value={form.prices[p].trend} onChange={e => setPriceField(p, 'trend', e.target.value)}>
                 {TREND_OPTIONS.map(t => <option key={t} value={t}>{TREND_LABEL[t]}</option>)}
               </select>
