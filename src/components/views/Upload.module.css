@@ -174,3 +174,10 @@
 .removeOfferBtn:hover { border-color: var(--red); color: var(--red); }
 
 .extractedOffers { font-size: 11px; color: var(--blue); font-family: 'DM Mono', monospace; margin-top: 2px; }
+
+.typeSelect {
+  background: var(--bg2); border: 1px solid var(--border2); border-radius: 6px;
+  padding: 10px 8px; color: var(--text); font-size: 12px; outline: none;
+  font-family: inherit; cursor: pointer; transition: border-color 0.2s;
+}
+.typeSelect:focus { border-color: var(--accent); }
