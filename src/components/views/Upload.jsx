@@ -5,8 +5,13 @@ import styles from './Upload.module.css'
 const TREND_OPTIONS = ['up', 'stable', 'down', 'none']
 const TREND_LABEL = { up: '↑ Up', stable: '↔ Stable', down: '↓ Down', none: '—' }
 
+
 function emptyPrices() {
   return Object.fromEntries(PRODUCTS.map(p => [p, { value: '', trend: 'none' }]))
+}
+
+function emptyCompOffer() {
+  return { competitor: '', product: 'Amsul', price: '' }
 }
 
 function entryToForm(entry) {
@@ -23,8 +28,58 @@ function entryToForm(entry) {
           trend: entry.prices?.[p]?.trend || 'none'
         }])
       )
-    }
+    },
+    competitorOffers: entry.competitorOffers?.length ? entry.competitorOffers : []
   }
+}
+
+function emptyForm() {
+  return {
+    client: '', date: new Date().toISOString().split('T')[0],
+    demand: '', remarks: '', prices: emptyPrices(), competitorOffers: []
+  }
+}
+
+// Reusable competitor offers editor
+function CompetitorOffersEditor({ offers, onChange }) {
+  function addOffer() { onChange([...offers, emptyCompOffer()]) }
+  function removeOffer(i) { onChange(offers.filter((_, idx) => idx !== i)) }
+  function updateOffer(i, field, val) {
+    onChange(offers.map((o, idx) => idx === i ? { ...o, [field]: val } : o))
+  }
+
+  return (
+    <div className={styles.compSection}>
+      <div className={styles.compHeader}>
+        <label className={styles.label}>Competitor Offers</label>
+        <button type="button" className={styles.addOfferBtn} onClick={addOffer}>+ Add Offer</button>
+      </div>
+      {offers.length === 0 && (
+        <p className={styles.compEmpty}>No competitor offers recorded for this call.</p>
+      )}
+      {offers.map((o, i) => (
+        <div key={i} className={styles.compRow}>
+          <input
+            className={styles.compInput}
+            placeholder="Competitor"
+            value={o.competitor}
+            onChange={e => updateOffer(i, 'competitor', e.target.value)}
+          />
+          <select className={styles.compSelect} value={o.product} onChange={e => updateOffer(i, 'product', e.target.value)}>
+            {PRODUCTS.map(p => <option key={p} value={p}>{p}</option>)}
+          </select>
+          <input
+            className={styles.compInput}
+            placeholder="Price"
+            value={o.price}
+            onChange={e => updateOffer(i, 'price', e.target.value)}
+          />
+
+          <button type="button" className={styles.removeOfferBtn} onClick={() => removeOffer(i)}>✕</button>
+        </div>
+      ))}
+    </div>
+  )
 }
 
 export default function Upload({ onAdd }) {
@@ -36,11 +91,7 @@ export default function Upload({ onAdd }) {
   const [reviewing, setReviewing] = useState(null)
   const [error, setError] = useState('')
   const [savedBanner, setSavedBanner] = useState(false)
-
-  const [manualForm, setManualForm] = useState({
-    client: '', date: new Date().toISOString().split('T')[0],
-    demand: '', remarks: '', prices: emptyPrices()
-  })
+  const [manualForm, setManualForm] = useState(emptyForm())
 
   async function handleExtract() {
     if (!file) return
@@ -60,7 +111,15 @@ export default function Upload({ onAdd }) {
             role: 'user',
             content: [
               { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64 } },
-              { type: 'text', text: `Extract all client call notes from this PDF. For each call form found, return a JSON array. Each object must have:\n- client (string)\n- date (string, format YYYY-MM-DD if possible, otherwise as written)\n- demand (string, the demand section text)\n- remarks (string, the remarks section text)\n- prices (object with keys: Amsul, Urea, MAP, SSP, TSP, NP — each having value (string price or empty) and trend (one of: up, stable, down, none based on arrow checked))\n\nReturn ONLY a valid JSON array, no markdown, no explanation.` }
+              { type: 'text', text: `Extract all client call notes from this PDF. The current year is 2026. For each call form found, return a JSON array. Each object must have:
+- client (string)
+- date (string, format YYYY-MM-DD, always use year 2026 if year is not written)
+- demand (string, the demand section text including volume in tons and laycan/timeframe if mentioned)
+- remarks (string, the remarks section text)
+- prices (object with keys: Amsul, Urea, MAP, SSP, TSP, NP — each having value (string price or empty) and trend (one of: up, stable, down, none based on arrow checked))
+- competitorOffers (array of objects, each with: competitor (string), product (one of Amsul/Urea/MAP/SSP/TSP/NP), price (string). Extract these from the remarks section — look for mentions of companies offering products at specific prices)
+
+Return ONLY a valid JSON array, no markdown, no explanation.` }
             ]
           }]
         })
@@ -87,6 +146,10 @@ export default function Upload({ onAdd }) {
     setReviewing(r => ({ ...r, form: { ...r.form, prices: { ...r.form.prices, [product]: { ...r.form.prices[product], [field]: val } } } }))
   }
 
+  function setReviewOffers(offers) {
+    setReviewing(r => ({ ...r, form: { ...r.form, competitorOffers: offers } }))
+  }
+
   function handleSaveReview() {
     if (!reviewing.form.client.trim()) { setError('Client name is required.'); return }
     onAdd(reviewing.form)
@@ -104,13 +167,56 @@ export default function Upload({ onAdd }) {
   function handleManualSave() {
     if (!manualForm.client.trim()) { setError('Client name is required.'); return }
     onAdd(manualForm)
-    setManualForm({ client: '', date: new Date().toISOString().split('T')[0], demand: '', remarks: '', prices: emptyPrices() })
+    setManualForm(emptyForm())
     setError('')
     setSavedBanner(true)
     setTimeout(() => setSavedBanner(false), 3000)
   }
 
   const allSaved = extracted && savedIds.length === extracted.length
+
+  // Shared form fields (used in both review and manual mode)
+  function renderFormFields(form, setField, setPriceField, setOffers) {
+    return <>
+      <div className={styles.row}>
+        <div className={styles.field}>
+          <label className={styles.label}>Client *</label>
+          <input className={styles.input} value={form.client} onChange={e => setField('client', e.target.value)} placeholder="Client name" />
+        </div>
+        <div className={styles.field}>
+          <label className={styles.label}>Date</label>
+          <input type="date" className={styles.input} value={form.date} onChange={e => setField('date', e.target.value)} />
+        </div>
+      </div>
+
+      <div className={styles.pricesSection}>
+        <label className={styles.label}>Prices & Trends</label>
+        <div className={styles.pricesGrid}>
+          {PRODUCTS.map(p => (
+            <div key={p} className={styles.priceRow}>
+              <span className={styles.productLabel}>{p}</span>
+              <input className={styles.priceInput} placeholder="Price" value={form.prices[p].value} onChange={e => setPriceField(p, 'value', e.target.value)} />
+              <select className={styles.trendSelect} value={form.prices[p].trend} onChange={e => setPriceField(p, 'trend', e.target.value)}>
+                {TREND_OPTIONS.map(t => <option key={t} value={t}>{TREND_LABEL[t]}</option>)}
+              </select>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className={styles.field}>
+        <label className={styles.label}>Demand</label>
+        <textarea className={styles.textarea} rows={2} value={form.demand} onChange={e => setField('demand', e.target.value)} placeholder="Demand notes, volume, laycan..." />
+      </div>
+
+      <div className={styles.field}>
+        <label className={styles.label}>Remarks</label>
+        <textarea className={styles.textarea} rows={3} value={form.remarks} onChange={e => setField('remarks', e.target.value)} placeholder="Additional remarks..." />
+      </div>
+
+      <CompetitorOffersEditor offers={form.competitorOffers || []} onChange={setOffers} />
+    </>
+  }
 
   return (
     <div className={styles.wrap}>
@@ -124,6 +230,7 @@ export default function Upload({ onAdd }) {
 
       {savedBanner && <div className={styles.successBanner}>✓ Call saved successfully!</div>}
 
+      {/* PDF MODE - list */}
       {mode === 'pdf' && !reviewing && (
         <div className={styles.pdfSection}>
           <label className={styles.dropzone}>
@@ -152,6 +259,9 @@ export default function Upload({ onAdd }) {
                       {isSaved ? <span className={styles.savedBadge}>✓ Saved</span> : <span className={styles.extractedCta}>Review & Save →</span>}
                     </div>
                     {e.demand && <p className={styles.extractedDemand}>{e.demand}</p>}
+                    {e.competitorOffers?.length > 0 && (
+                      <p className={styles.extractedOffers}>🏷 {e.competitorOffers.length} competitor offer{e.competitorOffers.length > 1 ? 's' : ''} found</p>
+                    )}
                   </div>
                 )
               })}
@@ -160,44 +270,19 @@ export default function Upload({ onAdd }) {
         </div>
       )}
 
+      {/* PDF MODE - review form */}
       {mode === 'pdf' && reviewing && (
         <div className={styles.form}>
           <div className={styles.reviewHeader}>
             <button className={styles.backBtn} onClick={closeReview}>← Back to list</button>
             <span className={styles.reviewingLabel}>Reviewing: <strong>{reviewing.form.client || 'Unknown'}</strong></span>
           </div>
-          <div className={styles.row}>
-            <div className={styles.field}>
-              <label className={styles.label}>Client *</label>
-              <input className={styles.input} value={reviewing.form.client} onChange={e => setReviewing(r => ({ ...r, form: { ...r.form, client: e.target.value } }))} placeholder="Client name" />
-            </div>
-            <div className={styles.field}>
-              <label className={styles.label}>Date</label>
-              <input type="date" className={styles.input} value={reviewing.form.date} onChange={e => setReviewing(r => ({ ...r, form: { ...r.form, date: e.target.value } }))} />
-            </div>
-          </div>
-          <div className={styles.pricesSection}>
-            <label className={styles.label}>Prices & Trends</label>
-            <div className={styles.pricesGrid}>
-              {PRODUCTS.map(p => (
-                <div key={p} className={styles.priceRow}>
-                  <span className={styles.productLabel}>{p}</span>
-                  <input className={styles.priceInput} placeholder="Price" value={reviewing.form.prices[p].value} onChange={e => setReviewPrice(p, 'value', e.target.value)} />
-                  <select className={styles.trendSelect} value={reviewing.form.prices[p].trend} onChange={e => setReviewPrice(p, 'trend', e.target.value)}>
-                    {TREND_OPTIONS.map(t => <option key={t} value={t}>{TREND_LABEL[t]}</option>)}
-                  </select>
-                </div>
-              ))}
-            </div>
-          </div>
-          <div className={styles.field}>
-            <label className={styles.label}>Demand</label>
-            <textarea className={styles.textarea} rows={2} value={reviewing.form.demand} onChange={e => setReviewing(r => ({ ...r, form: { ...r.form, demand: e.target.value } }))} placeholder="Demand notes..." />
-          </div>
-          <div className={styles.field}>
-            <label className={styles.label}>Remarks</label>
-            <textarea className={styles.textarea} rows={3} value={reviewing.form.remarks} onChange={e => setReviewing(r => ({ ...r, form: { ...r.form, remarks: e.target.value } }))} placeholder="Additional remarks..." />
-          </div>
+          {renderFormFields(
+            reviewing.form,
+            (field, val) => setReviewing(r => ({ ...r, form: { ...r.form, [field]: val } })),
+            setReviewPrice,
+            setReviewOffers
+          )}
           {error && <p className={styles.error}>{error}</p>}
           <div className={styles.reviewActions}>
             <button className={styles.cancelBtn} onClick={closeReview}>Cancel</button>
@@ -206,40 +291,15 @@ export default function Upload({ onAdd }) {
         </div>
       )}
 
+      {/* MANUAL MODE */}
       {mode === 'manual' && (
         <div className={styles.form}>
-          <div className={styles.row}>
-            <div className={styles.field}>
-              <label className={styles.label}>Client *</label>
-              <input className={styles.input} value={manualForm.client} onChange={e => setManualForm(f => ({ ...f, client: e.target.value }))} placeholder="Client name" />
-            </div>
-            <div className={styles.field}>
-              <label className={styles.label}>Date</label>
-              <input type="date" className={styles.input} value={manualForm.date} onChange={e => setManualForm(f => ({ ...f, date: e.target.value }))} />
-            </div>
-          </div>
-          <div className={styles.pricesSection}>
-            <label className={styles.label}>Prices & Trends</label>
-            <div className={styles.pricesGrid}>
-              {PRODUCTS.map(p => (
-                <div key={p} className={styles.priceRow}>
-                  <span className={styles.productLabel}>{p}</span>
-                  <input className={styles.priceInput} placeholder="Price" value={manualForm.prices[p].value} onChange={e => setManualPrice(p, 'value', e.target.value)} />
-                  <select className={styles.trendSelect} value={manualForm.prices[p].trend} onChange={e => setManualPrice(p, 'trend', e.target.value)}>
-                    {TREND_OPTIONS.map(t => <option key={t} value={t}>{TREND_LABEL[t]}</option>)}
-                  </select>
-                </div>
-              ))}
-            </div>
-          </div>
-          <div className={styles.field}>
-            <label className={styles.label}>Demand</label>
-            <textarea className={styles.textarea} rows={2} value={manualForm.demand} onChange={e => setManualForm(f => ({ ...f, demand: e.target.value }))} placeholder="Demand notes from the call..." />
-          </div>
-          <div className={styles.field}>
-            <label className={styles.label}>Remarks</label>
-            <textarea className={styles.textarea} rows={3} value={manualForm.remarks} onChange={e => setManualForm(f => ({ ...f, remarks: e.target.value }))} placeholder="Additional remarks..." />
-          </div>
+          {renderFormFields(
+            manualForm,
+            (field, val) => setManualForm(f => ({ ...f, [field]: val })),
+            setManualPrice,
+            offers => setManualForm(f => ({ ...f, competitorOffers: offers }))
+          )}
           {error && <p className={styles.error}>{error}</p>}
           <button className={styles.saveBtn} onClick={handleManualSave}>◈ Save Call</button>
         </div>
