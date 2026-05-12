@@ -5,8 +5,18 @@ import styles from './PriceTrends.module.css'
 
 function formatDate(dateStr) {
   if (!dateStr) return '—'
+  // Try standard YYYY-MM-DD first
   const d = new Date(dateStr + 'T00:00:00')
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+  if (!isNaN(d.getTime())) {
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+  }
+  // Try parsing as-is (e.g. 'May 5')
+  const d2 = new Date(dateStr)
+  if (!isNaN(d2.getTime())) {
+    return d2.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+  }
+  // Return as-is if unparseable
+  return dateStr
 }
 
 const COLORS = ['#c8f060', '#60b8f0', '#f0b840', '#ff6b5b', '#b860f0', '#60f0b8']
@@ -116,4 +126,5 @@ export default function PriceTrends({ calls }) {
     </div>
   )
 }
+
 
