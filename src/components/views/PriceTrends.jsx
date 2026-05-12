@@ -29,8 +29,20 @@ export default function PriceTrends({ calls }) {
   // Build multi-product comparison table (latest price per client per product)
   const clientSet = [...new Set(calls.map(c => c.client))]
   const latestByClient = {}
+
+  function parseDate(dateStr) {
+    if (!dateStr) return new Date(0)
+    // Try YYYY-MM-DD first
+    const iso = new Date(dateStr + 'T00:00:00')
+    if (!isNaN(iso.getTime())) return iso
+    // Try natural language (e.g. 'May 5')
+    const natural = new Date(dateStr)
+    if (!isNaN(natural.getTime())) return natural
+    return new Date(0)
+  }
+
   calls.forEach(c => {
-    if (!latestByClient[c.client] || c.date > latestByClient[c.client].date) {
+    if (!latestByClient[c.client] || parseDate(c.date) > parseDate(latestByClient[c.client].date)) {
       latestByClient[c.client] = c
     }
   })
@@ -126,5 +138,3 @@ export default function PriceTrends({ calls }) {
     </div>
   )
 }
-
-
