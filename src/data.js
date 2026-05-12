@@ -41,14 +41,37 @@ export function buildPriceSeries(calls, product) {
     }))
 }
 
+function parseDate(dateStr) {
+  if (!dateStr) return new Date(0)
+  const iso = new Date(dateStr + 'T00:00:00')
+  if (!isNaN(iso.getTime())) return iso
+  const natural = new Date(dateStr)
+  if (!isNaN(natural.getTime())) return natural
+  return new Date(0)
+}
+
 export function buildDemandSummary(calls) {
   const map = {}
+  // Get latest call per client
+  const latestByClient = {}
   calls.forEach(c => {
+    if (!latestByClient[c.client] || parseDate(c.date) > parseDate(latestByClient[c.client].date)) {
+      latestByClient[c.client] = c
+    }
+  })
+  // Evaluate demand only from the latest call, and only if within 7 days
+  Object.values(latestByClient).forEach(c => {
+    const withinWeek = (new Date() - parseDate(c.date)) / (1000 * 60 * 60 * 24) <= 7
     if (!map[c.client]) map[c.client] = { active: 0, none: 0, potential: 0 }
-    const d = (c.demand || '').toLowerCase()
-    if (d.includes('no demand') || d.includes('no demanda')) map[c.client].none++
-    else if (d.includes('possible') || d.includes('posible') || d.includes('looking')) map[c.client].potential++
-    else if (d.trim()) map[c.client].active++
+    if (!withinWeek) {
+      map[c.client].none++
+    } else {
+      const d = (c.demand || '').toLowerCase()
+      if (d.includes('no demand') || d.includes('no demanda')) map[c.client].none++
+      else if (d.includes('possible') || d.includes('posible') || d.includes('looking')) map[c.client].potential++
+      else if (d.trim()) map[c.client].active++
+      else map[c.client].none++
+    }
   })
   return map
 }
