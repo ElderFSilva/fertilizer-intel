@@ -3,6 +3,12 @@ import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } f
 import { PRODUCTS, buildPriceSeries } from '../../data.js'
 import styles from './PriceTrends.module.css'
 
+function formatDate(dateStr) {
+  if (!dateStr) return '—'
+  const d = new Date(dateStr + 'T00:00:00')
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+}
+
 const COLORS = ['#c8f060', '#60b8f0', '#f0b840', '#ff6b5b', '#b860f0', '#60f0b8']
 
 export default function PriceTrends({ calls }) {
@@ -84,7 +90,7 @@ export default function PriceTrends({ calls }) {
                   return (
                     <tr key={cl} className={styles.tr}>
                       <td className={styles.tdClient}>{cl}</td>
-                      <td className={styles.tdDate}>{latest?.date || '—'}</td>
+                      <td className={styles.tdDate}>{formatDate(latest?.date)}</td>
                       {PRODUCTS.map(p => {
                         const pr = latest?.prices?.[p]
                         return (
