@@ -106,16 +106,16 @@
   text-transform: uppercase; letter-spacing: 0.05em;
 }
 
-.editInput, .editTextarea, .editPriceInput, .editTrendSelect {
+.editInput, .editTextarea, .editPriceInput, .editTrendSelect, .editTypeSelect {
   background: var(--bg3); border: 1px solid var(--border2); border-radius: 6px;
-  padding: 8px 12px; color: var(--text); font-size: 13px; outline: none;
+  padding: 8px 8px; color: var(--text); font-size: 12px; outline: none;
   transition: border-color 0.2s; font-family: inherit;
 }
 
 .editInput:focus, .editTextarea:focus, .editPriceInput:focus { border-color: var(--accent); }
 .editTextarea { resize: vertical; }
 
-.editPriceRow { display: grid; grid-template-columns: 60px 1fr 130px; align-items: center; gap: 8px; }
+.editPriceRow { display: grid; grid-template-columns: 55px 1fr 115px 105px; align-items: center; gap: 6px; }
 .editProductLabel { font-size: 12px; font-family: 'DM Mono', monospace; color: var(--text2); }
 
 .editActions { display: flex; gap: 8px; margin-top: 4px; }
