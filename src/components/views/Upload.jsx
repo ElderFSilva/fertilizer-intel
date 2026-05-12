@@ -3,8 +3,8 @@ import { PRODUCTS } from '../../data.js'
 import styles from './Upload.module.css'
 
 const TREND_OPTIONS = ['up', 'stable', 'down', 'none']
-const TYPE_OPTIONS = ['', 'bid', 'offer', 'target']
-const TYPE_LABEL = { '': '—', bid: 'Bid', offer: 'Offer', target: 'Target' }
+const TYPE_OPTIONS = ['', 'bid', 'target', 'mrkt']
+const TYPE_LABEL = { '': '—', bid: 'Bid', target: 'Target', mrkt: 'Market offer' }
 const TREND_LABEL = { up: '↑ Up', stable: '↔ Stable', down: '↓ Down', none: '—' }
 
 
@@ -119,7 +119,7 @@ export default function Upload({ onAdd }) {
 - date (string, format YYYY-MM-DD, always use year 2026 if year is not written)
 - demand (string, the demand section text including volume in tons and laycan/timeframe if mentioned)
 - remarks (string, the remarks section text)
-- prices (object with keys: Amsul, Urea, MAP, SSP, TSP, NP — each having value (string price or empty), type (one of: bid, offer, target, or empty string — infer from context e.g. 'target' if client is targeting a price, 'offer' if seller is offering, 'bid' if buyer is bidding), and trend (one of: up, stable, down, none based on arrow checked))
+- prices (object with keys: Amsul, Urea, MAP, SSP, TSP, NP — each having value (string price or empty), type (one of: bid, target, mrkt, or empty string — infer from context e.g. 'target' if client is targeting a price, 'mrkt' if it is a market offer, 'bid' if buyer is bidding), and trend (one of: up, stable, down, none based on arrow checked))
 - competitorOffers (array of objects, each with: competitor (string), product (one of Amsul/Urea/MAP/SSP/TSP/NP), price (string). Extract these from the remarks section — look for mentions of companies offering products at specific prices)
 
 Return ONLY a valid JSON array, no markdown, no explanation.` }
@@ -322,4 +322,3 @@ function fileToBase64(file) {
     r.readAsDataURL(file)
   })
 }
-
