@@ -1,17 +1,30 @@
 function formatDate(dateStr) {
   if (!dateStr) return '—'
-  // Try standard YYYY-MM-DD first
   const d = new Date(dateStr + 'T00:00:00')
   if (!isNaN(d.getTime())) {
     return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
   }
-  // Try parsing as-is (e.g. 'May 5')
   const d2 = new Date(dateStr)
   if (!isNaN(d2.getTime())) {
     return d2.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
   }
-  // Return as-is if unparseable
   return dateStr
+}
+
+function parseDate(dateStr) {
+  if (!dateStr) return new Date(0)
+  const iso = new Date(dateStr + 'T00:00:00')
+  if (!isNaN(iso.getTime())) return iso
+  const natural = new Date(dateStr)
+  if (!isNaN(natural.getTime())) return natural
+  return new Date(0)
+}
+
+function isWithinOneWeek(dateStr) {
+  const d = parseDate(dateStr)
+  const now = new Date()
+  const diffDays = (now - d) / (1000 * 60 * 60 * 24)
+  return diffDays <= 7
 }
 
 import { PRODUCTS, buildDemandSummary } from '../../data.js'
