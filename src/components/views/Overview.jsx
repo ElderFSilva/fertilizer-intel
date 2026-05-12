@@ -1,3 +1,9 @@
+function formatDate(dateStr) {
+  if (!dateStr) return '—'
+  const d = new Date(dateStr + 'T00:00:00')
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+}
+
 import { PRODUCTS, buildDemandSummary } from '../../data.js'
 import styles from './Overview.module.css'
 
@@ -63,7 +69,7 @@ export default function Overview({ calls, signals }) {
                 <div key={c.id} className={styles.callCard}>
                   <div className={styles.callTop}>
                     <span className={styles.callClient}>{c.client}</span>
-                    <span className={styles.callDate}>{c.date}</span>
+                    <span className={styles.callDate}>{formatDate(c.date)}</span>
                   </div>
                   {c.demand && <p className={styles.callDemand}>{c.demand}</p>}
                   {c.remarks && <p className={styles.callRemarks}>{c.remarks}</p>}
