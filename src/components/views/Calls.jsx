@@ -2,6 +2,12 @@ import { useState } from 'react'
 import { PRODUCTS } from '../../data.js'
 import styles from './Calls.module.css'
 
+function formatDate(dateStr) {
+  if (!dateStr) return '—'
+  const d = new Date(dateStr + 'T00:00:00')
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+}
+
 const TREND_OPTIONS = ['up', 'stable', 'down', 'none']
 const TREND_LABEL = { up: '↑ Up', stable: '↔ Stable', down: '↓ Down', none: '—' }
 const TYPE_OPTIONS = ['', 'bid', 'offer', 'target']
@@ -75,7 +81,7 @@ export default function Calls({ calls, onDelete, onEdit }) {
               <div className={styles.cardTop} onClick={() => !isEditing && setExpandedId(open ? null : c.id)}>
                 <div className={styles.meta}>
                   <span className={styles.client}>{c.client}</span>
-                  <span className={styles.date}>{c.date}</span>
+                  <span className={styles.date}>{formatDate(c.date)}</span>
                 </div>
                 <div className={styles.pills}>
                   {PRODUCTS.filter(p => c.prices?.[p]?.trend && c.prices[p].trend !== 'none').map(p => (
