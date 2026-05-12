@@ -20,8 +20,8 @@ function formatDate(dateStr) {
 
 const TREND_OPTIONS = ['up', 'stable', 'down', 'none']
 const TREND_LABEL = { up: '↑ Up', stable: '↔ Stable', down: '↓ Down', none: '—' }
-const TYPE_OPTIONS = ['', 'bid', 'offer', 'target']
-const TYPE_LABEL = { '': '—', bid: 'Bid', offer: 'Offer', target: 'Target' }
+const TYPE_OPTIONS = ['', 'bid', 'target', 'mrkt']
+const TYPE_LABEL = { '': '—', bid: 'Bid', target: 'Target', mrkt: 'Market offer' }
 const TREND_ICON = { up: '↑', stable: '↔', down: '↓', none: '—' }
 const TREND_COLOR = { up: 'var(--accent)', stable: 'var(--blue)', down: 'var(--red)', none: 'var(--text3)' }
 
@@ -161,6 +161,9 @@ export default function Calls({ calls, onDelete, onEdit }) {
                     <div key={p} className={styles.editPriceRow}>
                       <span className={styles.editProductLabel}>{p}</span>
                       <input className={styles.editPriceInput} placeholder="Price" value={editForm.prices[p].value} onChange={e => setEditPrice(p, 'value', e.target.value)} />
+                      <select className={styles.editTypeSelect} value={editForm.prices[p].type || ''} onChange={e => setEditPrice(p, 'type', e.target.value)}>
+                        {TYPE_OPTIONS.map(t => <option key={t} value={t}>{TYPE_LABEL[t]}</option>)}
+                      </select>
                       <select className={styles.editTrendSelect} value={editForm.prices[p].trend} onChange={e => setEditPrice(p, 'trend', e.target.value)}>
                         {TREND_OPTIONS.map(t => <option key={t} value={t}>{TREND_LABEL[t]}</option>)}
                       </select>
