@@ -85,7 +85,16 @@ export function buildMarketSignals(calls) {
     Object.values(c.prices || {}).some(p => p.trend === 'down')
   )
   if (downCalls.length >= 2) {
-    signals.push({ type: 'warning', text: `${downCalls.length} recent calls show downward price trends.` })
+    signals.push({
+      type: 'warning',
+      text: `${downCalls.length} recent calls show downward price trends.`,
+      calls: downCalls.map(c => ({
+        client: c.client, date: c.date,
+        detail: Object.entries(c.prices || {})
+          .filter(([, v]) => v.trend === 'down' && v.value)
+          .map(([k, v]) => `${k}: ${v.value}`).join(', ')
+      }))
+    })
   }
 
   // Supply overhang from remarks
@@ -94,7 +103,11 @@ export function buildMarketSignals(calls) {
     supplyKeywords.some(kw => (c.remarks || '').toLowerCase().includes(kw))
   )
   if (supplyAlerts.length) {
-    signals.push({ type: 'alert', text: `Supply overhang mentioned by: ${supplyAlerts.map(c => c.client).join(', ')}.` })
+    signals.push({
+      type: 'alert',
+      text: `Supply overhang mentioned by: ${supplyAlerts.map(c => c.client).join(', ')}.`,
+      calls: supplyAlerts.map(c => ({ client: c.client, date: c.date, detail: c.remarks }))
+    })
   }
 
   // Demand silence
@@ -103,7 +116,11 @@ export function buildMarketSignals(calls) {
     (c.demand || '').toLowerCase().includes('no demanda')
   )
   if (noDemand.length >= 2) {
-    signals.push({ type: 'warning', text: `${noDemand.length} clients report no current demand.` })
+    signals.push({
+      type: 'warning',
+      text: `${noDemand.length} clients report no current demand.`,
+      calls: noDemand.map(c => ({ client: c.client, date: c.date, detail: c.demand }))
+    })
   }
 
   // Opportunities
@@ -114,7 +131,11 @@ export function buildMarketSignals(calls) {
     )
   )
   if (opportunity.length) {
-    signals.push({ type: 'opportunity', text: `Potential opportunities: ${opportunity.map(c => c.client).join(', ')}.` })
+    signals.push({
+      type: 'opportunity',
+      text: `Potential opportunities: ${opportunity.map(c => c.client).join(', ')}.`,
+      calls: opportunity.map(c => ({ client: c.client, date: c.date, detail: c.demand || c.remarks }))
+    })
   }
 
   return signals
