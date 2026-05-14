@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { generateWeeklyReport } from '../../report.js'
 import { PRODUCTS, buildDemandSummary } from '../../data.js'
 import styles from './Overview.module.css'
 
@@ -38,6 +39,13 @@ export default function Overview({ calls, signals }) {
   const clients = Object.keys(demandMap)
   const recentCalls = calls.slice(0, 5)
   const [expandedSignal, setExpandedSignal] = useState(null)
+
+  function handleExport() {
+    const html = generateWeeklyReport(calls, signals)
+    const win = window.open('', '_blank')
+    win.document.write(html)
+    win.document.close()
+  }
   const [demandPopup, setDemandPopup] = useState(null) // { client, demand, remarks }
 
   // Get latest call per client for demand popup
@@ -85,8 +93,13 @@ export default function Overview({ calls, signals }) {
           <h1 className={styles.title}>Market Overview</h1>
           <p className={styles.sub}>{calls.length} calls logged · {clients.length} clients tracked</p>
         </div>
-        <div className={styles.dateChip}>
-          {new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+        <div className={styles.headerRight}>
+          <div className={styles.dateChip}>
+            {new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+          </div>
+          <button className={styles.exportBtn} onClick={handleExport}>
+            ↓ Weekly Report
+          </button>
         </div>
       </header>
 
