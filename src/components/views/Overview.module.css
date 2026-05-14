@@ -138,3 +138,72 @@
 @media (max-width: 768px) {
   .grid { grid-template-columns: 1fr; }
 }
+
+/* Signal expandable */
+.signal { cursor: pointer; transition: background 0.15s; }
+.signal:hover { background: var(--bg3); }
+.signalOpen { background: var(--bg3) !important; }
+.signalRow { display: flex; align-items: flex-start; gap: 12px; }
+.signalChevron { font-size: 10px; margin-top: 4px; flex-shrink: 0; }
+
+.signalDetail {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.signalCallRow {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 6px 10px;
+  background: var(--bg2);
+  border-radius: 6px;
+}
+
+.signalCallClient { font-size: 13px; font-weight: 700; color: var(--text); min-width: 100px; }
+.signalCallDate { font-size: 11px; color: var(--text3); font-family: 'DM Mono', monospace; min-width: 90px; }
+.signalCallDetail { font-size: 12px; color: var(--text2); flex: 1; }
+
+/* Client demand popup */
+.clientCardClickable { cursor: pointer; transition: border-color 0.15s, background 0.15s; }
+.clientCardClickable:hover { border-color: var(--accent) !important; background: var(--bg3); }
+
+.clientBottom { display: flex; align-items: center; justify-content: space-between; }
+.clientHint { font-size: 10px; color: var(--text3); font-family: 'DM Mono', monospace; }
+
+.popupOverlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.6);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 100; padding: 20px;
+}
+
+.popup {
+  background: var(--bg2); border: 1px solid var(--border2);
+  border-radius: 14px; padding: 24px; width: 100%; max-width: 480px;
+  display: flex; flex-direction: column; gap: 16px;
+  box-shadow: 0 8px 40px rgba(0,0,0,0.5);
+}
+
+.popupHeader {
+  display: flex; align-items: center; gap: 10px;
+  padding-bottom: 14px; border-bottom: 1px solid var(--border);
+}
+
+.popupClient { font-size: 18px; font-weight: 700; flex: 1; }
+.popupDate { font-size: 12px; color: var(--text3); font-family: 'DM Mono', monospace; }
+
+.popupClose {
+  background: var(--bg3); border: 1px solid var(--border2);
+  color: var(--text2); border-radius: 6px; width: 28px; height: 28px;
+  font-size: 12px; transition: all 0.15s; display: flex; align-items: center; justify-content: center;
+}
+.popupClose:hover { border-color: var(--red); color: var(--red); }
+
+.popupBlock { display: flex; flex-direction: column; gap: 6px; }
+.popupLabel { font-size: 10px; color: var(--text3); font-family: 'DM Mono', monospace; text-transform: uppercase; letter-spacing: 0.08em; }
+.popupText { font-size: 14px; color: var(--text); line-height: 1.6; }
