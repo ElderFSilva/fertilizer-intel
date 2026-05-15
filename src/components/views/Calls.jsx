@@ -29,6 +29,10 @@ function emptyPrices() {
   return Object.fromEntries(PRODUCTS.map(p => [p, { value: '', type: '', trend: 'none' }]))
 }
 
+function emptyDemandFields() {
+  return { demandVolume: '', demandPort: '', demandPriceTarget: '' }
+}
+
 export default function Calls({ calls, onDelete, onEdit }) {
   const [search, setSearch] = useState('')
   const [expandedId, setExpandedId] = useState(null)
@@ -47,6 +51,9 @@ export default function Calls({ calls, onDelete, onEdit }) {
     setEditForm({
       client: c.client,
       date: c.date,
+      demandVolume: c.demandVolume || '',
+      demandPort: c.demandPort || '',
+      demandPriceTarget: c.demandPriceTarget || '',
       demand: c.demand || '',
       remarks: c.remarks || '',
       prices: { ...emptyPrices(), ...Object.fromEntries(PRODUCTS.map(p => [p, { value: c.prices?.[p]?.value || '', trend: c.prices?.[p]?.trend || 'none' }])) }
@@ -119,7 +126,17 @@ export default function Calls({ calls, onDelete, onEdit }) {
                       )
                     })}
                   </div>
-                  {c.demand && <div className={styles.block}><span className={styles.blockLabel}>Demand</span><p className={styles.blockText}>{c.demand}</p></div>}
+                  {(c.demandVolume || c.demandPort || c.demandPriceTarget || c.demand) && (
+                    <div className={styles.block}>
+                      <span className={styles.blockLabel}>Demand</span>
+                      <div className={styles.demandTags}>
+                        {c.demandVolume && <span className={styles.demandTag}><span className={styles.demandTagLabel}>Vol</span> {c.demandVolume}</span>}
+                        {c.demandPort && <span className={styles.demandTag}><span className={styles.demandTagLabel}>Port</span> {c.demandPort}</span>}
+                        {c.demandPriceTarget && <span className={styles.demandTag}><span className={styles.demandTagLabel}>Target</span> {c.demandPriceTarget}</span>}
+                      </div>
+                      {c.demand && <p className={styles.blockText}>{c.demand}</p>}
+                    </div>
+                  )}
                   {c.remarks && <div className={styles.block}><span className={styles.blockLabel}>Remarks</span><p className={styles.blockText}>{c.remarks}</p></div>}
                   {c.competitorOffers?.length > 0 && (
                     <div className={styles.block}>
@@ -172,7 +189,21 @@ export default function Calls({ calls, onDelete, onEdit }) {
 
                   <div className={styles.editField}>
                     <label className={styles.editLabel}>Demand</label>
-                    <textarea className={styles.editTextarea} rows={2} value={editForm.demand} onChange={e => setEditForm(f => ({ ...f, demand: e.target.value }))} />
+                    <div className={styles.editDemandGrid}>
+                      <div>
+                        <label className={styles.editSubLabel}>Volume</label>
+                        <input className={styles.editInput} value={editForm.demandVolume || ''} onChange={e => setEditForm(f => ({ ...f, demandVolume: e.target.value }))} placeholder="e.g. 5k tons" />
+                      </div>
+                      <div>
+                        <label className={styles.editSubLabel}>Port</label>
+                        <input className={styles.editInput} value={editForm.demandPort || ''} onChange={e => setEditForm(f => ({ ...f, demandPort: e.target.value }))} placeholder="e.g. Paranaguá" />
+                      </div>
+                      <div>
+                        <label className={styles.editSubLabel}>Price Target</label>
+                        <input className={styles.editInput} value={editForm.demandPriceTarget || ''} onChange={e => setEditForm(f => ({ ...f, demandPriceTarget: e.target.value }))} placeholder="e.g. 240 CFR" />
+                      </div>
+                    </div>
+                    <textarea className={styles.editTextarea} rows={2} value={editForm.demand} onChange={e => setEditForm(f => ({ ...f, demand: e.target.value }))} placeholder="Additional notes, laycan..." />
                   </div>
                   <div className={styles.editField}>
                     <label className={styles.editLabel}>Remarks</label>
