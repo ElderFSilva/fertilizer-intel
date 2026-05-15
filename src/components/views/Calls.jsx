@@ -1,21 +1,26 @@
 import { useState } from 'react'
 import { PRODUCTS } from '../../data.js'
 import styles from './Calls.module.css'
+import PortSelect from './PortSelect.jsx'
 
 function formatDate(dateStr) {
   if (!dateStr) return '—'
-  // Try standard YYYY-MM-DD first
   const d = new Date(dateStr + 'T00:00:00')
   if (!isNaN(d.getTime())) {
     return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
   }
-  // Try parsing as-is (e.g. 'May 5')
   const d2 = new Date(dateStr)
   if (!isNaN(d2.getTime())) {
     return d2.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
   }
-  // Return as-is if unparseable
   return dateStr
+}
+
+function formatVolume(val) {
+  if (!val) return null
+  const num = parseFloat(val)
+  if (isNaN(num)) return val
+  return num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' T'
 }
 
 const TREND_OPTIONS = ['up', 'stable', 'down', 'none']
@@ -27,10 +32,6 @@ const TREND_COLOR = { up: 'var(--accent)', stable: 'var(--blue)', down: 'var(--r
 
 function emptyPrices() {
   return Object.fromEntries(PRODUCTS.map(p => [p, { value: '', type: '', trend: 'none' }]))
-}
-
-function emptyDemandFields() {
-  return { demandVolume: '', demandPort: '', demandPriceTarget: '' }
 }
 
 export default function Calls({ calls, onDelete, onEdit }) {
@@ -56,7 +57,7 @@ export default function Calls({ calls, onDelete, onEdit }) {
       demandPriceTarget: c.demandPriceTarget || '',
       demand: c.demand || '',
       remarks: c.remarks || '',
-      prices: { ...emptyPrices(), ...Object.fromEntries(PRODUCTS.map(p => [p, { value: c.prices?.[p]?.value || '', trend: c.prices?.[p]?.trend || 'none' }])) }
+      prices: { ...emptyPrices(), ...Object.fromEntries(PRODUCTS.map(p => [p, { value: c.prices?.[p]?.value || '', type: c.prices?.[p]?.type || '', trend: c.prices?.[p]?.trend || 'none' }])) }
     })
     setExpandedId(c.id)
   }
@@ -120,7 +121,7 @@ export default function Calls({ calls, onDelete, onEdit }) {
                         <div key={p} className={styles.priceRow}>
                           <span className={styles.priceProduct}>{p}</span>
                           <span className={styles.priceVal}>{pr.value || '—'}</span>
-                          {pr.type && <span className={styles.priceType}>{pr.type}</span>}
+                          {pr.type && <span className={styles.priceType}>{TYPE_LABEL[pr.type] || pr.type}</span>}
                           <span style={{ color: TREND_COLOR[pr.trend || 'none'] }}>{TREND_ICON[pr.trend || 'none']}</span>
                         </div>
                       )
@@ -130,7 +131,7 @@ export default function Calls({ calls, onDelete, onEdit }) {
                     <div className={styles.block}>
                       <span className={styles.blockLabel}>Demand</span>
                       <div className={styles.demandTags}>
-                        {c.demandVolume && <span className={styles.demandTag}><span className={styles.demandTagLabel}>Vol</span> {c.demandVolume}</span>}
+                        {c.demandVolume && <span className={styles.demandTag}><span className={styles.demandTagLabel}>Vol</span> {formatVolume(c.demandVolume)}</span>}
                         {c.demandPort && <span className={styles.demandTag}><span className={styles.demandTagLabel}>Port</span> {c.demandPort}</span>}
                         {c.demandPriceTarget && <span className={styles.demandTag}><span className={styles.demandTagLabel}>Target</span> {c.demandPriceTarget}</span>}
                       </div>
@@ -147,7 +148,6 @@ export default function Calls({ calls, onDelete, onEdit }) {
                             <span className={styles.compName}>{o.competitor}</span>
                             <span className={styles.compProduct}>{o.product}</span>
                             <span className={styles.compPrice}>{o.price}</span>
-
                           </div>
                         ))}
                       </div>
@@ -191,12 +191,12 @@ export default function Calls({ calls, onDelete, onEdit }) {
                     <label className={styles.editLabel}>Demand</label>
                     <div className={styles.editDemandGrid}>
                       <div>
-                        <label className={styles.editSubLabel}>Volume</label>
-                        <input className={styles.editInput} value={editForm.demandVolume || ''} onChange={e => setEditForm(f => ({ ...f, demandVolume: e.target.value }))} placeholder="e.g. 5k tons" />
+                        <label className={styles.editSubLabel}>Volume (Tons)</label>
+                        <input type="number" step="0.01" min="0" className={styles.editInput} value={editForm.demandVolume || ''} onChange={e => setEditForm(f => ({ ...f, demandVolume: e.target.value }))} placeholder="e.g. 5,000.00" />
                       </div>
                       <div>
                         <label className={styles.editSubLabel}>Port</label>
-                        <input className={styles.editInput} value={editForm.demandPort || ''} onChange={e => setEditForm(f => ({ ...f, demandPort: e.target.value }))} placeholder="e.g. Paranaguá" />
+                        <PortSelect value={editForm.demandPort || ''} onChange={val => setEditForm(f => ({ ...f, demandPort: val }))} />
                       </div>
                       <div>
                         <label className={styles.editSubLabel}>Price Target</label>
