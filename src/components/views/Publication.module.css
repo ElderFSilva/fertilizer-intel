@@ -1,0 +1,124 @@
+.wrap { display: flex; flex-direction: column; gap: 32px; }
+
+.header { display: flex; align-items: flex-start; justify-content: space-between; }
+
+.title { font-family: 'Fraunces', serif; font-size: 32px; font-weight: 600; letter-spacing: -0.5px; }
+
+.sub { color: var(--text3); font-size: 13px; margin-top: 4px; font-family: 'DM Mono', monospace; }
+
+.section { display: flex; flex-direction: column; gap: 14px; }
+
+.sectionTitle {
+  font-size: 12px; font-family: 'DM Mono', monospace; color: var(--text3);
+  letter-spacing: 0.08em; text-transform: uppercase;
+  padding-bottom: 8px; border-bottom: 1px solid var(--border);
+}
+
+/* Form */
+.formWrap {
+  display: grid;
+  grid-template-columns: 160px 1fr 1fr auto;
+  gap: 16px;
+  align-items: flex-end;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+}
+
+.formDate { display: flex; flex-direction: column; gap: 6px; }
+
+.pubBlock {
+  display: flex; flex-direction: column; gap: 8px;
+  padding: 10px 14px;
+  background: var(--bg3);
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+
+.pubLabel {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 12px; font-weight: 600; color: var(--text2);
+  font-family: 'DM Mono', monospace;
+}
+
+.pubDot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+
+.pubFields { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+
+.formField { display: flex; flex-direction: column; gap: 4px; }
+
+.label { font-size: 11px; color: var(--text3); font-family: 'DM Mono', monospace; text-transform: uppercase; letter-spacing: 0.05em; }
+
+.input {
+  background: var(--bg2); border: 1px solid var(--border2);
+  border-radius: 8px; padding: 9px 12px; color: var(--text);
+  font-size: 14px; outline: none; transition: border-color 0.2s; font-family: inherit;
+  width: 100%;
+}
+.input:focus { border-color: var(--accent); }
+
+.formActions { display: flex; flex-direction: column; gap: 8px; justify-content: flex-end; }
+
+.saveBtn {
+  background: var(--accent); color: #0e0f0c; border: none;
+  border-radius: 8px; padding: 10px 20px; font-size: 14px; font-weight: 700;
+  cursor: pointer; transition: all 0.15s; white-space: nowrap; font-family: inherit;
+}
+.saveBtn:hover { background: var(--accent2); }
+
+.cancelBtn {
+  background: transparent; border: 1px solid var(--border2); color: var(--text2);
+  border-radius: 8px; padding: 10px 16px; font-size: 14px; cursor: pointer;
+  transition: all 0.15s; white-space: nowrap; font-family: inherit;
+}
+.cancelBtn:hover { border-color: var(--red); color: var(--red); }
+
+.error { color: var(--red); font-size: 13px; font-family: 'DM Mono', monospace; }
+.success { color: var(--accent); font-size: 13px; font-family: 'DM Mono', monospace; }
+
+/* Chart */
+.chartWrap {
+  background: var(--bg2); border: 1px solid var(--border);
+  border-radius: 12px; padding: 20px 8px 12px;
+}
+
+.noData {
+  background: var(--bg2); border: 1px solid var(--border);
+  border-radius: 12px; padding: 40px; text-align: center;
+  color: var(--text3); font-size: 14px;
+}
+
+/* Table */
+.table { width: 100%; border-collapse: collapse; font-size: 12px; overflow-x: auto; display: block; }
+
+.th {
+  text-align: left; padding: 8px 12px; font-size: 9px;
+  font-family: 'DM Mono', monospace; color: var(--text3);
+  border-bottom: 1px solid var(--border); white-space: nowrap;
+  text-transform: uppercase; letter-spacing: 0.05em;
+}
+
+.tr { border-bottom: 1px solid var(--border); }
+.tr:hover { background: var(--bg2); }
+.td { padding: 8px 12px; font-family: 'DM Mono', monospace; white-space: nowrap; }
+
+.editBtn {
+  background: transparent; border: 1px solid var(--border2); color: var(--text2);
+  border-radius: 6px; padding: 4px 8px; font-size: 11px; cursor: pointer; transition: all 0.15s;
+}
+.editBtn:hover { border-color: var(--accent); color: var(--accent); }
+
+.deleteBtn {
+  background: transparent; border: 1px solid var(--border2); color: var(--text3);
+  border-radius: 6px; padding: 4px 8px; font-size: 11px; cursor: pointer; transition: all 0.15s;
+}
+.deleteBtn:hover { border-color: var(--red); color: var(--red); }
+
+.none { color: var(--text3); font-size: 14px; }
+
+@media (max-width: 900px) {
+  .formWrap { grid-template-columns: 1fr 1fr; }
+  .formDate { grid-column: 1 / -1; }
+  .formActions { grid-column: 1 / -1; flex-direction: row; }
+}
