@@ -20,6 +20,9 @@ function entryToForm(entry) {
   return {
     client: entry.client || '',
     date: entry.date || new Date().toISOString().split('T')[0],
+    demandVolume: entry.demandVolume || '',
+    demandPort: entry.demandPort || '',
+    demandPriceTarget: entry.demandPriceTarget || '',
     demand: entry.demand || '',
     remarks: entry.remarks || '',
     prices: {
@@ -39,6 +42,7 @@ function entryToForm(entry) {
 function emptyForm() {
   return {
     client: '', date: new Date().toISOString().split('T')[0],
+    demandVolume: '', demandPort: '', demandPriceTarget: '',
     demand: '', remarks: '', prices: emptyPrices(), competitorOffers: []
   }
 }
@@ -117,7 +121,10 @@ export default function Upload({ onAdd }) {
               { type: 'text', text: `Extract all client call notes from this PDF. The current year is 2026. For each call form found, return a JSON array. Each object must have:
 - client (string)
 - date (string, format YYYY-MM-DD, always use year 2026 if year is not written)
-- demand (string, the demand section text including volume in tons and laycan/timeframe if mentioned)
+- demandVolume (string, volume in tons e.g. "5k" or "5000")
+- demandPort (string, port or delivery location if mentioned)
+- demandPriceTarget (string, buyer price target if mentioned e.g. "240 CFR")
+- demand (string, any remaining demand notes including laycan/timeframe)
 - remarks (string, the remarks section text)
 - prices (object with keys: Amsul, Urea, MAP, SSP, TSP, NP — each having value (string price or empty), type (one of: bid, target, mrkt, or empty string — infer from context e.g. 'target' if client is targeting a price, 'mrkt' if it is a market offer, 'bid' if buyer is bidding), and trend (one of: up, stable, down, none based on arrow checked))
 - competitorOffers (array of objects, each with: competitor (string), product (one of Amsul/Urea/MAP/SSP/TSP/NP), price (string). Extract these from the remarks section — look for mentions of companies offering products at specific prices)
@@ -210,9 +217,23 @@ Return ONLY a valid JSON array, no markdown, no explanation.` }
         </div>
       </div>
 
-      <div className={styles.field}>
+      <div className={styles.demandSection}>
         <label className={styles.label}>Demand</label>
-        <textarea className={styles.textarea} rows={2} value={form.demand} onChange={e => setField('demand', e.target.value)} placeholder="Demand notes, volume, laycan..." />
+        <div className={styles.demandGrid}>
+          <div className={styles.demandField}>
+            <label className={styles.demandLabel}>Volume</label>
+            <input className={styles.input} value={form.demandVolume || ''} onChange={e => setField('demandVolume', e.target.value)} placeholder="e.g. 5k tons" />
+          </div>
+          <div className={styles.demandField}>
+            <label className={styles.demandLabel}>Port</label>
+            <input className={styles.input} value={form.demandPort || ''} onChange={e => setField('demandPort', e.target.value)} placeholder="e.g. Paranaguá" />
+          </div>
+          <div className={styles.demandField}>
+            <label className={styles.demandLabel}>Price Target</label>
+            <input className={styles.input} value={form.demandPriceTarget || ''} onChange={e => setField('demandPriceTarget', e.target.value)} placeholder="e.g. 240 CFR" />
+          </div>
+        </div>
+        <textarea className={styles.textarea} rows={2} value={form.demand} onChange={e => setField('demand', e.target.value)} placeholder="Additional demand notes, laycan..." />
       </div>
 
       <div className={styles.field}>
