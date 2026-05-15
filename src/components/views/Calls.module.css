@@ -160,3 +160,17 @@
   padding: 8px 6px; color: var(--text); font-size: 12px; outline: none;
   font-family: inherit; cursor: pointer;
 }
+
+.demandTags { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 4px; }
+
+.demandTag {
+  background: var(--bg3); border: 1px solid var(--border2);
+  border-radius: 6px; padding: 3px 10px; font-size: 12px;
+  font-family: 'DM Mono', monospace; color: var(--text);
+}
+
+.demandTagLabel { color: var(--accent); font-size: 10px; margin-right: 4px; text-transform: uppercase; }
+
+.editDemandGrid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-bottom: 6px; }
+
+.editSubLabel { font-size: 10px; color: var(--text3); font-family: 'DM Mono', monospace; text-transform: uppercase; letter-spacing: 0.05em; display: block; margin-bottom: 3px; }
