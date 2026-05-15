@@ -181,3 +181,18 @@
   font-family: inherit; cursor: pointer; transition: border-color 0.2s;
 }
 .typeSelect:focus { border-color: var(--accent); }
+
+.demandSection { display: flex; flex-direction: column; gap: 8px; }
+
+.demandGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 10px;
+}
+
+.demandField { display: flex; flex-direction: column; gap: 4px; }
+
+.demandLabel {
+  font-size: 10px; color: var(--text3); font-family: 'DM Mono', monospace;
+  text-transform: uppercase; letter-spacing: 0.06em;
+}
