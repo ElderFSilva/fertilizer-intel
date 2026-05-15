@@ -223,7 +223,7 @@ Return ONLY a valid JSON array, no markdown, no explanation.` }
         <div className={styles.demandGrid}>
           <div className={styles.demandField}>
             <label className={styles.demandLabel}>Volume</label>
-            <input className={styles.input} value={form.demandVolume || ''} onChange={e => setField('demandVolume', e.target.value)} placeholder="e.g. 5k tons" />
+            <input type="number" step="0.01" min="0" className={styles.input} value={form.demandVolume || ''} onChange={e => setField('demandVolume', e.target.value)} placeholder="0.00" />
           </div>
           <div className={styles.demandField}>
             <label className={styles.demandLabel}>Port</label>
