@@ -8,7 +8,6 @@ const TYPE_OPTIONS = ['', 'bid', 'target', 'mrkt']
 const TYPE_LABEL = { '': '—', bid: 'Bid', target: 'Target', mrkt: 'Market offer' }
 const TREND_LABEL = { up: '↑ Up', stable: '↔ Stable', down: '↓ Down', none: '—' }
 
-
 function emptyPrices() {
   return Object.fromEntries(PRODUCTS.map(p => [p, { value: '', type: '', trend: 'none' }]))
 }
@@ -48,7 +47,6 @@ function emptyForm() {
   }
 }
 
-// Reusable competitor offers editor
 function CompetitorOffersEditor({ offers, onChange }) {
   function addOffer() { onChange([...offers, emptyCompOffer()]) }
   function removeOffer(i) { onChange(offers.filter((_, idx) => idx !== i)) }
@@ -67,22 +65,11 @@ function CompetitorOffersEditor({ offers, onChange }) {
       )}
       {offers.map((o, i) => (
         <div key={i} className={styles.compRow}>
-          <input
-            className={styles.compInput}
-            placeholder="Competitor"
-            value={o.competitor}
-            onChange={e => updateOffer(i, 'competitor', e.target.value)}
-          />
+          <input className={styles.compInput} placeholder="Competitor" value={o.competitor} onChange={e => updateOffer(i, 'competitor', e.target.value)} />
           <select className={styles.compSelect} value={o.product} onChange={e => updateOffer(i, 'product', e.target.value)}>
             {PRODUCTS.map(p => <option key={p} value={p}>{p}</option>)}
           </select>
-          <input
-            className={styles.compInput}
-            placeholder="Price"
-            value={o.price}
-            onChange={e => updateOffer(i, 'price', e.target.value)}
-          />
-
+          <input className={styles.compInput} placeholder="Price" value={o.price} onChange={e => updateOffer(i, 'price', e.target.value)} />
           <button type="button" className={styles.removeOfferBtn} onClick={() => removeOffer(i)}>✕</button>
         </div>
       ))}
@@ -122,7 +109,7 @@ export default function Upload({ onAdd }) {
               { type: 'text', text: `Extract all client call notes from this PDF. The current year is 2026. For each call form found, return a JSON array. Each object must have:
 - client (string)
 - date (string, format YYYY-MM-DD, always use year 2026 if year is not written)
-- demandVolume (string, volume in tons e.g. "5k" or "5000")
+- demandVolume (number in tons — convert shorthand: "5k" = 5000, "10k" = 10000)
 - demandPort (string, port or delivery location if mentioned)
 - demandPriceTarget (string, buyer price target if mentioned e.g. "240 CFR")
 - demand (string, any remaining demand notes including laycan/timeframe)
@@ -186,7 +173,6 @@ Return ONLY a valid JSON array, no markdown, no explanation.` }
 
   const allSaved = extracted && savedIds.length === extracted.length
 
-  // Shared form fields (used in both review and manual mode)
   function renderFormFields(form, setField, setPriceField, setOffers) {
     return <>
       <div className={styles.row}>
@@ -222,12 +208,21 @@ Return ONLY a valid JSON array, no markdown, no explanation.` }
         <label className={styles.label}>Demand</label>
         <div className={styles.demandGrid}>
           <div className={styles.demandField}>
-            <label className={styles.demandLabel}>Volume</label>
-            <input type="number" step="0.01" min="0" className={styles.input} value={form.demandVolume || ''} onChange={e => setField('demandVolume', e.target.value)} placeholder="0.00" />
+            <label className={styles.demandLabel}>Volume (Tons)</label>
+            <input
+              type="number"
+              step="0.01"
+              min="0"
+              className={styles.input}
+              value={form.demandVolume || ''}
+              onChange={e => setField('demandVolume', e.target.value)}
+              placeholder="e.g. 5,000.00"
+            />
           </div>
           <div className={styles.demandField}>
             <label className={styles.demandLabel}>Port</label>
-              <PortSelect value={form.demandPort || ''} onChange={val => setField('demandPort', val)} />          </div>
+            <PortSelect value={form.demandPort || ''} onChange={val => setField('demandPort', val)} />
+          </div>
           <div className={styles.demandField}>
             <label className={styles.demandLabel}>Price Target</label>
             <input className={styles.input} value={form.demandPriceTarget || ''} onChange={e => setField('demandPriceTarget', e.target.value)} placeholder="e.g. 240 CFR" />
@@ -257,7 +252,6 @@ Return ONLY a valid JSON array, no markdown, no explanation.` }
 
       {savedBanner && <div className={styles.successBanner}>✓ Call saved successfully!</div>}
 
-      {/* PDF MODE - list */}
       {mode === 'pdf' && !reviewing && (
         <div className={styles.pdfSection}>
           <label className={styles.dropzone}>
@@ -297,7 +291,6 @@ Return ONLY a valid JSON array, no markdown, no explanation.` }
         </div>
       )}
 
-      {/* PDF MODE - review form */}
       {mode === 'pdf' && reviewing && (
         <div className={styles.form}>
           <div className={styles.reviewHeader}>
@@ -318,7 +311,6 @@ Return ONLY a valid JSON array, no markdown, no explanation.` }
         </div>
       )}
 
-      {/* MANUAL MODE */}
       {mode === 'manual' && (
         <div className={styles.form}>
           {renderFormFields(
