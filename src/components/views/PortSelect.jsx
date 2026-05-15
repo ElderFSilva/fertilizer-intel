@@ -2,14 +2,14 @@ import { useState, useRef, useEffect } from 'react'
 import styles from './PortSelect.module.css'
 
 const PORTS = [
-  { code: 'PNG', label: 'Paranaguá' },
+  { code: 'Paranaguá', label: 'Paranaguá' },
   { code: 'Aratu', label: 'Aratu' },
-  { code: 'RIG', label: 'Rio Grande' },
-  { code: 'STN', label: 'Santos' },
-  { code: 'SFS', label: 'São Francisco do Sul' },
-  { code: 'Santarem', label: 'Santarém' },
-  { code: 'ITQ', label: 'Itaqui' },
-  { code: 'VTR', label: 'Vitória' },
+  { code: 'Rio Grande', label: 'Rio Grande' },
+  { code: 'Santos', label: 'Santos' },
+  { code: 'São Francisco do Sul', label: 'São Francisco do Sul' },
+  { code: 'Santarém', label: 'Santarém' },
+  { code: 'Itaqui', label: 'Itaqui' },
+  { code: 'Vitória', label: 'Vitória' },
 ]
 
 export default function PortSelect({ value, onChange }) {
@@ -52,7 +52,7 @@ export default function PortSelect({ value, onChange }) {
         value={query}
         onChange={handleChange}
         onFocus={() => setOpen(true)}
-        placeholder="Type port name or code..."
+        placeholder="Type port name..."
         autoComplete="off"
         spellCheck={false}
       />
@@ -64,7 +64,6 @@ export default function PortSelect({ value, onChange }) {
               className={styles.option}
               onMouseDown={e => { e.preventDefault(); handleSelect(p) }}
             >
-              <span className={styles.code}>{p.code}</span>
               <span className={styles.portLabel}>{p.label}</span>
             </div>
           ))}
