@@ -1,3 +1,4 @@
+import PortSelect from './PortSelect.jsx'
 import { useState } from 'react'
 import { PRODUCTS } from '../../data.js'
 import styles from './Upload.module.css'
@@ -226,8 +227,7 @@ Return ONLY a valid JSON array, no markdown, no explanation.` }
           </div>
           <div className={styles.demandField}>
             <label className={styles.demandLabel}>Port</label>
-            <input className={styles.input} value={form.demandPort || ''} onChange={e => setField('demandPort', e.target.value)} placeholder="e.g. Paranaguá" />
-          </div>
+              <PortSelect value={form.demandPort || ''} onChange={val => setField('demandPort', val)} />          </div>
           <div className={styles.demandField}>
             <label className={styles.demandLabel}>Price Target</label>
             <input className={styles.input} value={form.demandPriceTarget || ''} onChange={e => setField('demandPriceTarget', e.target.value)} placeholder="e.g. 240 CFR" />
