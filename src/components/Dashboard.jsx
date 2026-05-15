@@ -5,7 +5,7 @@ import Overview from './views/Overview.jsx'
 import Calls from './views/Calls.jsx'
 import Upload from './views/Upload.jsx'
 import PriceTrends from './views/PriceTrends.jsx'
-import Argus from './views/Argus.jsx'
+import Publication from './views/Publication.jsx'
 import styles from './Dashboard.module.css'
 
 export default function Dashboard({ onLogout }) {
@@ -28,7 +28,7 @@ export default function Dashboard({ onLogout }) {
         {view === 'upload' && <Upload onAdd={handleAdd} />}
         {view === 'calls' && <Calls calls={calls} onDelete={handleDelete} onEdit={handleEdit} />}
         {view === 'prices' && <PriceTrends calls={calls} />}
-        {view === 'argus' && <Argus calls={calls} />}
+        {view === 'argus' && <Publication calls={calls} />}
       </main>
     </div>
   )
