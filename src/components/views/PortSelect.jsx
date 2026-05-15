@@ -12,58 +12,58 @@ const PORTS = [
   { code: 'VTR', label: 'Vitória' },
 ]
 
-export default function PortSelect({ value, onChange, placeholder = 'e.g. PNG or Paranaguá' }) {
+export default function PortSelect({ value, onChange }) {
   const [query, setQuery] = useState(value || '')
   const [open, setOpen] = useState(false)
-  const ref = useRef(null)
+  const wrapRef = useRef(null)
 
-  // Sync external value changes
   useEffect(() => { setQuery(value || '') }, [value])
 
-  // Close on outside click
   useEffect(() => {
-    function handler(e) { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
+    function handleClick(e) {
+      if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
   }, [])
 
-  const filtered = query.length >= 1
-    ? PORTS.filter(p =>
-        p.code.toLowerCase().startsWith(query.toLowerCase()) ||
-        p.label.toLowerCase().startsWith(query.toLowerCase()) ||
-        p.code.toLowerCase().includes(query.toLowerCase()) ||
-        p.label.toLowerCase().includes(query.toLowerCase())
-      )
-    : PORTS
+  const q = query.trim().toLowerCase()
+  const filtered = q.length === 0 ? PORTS : PORTS.filter(p =>
+    p.code.toLowerCase().includes(q) || p.label.toLowerCase().includes(q)
+  )
 
-  function select(port) {
-    setQuery(port.code)
-    onChange(port.code)
-    setOpen(false)
-  }
-
-  function handleInput(e) {
+  function handleChange(e) {
     setQuery(e.target.value)
     onChange(e.target.value)
     setOpen(true)
   }
 
-  function handleFocus() { setOpen(true) }
+  function handleSelect(port) {
+    setQuery(port.code)
+    onChange(port.code)
+    setOpen(false)
+  }
 
   return (
-    <div className={styles.wrap} ref={ref}>
+    <div ref={wrapRef} style={{ position: 'relative', width: '100%' }}>
       <input
+        type="text"
         className={styles.input}
         value={query}
-        onChange={handleInput}
-        onFocus={handleFocus}
-        placeholder={placeholder}
+        onChange={handleChange}
+        onFocus={() => setOpen(true)}
+        placeholder="Type port name or code..."
         autoComplete="off"
+        spellCheck={false}
       />
       {open && filtered.length > 0 && (
         <div className={styles.dropdown}>
           {filtered.map(p => (
-            <div key={p.code} className={styles.option} onClick={() => select(p)}>
+            <div
+              key={p.code}
+              className={styles.option}
+              onMouseDown={e => { e.preventDefault(); handleSelect(p) }}
+            >
               <span className={styles.code}>{p.code}</span>
               <span className={styles.portLabel}>{p.label}</span>
             </div>
