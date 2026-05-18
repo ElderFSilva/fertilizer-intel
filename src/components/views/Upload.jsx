@@ -7,6 +7,7 @@ const TREND_OPTIONS = ['up', 'stable', 'down', 'none']
 const TYPE_OPTIONS = ['', 'bid', 'target', 'mrkt']
 const TYPE_LABEL = { '': '—', bid: 'Bid', target: 'Target', mrkt: 'Market offer' }
 const TREND_LABEL = { up: '↑ Up', stable: '↔ Stable', down: '↓ Down', none: '—' }
+const DEMAND_PRODUCTS = ['', 'Amsul', 'Urea', 'MAP', 'SSP', 'TSP', 'NP 10-45', 'NP 08-40']
 
 function emptyPrices() {
   return Object.fromEntries(PRODUCTS.map(p => [p, { value: '', type: '', trend: 'none' }]))
@@ -23,6 +24,7 @@ function entryToForm(entry) {
     demandVolume: entry.demandVolume || '',
     demandPort: entry.demandPort || '',
     demandPriceTarget: entry.demandPriceTarget || '',
+    demandProduct: entry.demandProduct || '',
     demand: entry.demand || '',
     remarks: entry.remarks || '',
     prices: {
@@ -42,7 +44,7 @@ function entryToForm(entry) {
 function emptyForm() {
   return {
     client: '', date: new Date().toISOString().split('T')[0],
-    demandVolume: '', demandPort: '', demandPriceTarget: '',
+    demandVolume: '', demandPort: '', demandPriceTarget: '', demandProduct: '',
     demand: '', remarks: '', prices: emptyPrices(), competitorOffers: []
   }
 }
@@ -207,6 +209,12 @@ Return ONLY a valid JSON array, no markdown, no explanation.` }
       <div className={styles.demandSection}>
         <label className={styles.label}>Demand</label>
         <div className={styles.demandGrid}>
+          <div className={styles.demandField}>
+            <label className={styles.demandLabel}>Product</label>
+            <select className={styles.input} value={form.demandProduct || ''} onChange={e => setField('demandProduct', e.target.value)}>
+              {DEMAND_PRODUCTS.map(p => <option key={p} value={p}>{p || '— Select product —'}</option>)}
+            </select>
+          </div>
           <div className={styles.demandField}>
             <label className={styles.demandLabel}>Volume (Tons)</label>
             <input
