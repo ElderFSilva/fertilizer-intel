@@ -17,14 +17,19 @@ function emptyCompOffer() {
   return { competitor: '', product: 'Amsul', price: '' }
 }
 
+function emptyDemandRow() {
+  return { product: '', volume: '', port: '', priceTarget: '' }
+}
+
 function entryToForm(entry) {
   return {
     client: entry.client || '',
     date: entry.date || new Date().toISOString().split('T')[0],
-    demandVolume: entry.demandVolume || '',
-    demandPort: entry.demandPort || '',
-    demandPriceTarget: entry.demandPriceTarget || '',
-    demandProduct: entry.demandProduct || '',
+    demandRows: entry.demandRows?.length ? entry.demandRows : (
+      (entry.demandProduct || entry.demandVolume || entry.demandPort || entry.demandPriceTarget)
+        ? [{ product: entry.demandProduct || '', volume: entry.demandVolume || '', port: entry.demandPort || '', priceTarget: entry.demandPriceTarget || '' }]
+        : [emptyDemandRow()]
+    ),
     demand: entry.demand || '',
     remarks: entry.remarks || '',
     prices: {
@@ -44,7 +49,7 @@ function entryToForm(entry) {
 function emptyForm() {
   return {
     client: '', date: new Date().toISOString().split('T')[0],
-    demandVolume: '', demandPort: '', demandPriceTarget: '', demandProduct: '',
+    demandRows: [emptyDemandRow()],
     demand: '', remarks: '', prices: emptyPrices(), competitorOffers: []
   }
 }
@@ -207,35 +212,63 @@ Return ONLY a valid JSON array, no markdown, no explanation.` }
       </div>
 
       <div className={styles.demandSection}>
-        <label className={styles.label}>Demand</label>
-        <div className={styles.demandGrid}>
-          <div className={styles.demandField}>
-            <label className={styles.demandLabel}>Product</label>
-            <select className={styles.input} value={form.demandProduct || ''} onChange={e => setField('demandProduct', e.target.value)}>
-              {DEMAND_PRODUCTS.map(p => <option key={p} value={p}>{p || '— Select product —'}</option>)}
-            </select>
-          </div>
-          <div className={styles.demandField}>
-            <label className={styles.demandLabel}>Volume (Tons)</label>
-            <input
-              type="number"
-              step="0.01"
-              min="0"
-              className={styles.input}
-              value={form.demandVolume || ''}
-              onChange={e => setField('demandVolume', e.target.value)}
-              placeholder="e.g. 5,000.00"
-            />
-          </div>
-          <div className={styles.demandField}>
-            <label className={styles.demandLabel}>Port</label>
-            <PortSelect value={form.demandPort || ''} onChange={val => setField('demandPort', val)} />
-          </div>
-          <div className={styles.demandField}>
-            <label className={styles.demandLabel}>Price Target</label>
-            <input className={styles.input} value={form.demandPriceTarget || ''} onChange={e => setField('demandPriceTarget', e.target.value)} placeholder="e.g. 240 CFR" />
-          </div>
+        <div className={styles.demandSectionHeader}>
+          <label className={styles.label}>Demand</label>
+          <button type="button" className={styles.addDemandBtn} onClick={() => setField('demandRows', [...(form.demandRows || []), emptyDemandRow()])}>+ Add Demand</button>
         </div>
+        {(form.demandRows || [emptyDemandRow()]).map((row, i) => (
+          <div key={i} className={styles.demandRowWrap}>
+            <div className={styles.demandGrid}>
+              <div className={styles.demandField}>
+                <label className={styles.demandLabel}>Product</label>
+                <select className={styles.input} value={row.product || ''} onChange={e => {
+                  const rows = [...(form.demandRows || [])]
+                  rows[i] = { ...rows[i], product: e.target.value }
+                  setField('demandRows', rows)
+                }}>
+                  {DEMAND_PRODUCTS.map(p => <option key={p} value={p}>{p || '— Select —'}</option>)}
+                </select>
+              </div>
+              <div className={styles.demandField}>
+                <label className={styles.demandLabel}>Volume (Tons)</label>
+                <input type="number" step="0.01" min="0" className={styles.input}
+                  value={row.volume || ''}
+                  onChange={e => {
+                    const rows = [...(form.demandRows || [])]
+                    rows[i] = { ...rows[i], volume: e.target.value }
+                    setField('demandRows', rows)
+                  }}
+                  placeholder="e.g. 5,000.00"
+                />
+              </div>
+              <div className={styles.demandField}>
+                <label className={styles.demandLabel}>Port</label>
+                <PortSelect value={row.port || ''} onChange={val => {
+                  const rows = [...(form.demandRows || [])]
+                  rows[i] = { ...rows[i], port: val }
+                  setField('demandRows', rows)
+                }} />
+              </div>
+              <div className={styles.demandField}>
+                <label className={styles.demandLabel}>Price Target</label>
+                <input className={styles.input} value={row.priceTarget || ''}
+                  onChange={e => {
+                    const rows = [...(form.demandRows || [])]
+                    rows[i] = { ...rows[i], priceTarget: e.target.value }
+                    setField('demandRows', rows)
+                  }}
+                  placeholder="e.g. 240 CFR"
+                />
+              </div>
+            </div>
+            {(form.demandRows || []).length > 1 && (
+              <button type="button" className={styles.removeDemandBtn} onClick={() => {
+                const rows = (form.demandRows || []).filter((_, idx) => idx !== i)
+                setField('demandRows', rows)
+              }}>✕</button>
+            )}
+          </div>
+        ))}
         <textarea className={styles.textarea} rows={2} value={form.demand} onChange={e => setField('demand', e.target.value)} placeholder="Additional demand notes, laycan..." />
       </div>
 
