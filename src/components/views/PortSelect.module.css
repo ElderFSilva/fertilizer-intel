@@ -1,7 +1,4 @@
-.wrap {
-  position: relative;
-  width: 100%;
-}
+.wrap { position: relative; width: 100%; }
 
 .input {
   width: 100%;
@@ -34,7 +31,6 @@
 .option {
   display: flex;
   align-items: center;
-  gap: 10px;
   padding: 9px 14px;
   cursor: pointer;
   transition: background 0.1s;
@@ -42,15 +38,11 @@
 
 .option:hover { background: var(--bg3); }
 
-.code {
-  font-family: 'DM Mono', monospace;
-  font-size: 13px;
-  font-weight: 600;
+.optionHighlighted {
+  background: var(--accent-dim) !important;
   color: var(--accent);
-  min-width: 70px;
 }
 
-.portLabel {
-  font-size: 13px;
-  color: var(--text2);
-}
+.portLabel { font-size: 13px; color: var(--text2); }
+
+.optionHighlighted .portLabel { color: var(--accent); }
