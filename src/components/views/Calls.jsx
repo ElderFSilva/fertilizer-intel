@@ -31,6 +31,10 @@ const TREND_ICON = { up: '↑', stable: '↔', down: '↓', none: '—' }
 const DEMAND_PRODUCTS = ['', 'Amsul', 'Urea', 'MAP', 'SSP', 'TSP', 'NP 10-45', 'NP 08-40']
 const TREND_COLOR = { up: 'var(--accent)', stable: 'var(--blue)', down: 'var(--red)', none: 'var(--text3)' }
 
+function emptyDemandRow() {
+  return { product: '', volume: '', port: '', priceTarget: '' }
+}
+
 function emptyPrices() {
   return Object.fromEntries(PRODUCTS.map(p => [p, { value: '', type: '', trend: 'none' }]))
 }
@@ -53,10 +57,11 @@ export default function Calls({ calls, onDelete, onEdit }) {
     setEditForm({
       client: c.client,
       date: c.date,
-      demandVolume: c.demandVolume || '',
-      demandPort: c.demandPort || '',
-      demandPriceTarget: c.demandPriceTarget || '',
-      demandProduct: c.demandProduct || '',
+      demandRows: c.demandRows?.length ? c.demandRows : (
+        (c.demandProduct || c.demandVolume || c.demandPort || c.demandPriceTarget)
+          ? [{ product: c.demandProduct || '', volume: c.demandVolume || '', port: c.demandPort || '', priceTarget: c.demandPriceTarget || '' }]
+          : [emptyDemandRow()]
+      ),
       demand: c.demand || '',
       remarks: c.remarks || '',
       prices: { ...emptyPrices(), ...Object.fromEntries(PRODUCTS.map(p => [p, { value: c.prices?.[p]?.value || '', type: c.prices?.[p]?.type || '', trend: c.prices?.[p]?.trend || 'none' }])) }
@@ -129,15 +134,19 @@ export default function Calls({ calls, onDelete, onEdit }) {
                       )
                     })}
                   </div>
-                  {(c.demandProduct || c.demandVolume || c.demandPort || c.demandPriceTarget || c.demand) && (
+                  {((c.demandRows?.length && c.demandRows.some(r => r.product || r.volume || r.port || r.priceTarget)) || c.demand) && (
                     <div className={styles.block}>
                       <span className={styles.blockLabel}>Demand</span>
-                      <div className={styles.demandTags}>
-                        {c.demandProduct && <span className={styles.demandTag}><span className={styles.demandTagLabel}>Product</span> {c.demandProduct}</span>}
-                        {c.demandVolume && <span className={styles.demandTag}><span className={styles.demandTagLabel}>Vol</span> {formatVolume(c.demandVolume)}</span>}
-                        {c.demandPort && <span className={styles.demandTag}><span className={styles.demandTagLabel}>Port</span> {c.demandPort}</span>}
-                        {c.demandPriceTarget && <span className={styles.demandTag}><span className={styles.demandTagLabel}>Target</span> {c.demandPriceTarget}</span>}
-                      </div>
+                      {(c.demandRows || []).map((row, i) => (
+                        (row.product || row.volume || row.port || row.priceTarget) ? (
+                          <div key={i} className={styles.demandTags} style={{ marginBottom: 4 }}>
+                            {row.product && <span className={styles.demandTag}><span className={styles.demandTagLabel}>Product</span> {row.product}</span>}
+                            {row.volume && <span className={styles.demandTag}><span className={styles.demandTagLabel}>Vol</span> {formatVolume(row.volume)}</span>}
+                            {row.port && <span className={styles.demandTag}><span className={styles.demandTagLabel}>Port</span> {row.port}</span>}
+                            {row.priceTarget && <span className={styles.demandTag}><span className={styles.demandTagLabel}>Target</span> {row.priceTarget}</span>}
+                          </div>
+                        ) : null
+                      ))}
                       {c.demand && <p className={styles.blockText}>{c.demand}</p>}
                     </div>
                   )}
@@ -192,26 +201,55 @@ export default function Calls({ calls, onDelete, onEdit }) {
 
                   <div className={styles.editField}>
                     <label className={styles.editLabel}>Demand</label>
-                    <div className={styles.editDemandGrid}>
-                      <div>
-                        <label className={styles.editSubLabel}>Product</label>
-                        <select className={styles.editInput} value={editForm.demandProduct || ''} onChange={e => setEditForm(f => ({ ...f, demandProduct: e.target.value }))}>
-                          {DEMAND_PRODUCTS.map(p => <option key={p} value={p}>{p || '— Select —'}</option>)}
-                        </select>
-                      </div>
-                      <div>
-                        <label className={styles.editSubLabel}>Volume (Tons)</label>
-                        <input type="number" step="0.01" min="0" className={styles.editInput} value={editForm.demandVolume || ''} onChange={e => setEditForm(f => ({ ...f, demandVolume: e.target.value }))} placeholder="e.g. 5,000.00" />
-                      </div>
-                      <div>
-                        <label className={styles.editSubLabel}>Port</label>
-                        <PortSelect value={editForm.demandPort || ''} onChange={val => setEditForm(f => ({ ...f, demandPort: val }))} />
-                      </div>
-                      <div>
-                        <label className={styles.editSubLabel}>Price Target</label>
-                        <input className={styles.editInput} value={editForm.demandPriceTarget || ''} onChange={e => setEditForm(f => ({ ...f, demandPriceTarget: e.target.value }))} placeholder="e.g. 240 CFR" />
-                      </div>
+                    <div className={styles.editDemandHeader}>
+                      <button type="button" className={styles.addDemandBtn} onClick={() => setEditForm(f => ({ ...f, demandRows: [...(f.demandRows || []), emptyDemandRow()] }))}>+ Add Demand</button>
                     </div>
+                    {(editForm.demandRows || [emptyDemandRow()]).map((row, i) => (
+                      <div key={i} className={styles.editDemandRowWrap}>
+                        <div className={styles.editDemandGrid}>
+                          <div>
+                            <label className={styles.editSubLabel}>Product</label>
+                            <select className={styles.editInput} value={row.product || ''} onChange={e => {
+                              const rows = [...(editForm.demandRows || [])]
+                              rows[i] = { ...rows[i], product: e.target.value }
+                              setEditForm(f => ({ ...f, demandRows: rows }))
+                            }}>
+                              {DEMAND_PRODUCTS.map(p => <option key={p} value={p}>{p || '— Select —'}</option>)}
+                            </select>
+                          </div>
+                          <div>
+                            <label className={styles.editSubLabel}>Volume (Tons)</label>
+                            <input type="number" step="0.01" min="0" className={styles.editInput} value={row.volume || ''} onChange={e => {
+                              const rows = [...(editForm.demandRows || [])]
+                              rows[i] = { ...rows[i], volume: e.target.value }
+                              setEditForm(f => ({ ...f, demandRows: rows }))
+                            }} placeholder="e.g. 5,000.00" />
+                          </div>
+                          <div>
+                            <label className={styles.editSubLabel}>Port</label>
+                            <PortSelect value={row.port || ''} onChange={val => {
+                              const rows = [...(editForm.demandRows || [])]
+                              rows[i] = { ...rows[i], port: val }
+                              setEditForm(f => ({ ...f, demandRows: rows }))
+                            }} />
+                          </div>
+                          <div>
+                            <label className={styles.editSubLabel}>Price Target</label>
+                            <input className={styles.editInput} value={row.priceTarget || ''} onChange={e => {
+                              const rows = [...(editForm.demandRows || [])]
+                              rows[i] = { ...rows[i], priceTarget: e.target.value }
+                              setEditForm(f => ({ ...f, demandRows: rows }))
+                            }} placeholder="e.g. 240 CFR" />
+                          </div>
+                        </div>
+                        {(editForm.demandRows || []).length > 1 && (
+                          <button type="button" className={styles.removeDemandBtn} onClick={() => {
+                            const rows = (editForm.demandRows || []).filter((_, idx) => idx !== i)
+                            setEditForm(f => ({ ...f, demandRows: rows }))
+                          }}>✕</button>
+                        )}
+                      </div>
+                    ))}
                     <textarea className={styles.editTextarea} rows={2} value={editForm.demand} onChange={e => setEditForm(f => ({ ...f, demand: e.target.value }))} placeholder="Additional notes, laycan..." />
                   </div>
                   <div className={styles.editField}>
