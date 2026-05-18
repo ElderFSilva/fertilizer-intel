@@ -28,6 +28,7 @@ const TREND_LABEL = { up: '↑ Up', stable: '↔ Stable', down: '↓ Down', none
 const TYPE_OPTIONS = ['', 'bid', 'target', 'mrkt']
 const TYPE_LABEL = { '': '—', bid: 'Bid', target: 'Target', mrkt: 'Market offer' }
 const TREND_ICON = { up: '↑', stable: '↔', down: '↓', none: '—' }
+const DEMAND_PRODUCTS = ['', 'Amsul', 'Urea', 'MAP', 'SSP', 'TSP', 'NP 10-45', 'NP 08-40']
 const TREND_COLOR = { up: 'var(--accent)', stable: 'var(--blue)', down: 'var(--red)', none: 'var(--text3)' }
 
 function emptyPrices() {
@@ -55,6 +56,7 @@ export default function Calls({ calls, onDelete, onEdit }) {
       demandVolume: c.demandVolume || '',
       demandPort: c.demandPort || '',
       demandPriceTarget: c.demandPriceTarget || '',
+      demandProduct: c.demandProduct || '',
       demand: c.demand || '',
       remarks: c.remarks || '',
       prices: { ...emptyPrices(), ...Object.fromEntries(PRODUCTS.map(p => [p, { value: c.prices?.[p]?.value || '', type: c.prices?.[p]?.type || '', trend: c.prices?.[p]?.trend || 'none' }])) }
@@ -127,10 +129,11 @@ export default function Calls({ calls, onDelete, onEdit }) {
                       )
                     })}
                   </div>
-                  {(c.demandVolume || c.demandPort || c.demandPriceTarget || c.demand) && (
+                  {(c.demandProduct || c.demandVolume || c.demandPort || c.demandPriceTarget || c.demand) && (
                     <div className={styles.block}>
                       <span className={styles.blockLabel}>Demand</span>
                       <div className={styles.demandTags}>
+                        {c.demandProduct && <span className={styles.demandTag}><span className={styles.demandTagLabel}>Product</span> {c.demandProduct}</span>}
                         {c.demandVolume && <span className={styles.demandTag}><span className={styles.demandTagLabel}>Vol</span> {formatVolume(c.demandVolume)}</span>}
                         {c.demandPort && <span className={styles.demandTag}><span className={styles.demandTagLabel}>Port</span> {c.demandPort}</span>}
                         {c.demandPriceTarget && <span className={styles.demandTag}><span className={styles.demandTagLabel}>Target</span> {c.demandPriceTarget}</span>}
@@ -190,6 +193,12 @@ export default function Calls({ calls, onDelete, onEdit }) {
                   <div className={styles.editField}>
                     <label className={styles.editLabel}>Demand</label>
                     <div className={styles.editDemandGrid}>
+                      <div>
+                        <label className={styles.editSubLabel}>Product</label>
+                        <select className={styles.editInput} value={editForm.demandProduct || ''} onChange={e => setEditForm(f => ({ ...f, demandProduct: e.target.value }))}>
+                          {DEMAND_PRODUCTS.map(p => <option key={p} value={p}>{p || '— Select —'}</option>)}
+                        </select>
+                      </div>
                       <div>
                         <label className={styles.editSubLabel}>Volume (Tons)</label>
                         <input type="number" step="0.01" min="0" className={styles.editInput} value={editForm.demandVolume || ''} onChange={e => setEditForm(f => ({ ...f, demandVolume: e.target.value }))} placeholder="e.g. 5,000.00" />
