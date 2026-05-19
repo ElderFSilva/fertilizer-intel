@@ -7,6 +7,7 @@ import Upload from './views/Upload.jsx'
 import PriceTrends from './views/PriceTrends.jsx'
 import Publication from './views/Publication.jsx'
 import styles from './Dashboard.module.css'
+import DataBackup from './views/DataBackup.jsx'
 
 export default function Dashboard({ onLogout }) {
   const [view, setView] = useState('overview')
@@ -29,6 +30,7 @@ export default function Dashboard({ onLogout }) {
         {view === 'calls' && <Calls calls={calls} onDelete={handleDelete} onEdit={handleEdit} />}
         {view === 'prices' && <PriceTrends calls={calls} />}
         {view === 'argus' && <Publication calls={calls} />}
+        {view === 'backup' && <DataBackup onImport={() => window.location.reload()} />}
       </main>
     </div>
   )
