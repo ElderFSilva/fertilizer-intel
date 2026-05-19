@@ -117,7 +117,7 @@ export default function PriceTrends({ calls }) {
                         const pr = latest?.prices?.[p]
                         return (
                           <td key={p} className={styles.td}>
-                            {pr?.value && <span className={styles.price}>{pr.value}{pr.type ? <span className={styles.priceType}> {pr.type}</span> : ''}</span>}
+{pr?.value && <span className={styles.price}>{pr.value}</span>} 
                             {pr?.trend && pr.trend !== 'none' && (
                               <span style={{ color: TREND_COLOR[pr.trend], marginLeft: 4, fontSize: 12 }}>
                                 {TREND_ICON[pr.trend]}
