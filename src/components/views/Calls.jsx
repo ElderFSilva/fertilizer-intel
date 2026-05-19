@@ -25,8 +25,6 @@ function formatVolume(val) {
 
 const TREND_OPTIONS = ['up', 'stable', 'down', 'none']
 const TREND_LABEL = { up: '↑ Up', stable: '↔ Stable', down: '↓ Down', none: '—' }
-const TYPE_OPTIONS = ['', 'bid', 'target', 'mrkt']
-const TYPE_LABEL = { '': '—', bid: 'Bid', target: 'Target', mrkt: 'Market offer' }
 const TREND_ICON = { up: '↑', stable: '↔', down: '↓', none: '—' }
 const DEMAND_PRODUCTS = ['', 'Amsul', 'Urea', 'MAP', 'SSP', 'TSP', 'NP 10-45', 'NP 08-40']
 const TREND_COLOR = { up: 'var(--accent)', stable: 'var(--blue)', down: 'var(--red)', none: 'var(--text3)' }
@@ -36,7 +34,7 @@ function emptyDemandRow() {
 }
 
 function emptyPrices() {
-  return Object.fromEntries(PRODUCTS.map(p => [p, { value: '', type: '', trend: 'none' }]))
+  return Object.fromEntries(PRODUCTS.map(p => [p, { value: '', trend: 'none' }]))
 }
 
 export default function Calls({ calls, onDelete, onEdit }) {
@@ -129,7 +127,7 @@ export default function Calls({ calls, onDelete, onEdit }) {
       ),
       demand: c.demand || '',
       remarks: c.remarks || '',
-      prices: { ...emptyPrices(), ...Object.fromEntries(PRODUCTS.map(p => [p, { value: c.prices?.[p]?.value || '', type: c.prices?.[p]?.type || '', trend: c.prices?.[p]?.trend || 'none' }])) }
+      prices: { ...emptyPrices(), ...Object.fromEntries(PRODUCTS.map(p => [p, { value: c.prices?.[p]?.value || '', trend: c.prices?.[p]?.trend || 'none' }])) }
     })
     setExpandedId(c.id)
   }
@@ -243,7 +241,7 @@ export default function Calls({ calls, onDelete, onEdit }) {
                         <div key={p} className={styles.priceRow}>
                           <span className={styles.priceProduct}>{p}</span>
                           <span className={styles.priceVal}>{pr.value || '—'}</span>
-                          {pr.type && <span className={styles.priceType}>{TYPE_LABEL[pr.type] || pr.type}</span>}
+
                           <span style={{ color: TREND_COLOR[pr.trend || 'none'] }}>{TREND_ICON[pr.trend || 'none']}</span>
                         </div>
                       )
@@ -305,9 +303,6 @@ export default function Calls({ calls, onDelete, onEdit }) {
                     <div key={p} className={styles.editPriceRow}>
                       <span className={styles.editProductLabel}>{p}</span>
                       <input className={styles.editPriceInput} placeholder="Price" value={editForm.prices[p].value} onChange={e => setEditPrice(p, 'value', e.target.value)} />
-                      <select className={styles.editTypeSelect} value={editForm.prices[p].type || ''} onChange={e => setEditPrice(p, 'type', e.target.value)}>
-                        {TYPE_OPTIONS.map(t => <option key={t} value={t}>{TYPE_LABEL[t]}</option>)}
-                      </select>
                       <select className={styles.editTrendSelect} value={editForm.prices[p].trend} onChange={e => setEditPrice(p, 'trend', e.target.value)}>
                         {TREND_OPTIONS.map(t => <option key={t} value={t}>{TREND_LABEL[t]}</option>)}
                       </select>
