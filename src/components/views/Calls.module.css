@@ -53,10 +53,8 @@
 
 .pricesTable { display: flex; flex-direction: column; gap: 6px; }
 
-.priceRow {
-  display: grid; grid-template-columns: 60px 1fr auto 30px;
-  align-items: center; gap: 8px; font-size: 13px;
-}
+.priceRow { display: grid; grid-template-columns: 70px 1fr 140px; 
+           align-items: center; gap: 6px; }
 
 .priceProduct { color: var(--text3); font-family: 'DM Mono', monospace; }
 .priceVal { font-family: 'DM Mono', monospace; color: var(--text); }
