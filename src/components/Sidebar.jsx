@@ -6,6 +6,7 @@ const NAV = [
   { id: 'calls', icon: '◧', label: 'All Calls' },
   { id: 'prices', icon: '◎', label: 'Price Trends' },
   { id: 'argus', icon: '📰', label: 'Publication vs Mrkt' },
+  { id: 'backup', icon: '⊞', label: 'Data Backup' },
 ]
 
 export default function Sidebar({ view, setView, onLogout, signals }) {
