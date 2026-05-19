@@ -41,16 +41,81 @@ function emptyPrices() {
 
 export default function Calls({ calls, onDelete, onEdit }) {
   const [search, setSearch] = useState('')
+  const [filterProduct, setFilterProduct] = useState('')
+  const [filterPort, setFilterPort] = useState('')
+  const [filterDateFrom, setFilterDateFrom] = useState('')
+  const [filterDateTo, setFilterDateTo] = useState('')
+  const [filterTrend, setFilterTrend] = useState('')
+  const [showFilters, setShowFilters] = useState(false)
   const [expandedId, setExpandedId] = useState(null)
   const [editingId, setEditingId] = useState(null)
   const [editForm, setEditForm] = useState(null)
   const [savedBanner, setSavedBanner] = useState(false)
 
-  const filtered = calls.filter(c =>
-    c.client.toLowerCase().includes(search.toLowerCase()) ||
-    (c.remarks || '').toLowerCase().includes(search.toLowerCase()) ||
-    (c.demand || '').toLowerCase().includes(search.toLowerCase())
-  )
+  function parseDate(dateStr) {
+    if (!dateStr) return null
+    const d = new Date(dateStr + 'T00:00:00')
+    return isNaN(d.getTime()) ? null : d
+  }
+
+  const activeFilters = [filterProduct, filterPort, filterDateFrom, filterDateTo, filterTrend].filter(Boolean).length
+
+  const filtered = calls.filter(c => {
+    // Text search — client, remarks, demand, competitor names
+    if (search) {
+      const q = search.toLowerCase()
+      const inClient = c.client.toLowerCase().includes(q)
+      const inRemarks = (c.remarks || '').toLowerCase().includes(q)
+      const inDemand = (c.demand || '').toLowerCase().includes(q)
+      const inCompetitors = (c.competitorOffers || []).some(o => o.competitor?.toLowerCase().includes(q))
+      const inPrices = Object.entries(c.prices || {}).some(([, v]) => (v.value || '').toLowerCase().includes(q))
+      if (!inClient && !inRemarks && !inDemand && !inCompetitors && !inPrices) return false
+    }
+
+    // Product filter — checks prices and demand rows
+    if (filterProduct) {
+      const inPrices = c.prices?.[filterProduct]?.value
+      const inDemandRows = (c.demandRows || []).some(r => r.product === filterProduct)
+      const inOldDemand = c.demandProduct === filterProduct
+      if (!inPrices && !inDemandRows && !inOldDemand) return false
+    }
+
+    // Port filter — checks demand rows
+    if (filterPort) {
+      const inDemandRows = (c.demandRows || []).some(r => r.port?.toLowerCase().includes(filterPort.toLowerCase()))
+      const inOldPort = (c.demandPort || '').toLowerCase().includes(filterPort.toLowerCase())
+      if (!inDemandRows && !inOldPort) return false
+    }
+
+    // Date range filter
+    if (filterDateFrom) {
+      const callDate = parseDate(c.date)
+      const from = parseDate(filterDateFrom)
+      if (callDate && from && callDate < from) return false
+    }
+    if (filterDateTo) {
+      const callDate = parseDate(c.date)
+      const to = parseDate(filterDateTo)
+      if (callDate && to && callDate > to) return false
+    }
+
+    // Trend filter
+    if (filterTrend) {
+      const hasTrend = Object.values(c.prices || {}).some(p => p.trend === filterTrend)
+      if (!hasTrend) return false
+    }
+
+    return true
+  })
+
+  function clearFilters() {
+    setSearch('')
+    setFilterProduct('')
+    setFilterPort('')
+    setFilterDateFrom('')
+    setFilterDateTo('')
+    setFilterTrend('')
+  }
 
   function startEdit(c) {
     setEditingId(c.id)
@@ -86,9 +151,59 @@ export default function Calls({ calls, onDelete, onEdit }) {
   return (
     <div className={styles.wrap}>
       <header className={styles.header}>
-        <h1 className={styles.title}>All Calls</h1>
-        <input className={styles.search} placeholder="Search clients, remarks..." value={search} onChange={e => setSearch(e.target.value)} />
+        <div className={styles.headerLeft}>
+          <h1 className={styles.title}>All Calls</h1>
+          <span className={styles.resultCount}>{filtered.length} of {calls.length}</span>
+        </div>
+        <div className={styles.searchBar}>
+          <input className={styles.search} placeholder="Search clients, remarks, prices..." value={search} onChange={e => setSearch(e.target.value)} />
+          <button
+            className={`${styles.filterToggle} ${showFilters ? styles.filterToggleActive : ''}`}
+            onClick={() => setShowFilters(f => !f)}
+          >
+            ⊟ Filters {activeFilters > 0 && <span className={styles.filterBadge}>{activeFilters}</span>}
+          </button>
+          {(search || activeFilters > 0) && (
+            <button className={styles.clearBtn} onClick={clearFilters}>✕ Clear</button>
+          )}
+        </div>
       </header>
+
+      {showFilters && (
+        <div className={styles.filterBar}>
+          <div className={styles.filterField}>
+            <label className={styles.filterLabel}>Product</label>
+            <select className={styles.filterSelect} value={filterProduct} onChange={e => setFilterProduct(e.target.value)}>
+              <option value="">All products</option>
+              {['Amsul', 'Urea', 'MAP', 'SSP', 'TSP', 'NP 10-45', 'NP 08-40'].map(p => <option key={p} value={p}>{p}</option>)}
+            </select>
+          </div>
+          <div className={styles.filterField}>
+            <label className={styles.filterLabel}>Port</label>
+            <select className={styles.filterSelect} value={filterPort} onChange={e => setFilterPort(e.target.value)}>
+              <option value="">All ports</option>
+              {['Paranaguá', 'Aratu', 'Rio Grande', 'Santos', 'São Francisco do Sul', 'Santarém', 'Itaqui', 'Vitória'].map(p => <option key={p} value={p}>{p}</option>)}
+            </select>
+          </div>
+          <div className={styles.filterField}>
+            <label className={styles.filterLabel}>Trend</label>
+            <select className={styles.filterSelect} value={filterTrend} onChange={e => setFilterTrend(e.target.value)}>
+              <option value="">Any trend</option>
+              <option value="up">↑ Up</option>
+              <option value="stable">↔ Stable</option>
+              <option value="down">↓ Down</option>
+            </select>
+          </div>
+          <div className={styles.filterField}>
+            <label className={styles.filterLabel}>Date from</label>
+            <input type="date" className={styles.filterSelect} value={filterDateFrom} onChange={e => setFilterDateFrom(e.target.value)} />
+          </div>
+          <div className={styles.filterField}>
+            <label className={styles.filterLabel}>Date to</label>
+            <input type="date" className={styles.filterSelect} value={filterDateTo} onChange={e => setFilterDateTo(e.target.value)} />
+          </div>
+        </div>
+      )}
 
       {savedBanner && <div className={styles.savedBanner}>✓ Call updated successfully!</div>}
 
