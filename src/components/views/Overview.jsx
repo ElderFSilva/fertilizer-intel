@@ -12,6 +12,13 @@ function formatDate(dateStr) {
   return dateStr
 }
 
+function formatVolume(val) {
+  if (!val) return null
+  const num = parseFloat(val)
+  if (isNaN(num)) return val
+  return num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' T'
+}
+
 function parseDate(dateStr) {
   if (!dateStr) return new Date(0)
   const iso = new Date(dateStr + 'T00:00:00')
@@ -19,13 +26,6 @@ function parseDate(dateStr) {
   const natural = new Date(dateStr)
   if (!isNaN(natural.getTime())) return natural
   return new Date(0)
-}
-
-function isWithinOneWeek(dateStr) {
-  const d = parseDate(dateStr)
-  const now = new Date()
-  const diffDays = (now - d) / (1000 * 60 * 60 * 24)
-  return diffDays <= 7
 }
 
 const SIGNAL_STYLE = {
@@ -39,6 +39,7 @@ export default function Overview({ calls, signals }) {
   const clients = Object.keys(demandMap)
   const recentCalls = calls.slice(0, 5)
   const [expandedSignal, setExpandedSignal] = useState(null)
+  const [demandPopup, setDemandPopup] = useState(null)
 
   function handleExport() {
     const html = generateWeeklyReport(calls, signals)
@@ -46,7 +47,6 @@ export default function Overview({ calls, signals }) {
     win.document.write(html)
     win.document.close()
   }
-  const [demandPopup, setDemandPopup] = useState(null) // { client, demand, remarks }
 
   // Get latest call per client for demand popup
   const latestByClient = {}
@@ -61,8 +61,21 @@ export default function Overview({ calls, signals }) {
     count: calls.filter(c => c.prices?.[p]?.value || c.prices?.[p]?.trend !== 'none').length,
   })).sort((a, b) => b.count - a.count)
 
+  // Build demand rows for popup — handles both old and new format
+  function getDemandRows(call) {
+    if (call.demandRows?.length) {
+      return call.demandRows.filter(r => r.product || r.volume || r.port || r.priceTarget)
+    }
+    // Legacy single-field format
+    if (call.demandProduct || call.demandVolume || call.demandPort || call.demandPriceTarget) {
+      return [{ product: call.demandProduct, volume: call.demandVolume, port: call.demandPort, priceTarget: call.demandPriceTarget }]
+    }
+    return []
+  }
+
   return (
     <div className={styles.wrap}>
+
       {/* Demand popup overlay */}
       {demandPopup && (
         <div className={styles.popupOverlay} onClick={() => setDemandPopup(null)}>
@@ -72,12 +85,53 @@ export default function Overview({ calls, signals }) {
               <span className={styles.popupDate}>{formatDate(demandPopup.date)}</span>
               <button className={styles.popupClose} onClick={() => setDemandPopup(null)}>✕</button>
             </div>
-            {demandPopup.demand && (
+
+            {/* Structured demand rows */}
+            {demandPopup.demandRows?.length > 0 && (
               <div className={styles.popupBlock}>
                 <span className={styles.popupLabel}>Demand</span>
+                <div className={styles.popupDemandRows}>
+                  {demandPopup.demandRows.map((row, i) => (
+                    <div key={i} className={styles.popupDemandRow}>
+                      {row.product && (
+                        <div className={styles.popupDemandCell}>
+                          <span className={styles.popupDemandCellLabel}>Product</span>
+                          <span className={styles.popupDemandCellValue}>{row.product}</span>
+                        </div>
+                      )}
+                      {row.volume && (
+                        <div className={styles.popupDemandCell}>
+                          <span className={styles.popupDemandCellLabel}>Volume</span>
+                          <span className={styles.popupDemandCellValue}>{formatVolume(row.volume)}</span>
+                        </div>
+                      )}
+                      {row.port && (
+                        <div className={styles.popupDemandCell}>
+                          <span className={styles.popupDemandCellLabel}>Port</span>
+                          <span className={styles.popupDemandCellValue}>{row.port}</span>
+                        </div>
+                      )}
+                      {row.priceTarget && (
+                        <div className={styles.popupDemandCell}>
+                          <span className={styles.popupDemandCellLabel}>Price Target</span>
+                          <span className={styles.popupDemandCellValue} style={{ color: 'var(--accent)' }}>{row.priceTarget}</span>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Free text demand notes */}
+            {demandPopup.demand && (
+              <div className={styles.popupBlock}>
+                <span className={styles.popupLabel}>Notes</span>
                 <p className={styles.popupText}>{demandPopup.demand}</p>
               </div>
             )}
+
+            {/* Remarks */}
             {demandPopup.remarks && (
               <div className={styles.popupBlock}>
                 <span className={styles.popupLabel}>Remarks</span>
@@ -193,11 +247,18 @@ export default function Overview({ calls, signals }) {
               const color = status === 'active' ? 'var(--accent)' : status === 'potential' ? 'var(--amber)' : 'var(--red)'
               const isClickable = status === 'active' || status === 'potential'
               const latest = latestByClient[cl]
+              const demandRows = latest ? getDemandRows(latest) : []
               return (
                 <div
                   key={cl}
                   className={`${styles.clientCard} ${isClickable ? styles.clientCardClickable : ''}`}
-                  onClick={() => isClickable && latest && setDemandPopup({ client: cl, date: latest.date, demand: latest.demand, remarks: latest.remarks })}
+                  onClick={() => isClickable && latest && setDemandPopup({
+                    client: cl,
+                    date: latest.date,
+                    demandRows,
+                    demand: latest.demand,
+                    remarks: latest.remarks
+                  })}
                 >
                   <span className={styles.clientName}>{cl}</span>
                   <div className={styles.clientBottom}>
