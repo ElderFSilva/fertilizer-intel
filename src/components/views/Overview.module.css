@@ -217,3 +217,18 @@
   font-family: inherit;
 }
 .exportBtn:hover { background: var(--accent2); transform: translateY(-1px); }
+.popupDemandRows { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
+
+.popupDemandRow {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 8px; background: var(--bg3); border-radius: 8px; padding: 10px 12px;
+}
+
+.popupDemandCell { display: flex; flex-direction: column; gap: 2px; }
+
+.popupDemandCellLabel {
+  font-size: 9px; color: var(--text3); font-family: 'DM Mono', monospace;
+  text-transform: uppercase; letter-spacing: 0.08em;
+}
+
+.popupDemandCellValue { font-size: 13px; color: var(--text); font-weight: 600; }
