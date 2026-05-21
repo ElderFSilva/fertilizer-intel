@@ -69,15 +69,29 @@ function CompetitorOffersEditor({ offers, onChange }) {
       )}
       {offers.map((o, i) => (
         <div key={i} className={styles.compRow}>
-          <input className={styles.compInput} placeholder="Competitor" value={o.competitor} onChange={e => updateOffer(i, 'competitor', e.target.value)} />
-          <select className={styles.compSelect} value={o.product} onChange={e => updateOffer(i, 'product', e.target.value)}>
-            {PRODUCTS.map(p => <option key={p} value={p}>{p}</option>)}
-          </select>
-          <input className={styles.compInput} placeholder="Price" value={o.price} onChange={e => updateOffer(i, 'price', e.target.value)} />
-          <div className={styles.compPortWrap}>
-            <PortSelect value={o.port || ''} onChange={val => updateOffer(i, 'port', val)} />
+          <div className={styles.compRowTop}>
+            <div className={styles.compFieldWrap}>
+              <span className={styles.compFieldLabel}>Competitor</span>
+              <input className={styles.compInput} placeholder="e.g. Koch, OCP, Helm" value={o.competitor} onChange={e => updateOffer(i, 'competitor', e.target.value)} />
+            </div>
+            <div className={styles.compFieldWrap}>
+              <span className={styles.compFieldLabel}>Product</span>
+              <select className={styles.compSelect} value={o.product} onChange={e => updateOffer(i, 'product', e.target.value)}>
+                {PRODUCTS.map(p => <option key={p} value={p}>{p}</option>)}
+              </select>
+            </div>
           </div>
-          <button type="button" className={styles.removeOfferBtn} onClick={() => removeOffer(i)}>✕</button>
+          <div className={styles.compRowBottom}>
+            <div className={styles.compFieldWrap}>
+              <span className={styles.compFieldLabel}>Price</span>
+              <input className={styles.compInput} placeholder="e.g. 255 CFR" value={o.price} onChange={e => updateOffer(i, 'price', e.target.value)} />
+            </div>
+            <div className={styles.compPortWrap}>
+              <span className={styles.compFieldLabel}>Port</span>
+              <PortSelect value={o.port || ''} onChange={val => updateOffer(i, 'port', val)} />
+            </div>
+            <button type="button" className={styles.removeOfferBtn} onClick={() => removeOffer(i)}>✕</button>
+          </div>
         </div>
       ))}
     </div>
