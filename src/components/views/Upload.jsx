@@ -12,7 +12,7 @@ function emptyPrices() {
 }
 
 function emptyCompOffer() {
-  return { competitor: '', product: 'Amsul', price: '' }
+  return { competitor: '', product: 'Amsul', price: '', port: '' }
 }
 
 function emptyDemandRow() {
@@ -74,6 +74,9 @@ function CompetitorOffersEditor({ offers, onChange }) {
             {PRODUCTS.map(p => <option key={p} value={p}>{p}</option>)}
           </select>
           <input className={styles.compInput} placeholder="Price" value={o.price} onChange={e => updateOffer(i, 'price', e.target.value)} />
+          <div className={styles.compPortWrap}>
+            <PortSelect value={o.port || ''} onChange={val => updateOffer(i, 'port', val)} />
+          </div>
           <button type="button" className={styles.removeOfferBtn} onClick={() => removeOffer(i)}>✕</button>
         </div>
       ))}
@@ -119,7 +122,7 @@ export default function Upload({ onAdd }) {
 - demand (string, any remaining demand notes including laycan/timeframe)
 - remarks (string, the remarks section text)
 - prices (object with keys: Amsul, Urea, MAP, SSP, TSP, NP — each having value (string price or empty) and trend (one of: up, stable, down, none based on arrow direction checked on the form))
-- competitorOffers (array of objects, each with: competitor (string), product (one of Amsul/Urea/MAP/SSP/TSP/NP), price (string). Extract these from the remarks section — look for mentions of companies offering products at specific prices)
+- competitorOffers (array of objects, each with: competitor (string), product (one of Amsul/Urea/MAP/SSP/TSP/NP), price (string), port (string, delivery port if mentioned). Extract these from the remarks section — look for mentions of companies offering products at specific prices)
 
 Return ONLY a valid JSON array, no markdown, no explanation.` }
             ]
