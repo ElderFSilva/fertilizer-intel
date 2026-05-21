@@ -273,6 +273,7 @@ export default function Calls({ calls, onDelete, onEdit }) {
                             <span className={styles.compName}>{o.competitor}</span>
                             <span className={styles.compProduct}>{o.product}</span>
                             <span className={styles.compPrice}>{o.price}</span>
+                            {o.port && <span className={styles.compPort}>{o.port}</span>}
                           </div>
                         ))}
                       </div>
