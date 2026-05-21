@@ -40,12 +40,18 @@ export default function Overview({ calls, signals }) {
   const recentCalls = calls.slice(0, 5)
   const [expandedSignal, setExpandedSignal] = useState(null)
   const [demandPopup, setDemandPopup] = useState(null)
+  const [showReportModal, setShowReportModal] = useState(false)
+  const [reportFrom, setReportFrom] = useState(() => {
+    const d = new Date(); d.setDate(d.getDate() - 6); return d.toISOString().split('T')[0]
+  })
+  const [reportTo, setReportTo] = useState(() => new Date().toISOString().split('T')[0])
 
   function handleExport() {
-    const html = generateWeeklyReport(calls, signals)
+    const html = generateWeeklyReport(calls, signals, reportFrom, reportTo)
     const win = window.open('', '_blank')
     win.document.write(html)
     win.document.close()
+    setShowReportModal(false)
   }
 
   // Get latest call per client for demand popup
@@ -75,6 +81,53 @@ export default function Overview({ calls, signals }) {
 
   return (
     <div className={styles.wrap}>
+
+      {/* Report date picker modal */}
+      {showReportModal && (
+        <div className={styles.popupOverlay} onClick={() => setShowReportModal(false)}>
+          <div className={styles.popup} style={{ maxWidth: 400 }} onClick={e => e.stopPropagation()}>
+            <div className={styles.popupHeader}>
+              <span className={styles.popupClient}>Export Report</span>
+              <button className={styles.popupClose} onClick={() => setShowReportModal(false)}>✕</button>
+            </div>
+            <div className={styles.popupBlock}>
+              <span className={styles.popupLabel}>Select Date Range</span>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 8 }}>
+                <div>
+                  <div style={{ fontSize: 10, color: 'var(--text3)', fontFamily: 'DM Mono', textTransform: 'uppercase', marginBottom: 4 }}>From</div>
+                  <input type="date" value={reportFrom} onChange={e => setReportFrom(e.target.value)}
+                    style={{ background: 'var(--bg3)', border: '1px solid var(--border2)', borderRadius: 8, padding: '9px 12px', color: 'var(--text)', fontSize: 13, outline: 'none', width: '100%', fontFamily: 'inherit' }} />
+                </div>
+                <div>
+                  <div style={{ fontSize: 10, color: 'var(--text3)', fontFamily: 'DM Mono', textTransform: 'uppercase', marginBottom: 4 }}>To</div>
+                  <input type="date" value={reportTo} onChange={e => setReportTo(e.target.value)}
+                    style={{ background: 'var(--bg3)', border: '1px solid var(--border2)', borderRadius: 8, padding: '9px 12px', color: 'var(--text)', fontSize: 13, outline: 'none', width: '100%', fontFamily: 'inherit' }} />
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
+                <button onClick={() => { const d = new Date(); const f = new Date(d); f.setDate(d.getDate()-6); setReportFrom(f.toISOString().split('T')[0]); setReportTo(d.toISOString().split('T')[0]) }}
+                  style={{ flex:1, background:'var(--bg3)', border:'1px solid var(--border2)', color:'var(--text2)', borderRadius:8, padding:'8px', fontSize:12, cursor:'pointer', fontFamily:'inherit' }}>
+                  This week
+                </button>
+                <button onClick={() => { const d = new Date(); const f = new Date(d); f.setDate(d.getDate()-30); setReportFrom(f.toISOString().split('T')[0]); setReportTo(d.toISOString().split('T')[0]) }}
+                  style={{ flex:1, background:'var(--bg3)', border:'1px solid var(--border2)', color:'var(--text2)', borderRadius:8, padding:'8px', fontSize:12, cursor:'pointer', fontFamily:'inherit' }}>
+                  Last 30 days
+                </button>
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
+              <button onClick={() => setShowReportModal(false)}
+                style={{ flex:1, background:'transparent', border:'1px solid var(--border2)', color:'var(--text2)', borderRadius:8, padding:'11px', fontSize:14, cursor:'pointer', fontFamily:'inherit' }}>
+                Cancel
+              </button>
+              <button onClick={handleExport}
+                style={{ flex:2, background:'var(--accent)', color:'#0e0f0c', border:'none', borderRadius:8, padding:'11px', fontSize:14, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
+                ↓ Generate Report
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Demand popup overlay */}
       {demandPopup && (
@@ -151,8 +204,8 @@ export default function Overview({ calls, signals }) {
           <div className={styles.dateChip}>
             {new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
           </div>
-          <button className={styles.exportBtn} onClick={handleExport}>
-            ↓ Weekly Report
+          <button className={styles.exportBtn} onClick={() => setShowReportModal(true)}>
+            ↓ Export Report
           </button>
         </div>
       </header>
