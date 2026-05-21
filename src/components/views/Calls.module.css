@@ -53,8 +53,10 @@
 
 .pricesTable { display: flex; flex-direction: column; gap: 6px; }
 
-.priceRow { display: grid; grid-template-columns: 70px 1fr 140px; 
-           align-items: center; gap: 6px; }
+.priceRow {
+  display: grid; grid-template-columns: 60px 1fr 30px;
+  align-items: center; gap: 8px; font-size: 13px;
+}
 
 .priceProduct { color: var(--text3); font-family: 'DM Mono', monospace; }
 .priceVal { font-family: 'DM Mono', monospace; color: var(--text); }
@@ -247,4 +249,12 @@
 
 @media (max-width: 900px) {
   .filterBar { grid-template-columns: 1fr 1fr; }
+}
+
+.compPort { color: var(--text3); font-family: 'DM Mono', monospace; font-size: 12px; }
+
+.compPortWrap { flex: 1; min-width: 140px; }
+
+.compRow {
+  display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
 }
