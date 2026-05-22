@@ -191,11 +191,8 @@ export function generateWeeklyReport(calls, signals, dateFrom, dateTo) {
   const toStr = dateTo || now.toISOString().split('T')[0]
   const periodLabel = `${formatDate(fromStr)} – ${formatDate(toStr)}`
 
-  // Chart always shows last 4 weeks regardless of selected dates
-  const chart4WeeksAgo = new Date(now)
-  chart4WeeksAgo.setDate(now.getDate() - 27)
-  const chartFromStr = chart4WeeksAgo.toISOString().split('T')[0]
-  const chartData = buildChartData(calls, argusData, ferteconData, chartFromStr, now.toISOString().split('T')[0])
+  // Chart uses the selected date range
+  const chartData = buildChartData(calls, argusData, ferteconData, fromStr, toStr)
   const chartSVG = buildChartSVG(chartData)
   const priceBubbles = buildPriceBubbles(calls, fromStr, toStr)
   const demandVolumes = buildDemandVolume(calls, fromStr, toStr)
@@ -266,7 +263,7 @@ export function generateWeeklyReport(calls, signals, dateFrom, dateTo) {
 
   <!-- Amsul Chart -->
   <div class="section">
-    <div class="section-title">Amsul CFR Brazil — Publication vs Market (Last 4 Weeks)</div>
+    <div class="section-title">Amsul CFR Brazil — Publication vs Market</div>
     <div class="chart-wrap">
       <div class="chart-legend">
         <div class="legend-item"><div class="legend-dash" style="border-color:#60b8f0"></div> Argus Avg</div>
