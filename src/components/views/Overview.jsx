@@ -104,16 +104,7 @@ export default function Overview({ calls, signals }) {
                     style={{ background: 'var(--bg3)', border: '1px solid var(--border2)', borderRadius: 8, padding: '9px 12px', color: 'var(--text)', fontSize: 13, outline: 'none', width: '100%', fontFamily: 'inherit' }} />
                 </div>
               </div>
-              <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
-                <button onClick={() => { const d = new Date(); const f = new Date(d); f.setDate(d.getDate()-6); setReportFrom(f.toISOString().split('T')[0]); setReportTo(d.toISOString().split('T')[0]) }}
-                  style={{ flex:1, background:'var(--bg3)', border:'1px solid var(--border2)', color:'var(--text2)', borderRadius:8, padding:'8px', fontSize:12, cursor:'pointer', fontFamily:'inherit' }}>
-                  This week
-                </button>
-                <button onClick={() => { const d = new Date(); const f = new Date(d); f.setDate(d.getDate()-30); setReportFrom(f.toISOString().split('T')[0]); setReportTo(d.toISOString().split('T')[0]) }}
-                  style={{ flex:1, background:'var(--bg3)', border:'1px solid var(--border2)', color:'var(--text2)', borderRadius:8, padding:'8px', fontSize:12, cursor:'pointer', fontFamily:'inherit' }}>
-                  Last 30 days
-                </button>
-              </div>
+
             </div>
             <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
               <button onClick={() => setShowReportModal(false)}
