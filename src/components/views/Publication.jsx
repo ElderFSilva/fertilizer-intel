@@ -90,9 +90,13 @@ function buildChartData(calls, argusData, ferteconData) {
     weekMap[f.date].ferteconAvg = Math.round((f.low + f.high) / 2)
   })
 
-  // Add call data — group by the Thursday of that week
+  // Add call data — Mon-Fri only, grouped by that week's Thursday
   const callsByWeek = {}
   calls.forEach(c => {
+    const d = parseDate(c.date)
+    if (d.getTime() === 0) return
+    const day = d.getDay()
+    if (day === 0 || day === 6) return // exclude weekends
     const thursday = getWeekThursday(c.date)
     if (!thursday) return
     const pr = c.prices?.Amsul
@@ -305,11 +309,13 @@ export default function ArgusView({ calls }) {
                 <YAxis tick={{ fill: 'var(--text3)', fontSize: 11 }} domain={['auto', 'auto']} />
                 <Tooltip content={<CustomTooltip />} />
                 <Legend wrapperStyle={{ fontSize: 12, color: 'var(--text2)', paddingTop: 12 }} />
-                <Line type="monotone" dataKey="argusAvg" stroke="#60b8f0" strokeWidth={2.5} strokeDasharray="6 3" dot={{ r: 5, fill: '#60b8f0' }} name="Argus Avg" connectNulls />
-                <Line type="monotone" dataKey="ferteconAvg" stroke="#b860f0" strokeWidth={2.5} strokeDasharray="6 3" dot={{ r: 5, fill: '#b860f0' }} name="Fertecon Avg" connectNulls />
-                <Line type="monotone" dataKey="callAvg" stroke="#c8f060" strokeWidth={2} dot={{ r: 4, fill: '#c8f060' }} name="Call Average" connectNulls />
-                <Line type="monotone" dataKey="lowestPrice" stroke="#f0b840" strokeWidth={2} dot={{ r: 4, fill: '#f0b840' }} name="Lowest Price" connectNulls />
-                <Line type="monotone" dataKey="highestPrice" stroke="#ff6b5b" strokeWidth={2} dot={{ r: 4, fill: '#ff6b5b' }} name="Highest Price" connectNulls />
+                {/* Hidden lines — values appear in tooltip only */}
+                <Line type="monotone" dataKey="argusAvg" stroke="transparent" strokeWidth={0} dot={false} legendType="none" name="Argus Avg" connectNulls />
+                <Line type="monotone" dataKey="ferteconAvg" stroke="transparent" strokeWidth={0} dot={false} legendType="none" name="Fertecon Avg" connectNulls />
+                <Line type="monotone" dataKey="lowestPrice" stroke="transparent" strokeWidth={0} dot={false} legendType="none" name="Lowest Price" connectNulls />
+                <Line type="monotone" dataKey="highestPrice" stroke="transparent" strokeWidth={0} dot={false} legendType="none" name="Highest Price" connectNulls />
+                {/* Visible line */}
+                <Line type="monotone" dataKey="callAvg" stroke="#c8f060" strokeWidth={2.5} dot={{ r: 5, fill: '#c8f060' }} name="Call Average" connectNulls />
               </ComposedChart>
             </ResponsiveContainer>
           </div>
