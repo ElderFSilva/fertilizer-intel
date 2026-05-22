@@ -64,46 +64,50 @@ function getWeekKey(dateStr) {
 
 const PRODUCTS = ['Amsul', 'Urea', 'MAP', 'SSP', 'TSP', 'NP']
 
-function buildChartData(calls, argusData, ferteconData, fromStr, toStr) {
-  const fromD = parseDate(fromStr)
-  const toD = parseDate(toStr); toD.setHours(23, 59, 59)
+function buildChartData(calls, argusData, ferteconData) {
+  const weekMap = {}
 
-  const weeks = new Set()
-  argusData.forEach(a => { const d = parseDate(a.date); if (d >= fromD && d <= toD) weeks.add(a.date) })
-  ferteconData.forEach(f => { const d = parseDate(f.date); if (d >= fromD && d <= toD) weeks.add(f.date) })
-  calls.forEach(c => {
-    const d = parseDate(c.date)
-    if (d >= fromD && d <= toD) { const w = getWeekKey(c.date); if (w) weeks.add(w) }
+  argusData.forEach(a => {
+    if (!weekMap[a.date]) weekMap[a.date] = {}
+    weekMap[a.date].argusAvg = Math.round((a.low + a.high) / 2)
   })
 
-  const callWeeks = {}
+  ferteconData.forEach(f => {
+    if (!weekMap[f.date]) weekMap[f.date] = {}
+    weekMap[f.date].ferteconAvg = Math.round((f.low + f.high) / 2)
+  })
+
+  const callsByWeek = {}
   calls.forEach(c => {
     const d = parseDate(c.date)
-    if (d < fromD || d > toD) return
+    if (d.getTime() === 0) return
     const day = d.getDay()
-    if (day === 0 || day === 6) return // exclude weekends
-    const thursday = getWeekThursday(c.date); if (!thursday) return
-    const pr = c.prices?.Amsul; if (!pr?.value) return
-    const price = parsePrice(pr.value); if (!price) return
-    if (!callWeeks[thursday]) callWeeks[thursday] = []
-    callWeeks[thursday].push(price)
+    if (day === 0 || day === 6) return
+    const thursday = getWeekThursday(c.date)
+    if (!thursday) return
+    const pr = c.prices?.Amsul
+    if (!pr?.value) return
+    const price = parsePrice(pr.value)
+    if (!price) return
+    if (!callsByWeek[thursday]) callsByWeek[thursday] = []
+    callsByWeek[thursday].push(price)
   })
 
-  return [...weeks].sort().map(week => {
-    const argus = argusData.find(a => a.date === week)
-    const fertecon = ferteconData.find(f => f.date === week)
-    const prices = callWeeks[week] || []
-    return {
-      week,
-      label: formatDate(week),
-      argusAvg: argus ? Math.round((argus.low + argus.high) / 2) : null,
-      ferteconAvg: fertecon ? Math.round((fertecon.low + fertecon.high) / 2) : null,
-      callAvg: prices.length ? Math.round(prices.reduce((a, b) => a + b, 0) / prices.length) : null,
-      callLow: prices.length ? Math.min(...prices) : null,
-      callHigh: prices.length ? Math.max(...prices) : null,
-    }
+  Object.entries(callsByWeek).forEach(([thursday, prices]) => {
+    if (!weekMap[thursday]) weekMap[thursday] = {}
+    weekMap[thursday].callAvg = Math.round(prices.reduce((a, b) => a + b, 0) / prices.length)
   })
+
+  return Object.entries(weekMap)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([date, data]) => ({
+      date,
+      argusAvg: data.argusAvg ?? null,
+      ferteconAvg: data.ferteconAvg ?? null,
+      callAvg: data.callAvg ?? null,
+    }))
 }
+
 
 function buildChartSVG(chartData) {
   if (chartData.length < 2) return '<p style="color:#888;font-size:12px;text-align:center;padding:40px 0">Not enough data for this period.</p>'
@@ -145,7 +149,7 @@ function buildChartSVG(chartData) {
   }).join('')
 
   const xLabels = chartData.map((d, i) =>
-    `<text x="${xScale(i)}" y="${H - 6}" text-anchor="middle" font-size="9" fill="#999">${formatChartDate(d.week)}</text>`
+    `<text x="${xScale(i)}" y="${H - 6}" text-anchor="middle" font-size="9" fill="#999">${formatChartDate(d.date)}</text>`
   ).join('')
 
   return `<svg width="${W}" height="${H}" xmlns="http://www.w3.org/2000/svg" style="font-family:Arial,sans-serif;max-width:100%">
@@ -212,7 +216,7 @@ export function generateWeeklyReport(calls, signals, dateFrom, dateTo) {
   const periodLabel = `${formatDate(fromStr)} – ${formatDate(toStr)}`
 
   // Chart shows ALL historical data — same as Publication vs Mrkt tab
-  const chartData = buildChartData(calls, argusData, ferteconData, '2000-01-01', now.toISOString().split('T')[0])
+  const chartData = buildChartData(calls, argusData, ferteconData)
   const chartSVG = buildChartSVG(chartData)
   const priceBubbles = buildPriceBubbles(calls, fromStr, toStr)
   const demandVolumes = buildDemandVolume(calls, fromStr, toStr)
