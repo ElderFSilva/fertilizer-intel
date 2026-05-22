@@ -35,6 +35,17 @@ function parsePrice(val) {
   return isNaN(p) ? null : p
 }
 
+function getWeekThursday(dateStr) {
+  const d = parseDate(dateStr)
+  if (d.getTime() === 0) return null
+  const day = d.getDay()
+  const monday = new Date(d)
+  monday.setDate(d.getDate() - (day === 0 ? 6 : day - 1))
+  const thursday = new Date(monday)
+  thursday.setDate(monday.getDate() + 3)
+  return thursday.toISOString().split('T')[0]
+}
+
 function getWeekKey(dateStr) {
   const d = parseDate(dateStr)
   if (d.getTime() === 0) return null
@@ -62,11 +73,13 @@ function buildChartData(calls, argusData, ferteconData, fromStr, toStr) {
   calls.forEach(c => {
     const d = parseDate(c.date)
     if (d < fromD || d > toD) return
-    const week = getWeekKey(c.date); if (!week) return
+    const day = d.getDay()
+    if (day === 0 || day === 6) return // exclude weekends
+    const thursday = getWeekThursday(c.date); if (!thursday) return
     const pr = c.prices?.Amsul; if (!pr?.value) return
     const price = parsePrice(pr.value); if (!price) return
-    if (!callWeeks[week]) callWeeks[week] = []
-    callWeeks[week].push(price)
+    if (!callWeeks[thursday]) callWeeks[thursday] = []
+    callWeeks[thursday].push(price)
   })
 
   return [...weeks].sort().map(week => {
@@ -191,8 +204,10 @@ export function generateWeeklyReport(calls, signals, dateFrom, dateTo) {
   const toStr = dateTo || now.toISOString().split('T')[0]
   const periodLabel = `${formatDate(fromStr)} – ${formatDate(toStr)}`
 
-  // Chart uses the selected date range
-  const chartData = buildChartData(calls, argusData, ferteconData, fromStr, toStr)
+  // Chart always shows last 4 weeks
+  const chart4WeeksAgo = new Date(now)
+  chart4WeeksAgo.setDate(now.getDate() - 27)
+  const chartData = buildChartData(calls, argusData, ferteconData, chart4WeeksAgo.toISOString().split('T')[0], now.toISOString().split('T')[0])
   const chartSVG = buildChartSVG(chartData)
   const priceBubbles = buildPriceBubbles(calls, fromStr, toStr)
   const demandVolumes = buildDemandVolume(calls, fromStr, toStr)
