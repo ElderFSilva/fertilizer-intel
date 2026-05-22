@@ -109,7 +109,7 @@ function buildChartSVG(chartData) {
   if (chartData.length < 2) return '<p style="color:#888;font-size:12px;text-align:center;padding:40px 0">Not enough data for this period.</p>'
 
   const W = 820, H = 260
-  const PAD = { top: 20, right: 20, bottom: 40, left: 50 }
+  const PAD = { top: 20, right: 40, bottom: 40, left: 50 }
   const chartW = W - PAD.left - PAD.right
   const chartH = H - PAD.top - PAD.bottom
 
@@ -211,10 +211,8 @@ export function generateWeeklyReport(calls, signals, dateFrom, dateTo) {
   const toStr = dateTo || now.toISOString().split('T')[0]
   const periodLabel = `${formatDate(fromStr)} – ${formatDate(toStr)}`
 
-  // Chart always shows last 4 weeks
-  const chart4WeeksAgo = new Date(now)
-  chart4WeeksAgo.setDate(now.getDate() - 27)
-  const chartData = buildChartData(calls, argusData, ferteconData, chart4WeeksAgo.toISOString().split('T')[0], now.toISOString().split('T')[0])
+  // Chart shows ALL historical data — same as Publication vs Mrkt tab
+  const chartData = buildChartData(calls, argusData, ferteconData, '2000-01-01', now.toISOString().split('T')[0])
   const chartSVG = buildChartSVG(chartData)
   const priceBubbles = buildPriceBubbles(calls, fromStr, toStr)
   const demandVolumes = buildDemandVolume(calls, fromStr, toStr)
