@@ -63,19 +63,19 @@ function parsePrice(val) {
 }
 
 function buildCallWeeklyStats(calls) {
-  const weeks = {}
+  // Group by actual call date for more precise plotting
+  const days = {}
   calls.forEach(c => {
-    const week = getWeekKey(c.date)
-    if (!week) return
+    if (!c.date) return
     const pr = c.prices?.Amsul
     if (!pr?.value) return
     const price = parsePrice(pr.value)
     if (!price) return
-    if (!weeks[week]) weeks[week] = { prices: [] }
-    weeks[week].prices.push(price)
+    if (!days[c.date]) days[c.date] = { prices: [] }
+    days[c.date].prices.push(price)
   })
-  return Object.entries(weeks).map(([week, data]) => ({
-    week,
+  return Object.entries(days).map(([date, data]) => ({
+    week: date,
     callAvg: data.prices.length ? Math.round(data.prices.reduce((a, b) => a + b, 0) / data.prices.length) : null,
     lowestPrice: data.prices.length ? Math.min(...data.prices) : null,
     highestPrice: data.prices.length ? Math.max(...data.prices) : null,
@@ -321,8 +321,19 @@ export default function ArgusView({ calls }) {
               {allDates.map(date => {
                 const argus = argusData.find(a => a.date === date)
                 const fertecon = ferteconData.find(f => f.date === date)
-                const week = getWeekKey(date) || date
-                const callWeek = callStats.find(c => c.week === week)
+                const pubWeekKey = getWeekKey(date) || date
+                // Aggregate all call stats whose date falls in same week as publication
+                const weekCallStats = callStats.filter(c => getWeekKey(c.week) === pubWeekKey || c.week === pubWeekKey)
+                const allPrices = weekCallStats.flatMap(cs => {
+                  const prices = []
+                  if (cs.callAvg) prices.push(cs.callAvg)
+                  return prices
+                })
+                const callWeek = weekCallStats.length ? {
+                  callAvg: weekCallStats.reduce((s, c) => s + (c.callAvg || 0), 0) / weekCallStats.filter(c => c.callAvg).length || null,
+                  lowestPrice: Math.min(...weekCallStats.map(c => c.lowestPrice).filter(Boolean)),
+                  highestPrice: Math.max(...weekCallStats.map(c => c.highestPrice).filter(Boolean)),
+                } : null
                 return (
                   <tr key={date} className={styles.tr}>
                     <td className={styles.td}>{formatDateLabel(date)}</td>
