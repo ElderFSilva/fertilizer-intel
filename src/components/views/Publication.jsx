@@ -9,15 +9,11 @@ const ARGUS_KEY = 'fertintel_argus_amsul'
 const FERTECON_KEY = 'fertintel_fertecon_amsul'
 
 function loadData(key) {
-  try {
-    const raw = localStorage.getItem(key)
-    return raw ? JSON.parse(raw) : []
-  } catch { return [] }
+  try { const raw = localStorage.getItem(key); return raw ? JSON.parse(raw) : [] }
+  catch { return [] }
 }
 
-function saveData(key, data) {
-  localStorage.setItem(key, JSON.stringify(data))
-}
+function saveData(key, data) { localStorage.setItem(key, JSON.stringify(data)) }
 
 function getLastThursday() {
   const d = new Date()
@@ -42,13 +38,23 @@ function parseDate(dateStr) {
   return new Date(0)
 }
 
-function getWeekKey(dateStr) {
+// Get the Monday of the week for a given date
+function getWeekMonday(dateStr) {
   const d = parseDate(dateStr)
   if (d.getTime() === 0) return null
   const day = d.getDay()
   const monday = new Date(d)
   monday.setDate(d.getDate() - (day === 0 ? 6 : day - 1))
   return monday.toISOString().split('T')[0]
+}
+
+// Get the Thursday of the week for a given date
+function getWeekThursday(dateStr) {
+  const monday = getWeekMonday(dateStr)
+  if (!monday) return null
+  const d = new Date(monday + 'T00:00:00')
+  d.setDate(d.getDate() + 3)
+  return d.toISOString().split('T')[0]
 }
 
 function parsePrice(val) {
@@ -62,28 +68,60 @@ function parsePrice(val) {
   return isNaN(p) ? null : p
 }
 
-function buildCallWeeklyStats(calls) {
-  // Group by actual call date for more precise plotting
-  const days = {}
+function emptyForm() {
+  return { date: getLastThursday(), argusLow: '', argusHigh: '', ferteconLow: '', ferteconHigh: '' }
+}
+
+// Build unified weekly chart data — one point per week keyed by Thursday date
+function buildChartData(calls, argusData, ferteconData) {
+  const weekMap = {}
+
+  // Add argus publications — keyed by their Thursday date
+  argusData.forEach(a => {
+    if (!weekMap[a.date]) weekMap[a.date] = {}
+    weekMap[a.date].argusAvg = Math.round((a.low + a.high) / 2)
+    weekMap[a.date].argusLow = a.low
+    weekMap[a.date].argusHigh = a.high
+  })
+
+  // Add fertecon publications — keyed by their Thursday date
+  ferteconData.forEach(f => {
+    if (!weekMap[f.date]) weekMap[f.date] = {}
+    weekMap[f.date].ferteconAvg = Math.round((f.low + f.high) / 2)
+  })
+
+  // Add call data — group by the Thursday of that week
+  const callsByWeek = {}
   calls.forEach(c => {
-    if (!c.date) return
+    const thursday = getWeekThursday(c.date)
+    if (!thursday) return
     const pr = c.prices?.Amsul
     if (!pr?.value) return
     const price = parsePrice(pr.value)
     if (!price) return
-    if (!days[c.date]) days[c.date] = { prices: [] }
-    days[c.date].prices.push(price)
+    if (!callsByWeek[thursday]) callsByWeek[thursday] = []
+    callsByWeek[thursday].push(price)
   })
-  return Object.entries(days).map(([date, data]) => ({
-    week: date,
-    callAvg: data.prices.length ? Math.round(data.prices.reduce((a, b) => a + b, 0) / data.prices.length) : null,
-    lowestPrice: data.prices.length ? Math.min(...data.prices) : null,
-    highestPrice: data.prices.length ? Math.max(...data.prices) : null,
-  }))
-}
 
-function emptyForm() {
-  return { date: getLastThursday(), argusLow: '', argusHigh: '', ferteconLow: '', ferteconHigh: '' }
+  Object.entries(callsByWeek).forEach(([thursday, prices]) => {
+    if (!weekMap[thursday]) weekMap[thursday] = {}
+    weekMap[thursday].callAvg = Math.round(prices.reduce((a, b) => a + b, 0) / prices.length)
+    weekMap[thursday].lowestPrice = Math.min(...prices)
+    weekMap[thursday].highestPrice = Math.max(...prices)
+  })
+
+  // Sort by date and build final array
+  return Object.entries(weekMap)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([date, data]) => ({
+      date,
+      label: formatDateLabel(date),
+      argusAvg: data.argusAvg ?? null,
+      ferteconAvg: data.ferteconAvg ?? null,
+      callAvg: data.callAvg ?? null,
+      lowestPrice: data.lowestPrice ?? null,
+      highestPrice: data.highestPrice ?? null,
+    }))
 }
 
 const CustomTooltip = ({ active, payload, label }) => {
@@ -91,12 +129,10 @@ const CustomTooltip = ({ active, payload, label }) => {
   return (
     <div style={{ background: 'var(--bg2)', border: '1px solid var(--border2)', borderRadius: 8, padding: '10px 14px', fontSize: 12 }}>
       <p style={{ color: 'var(--text)', marginBottom: 6, fontFamily: 'DM Mono', fontSize: 11 }}>{label}</p>
-      {payload.map((p, i) => (
-        p.value != null && (
-          <div key={i} style={{ color: p.color, marginBottom: 2 }}>
-            {p.name}: <strong>{p.value}</strong>
-          </div>
-        )
+      {payload.map((p, i) => p.value != null && (
+        <div key={i} style={{ color: p.color, marginBottom: 2 }}>
+          {p.name}: <strong>{p.value}</strong>
+        </div>
       ))}
     </div>
   )
@@ -110,29 +146,11 @@ export default function ArgusView({ calls }) {
   const [saved, setSaved] = useState(false)
   const [editingDate, setEditingDate] = useState(null)
 
-  const callStats = buildCallWeeklyStats(calls)
+  const chartData = buildChartData(calls, argusData, ferteconData)
 
-  // Merge all weeks
-  const allWeeks = new Set([
-    ...argusData.map(a => a.date),
-    ...ferteconData.map(f => f.date),
-    ...callStats.map(c => c.week)
-  ])
-
-  const chartData = [...allWeeks].sort().map(week => {
-    const argus = argusData.find(a => a.date === week)
-    const fertecon = ferteconData.find(f => f.date === week)
-    const callWeek = callStats.find(c => c.week === week)
-    return {
-      week,
-      label: formatDateLabel(week),
-      argusAvg: argus ? Math.round((argus.low + argus.high) / 2) : null,
-      ferteconAvg: fertecon ? Math.round((fertecon.low + fertecon.high) / 2) : null,
-      callAvg: callWeek?.callAvg ?? null,
-      lowestPrice: callWeek?.lowestPrice ?? null,
-      highestPrice: callWeek?.highestPrice ?? null,
-    }
-  })
+  // All publication dates for history table
+  const allDates = [...new Set([...argusData.map(a => a.date), ...ferteconData.map(f => f.date)])]
+    .sort((a, b) => b.localeCompare(a))
 
   function handleSave() {
     if (!form.date) { setError('Date is required.'); return }
@@ -144,8 +162,7 @@ export default function ArgusView({ calls }) {
     let updatedFertecon = [...ferteconData]
 
     if (hasArgus) {
-      const low = parseFloat(form.argusLow)
-      const high = parseFloat(form.argusHigh)
+      const low = parseFloat(form.argusLow), high = parseFloat(form.argusHigh)
       if (isNaN(low) || isNaN(high)) { setError('Argus prices must be numbers.'); return }
       if (low > high) { setError('Argus low must be ≤ high.'); return }
       const existing = updatedArgus.findIndex(a => a.date === form.date)
@@ -156,8 +173,7 @@ export default function ArgusView({ calls }) {
     }
 
     if (hasFertecon) {
-      const low = parseFloat(form.ferteconLow)
-      const high = parseFloat(form.ferteconHigh)
+      const low = parseFloat(form.ferteconLow), high = parseFloat(form.ferteconHigh)
       if (isNaN(low) || isNaN(high)) { setError('Fertecon prices must be numbers.'); return }
       if (low > high) { setError('Fertecon low must be ≤ high.'); return }
       const existing = updatedFertecon.findIndex(f => f.date === form.date)
@@ -191,17 +207,18 @@ export default function ArgusView({ calls }) {
   function handleDelete(date) {
     const ua = argusData.filter(a => a.date !== date)
     const uf = ferteconData.filter(f => f.date !== date)
-    saveData(ARGUS_KEY, ua)
-    saveData(FERTECON_KEY, uf)
-    setArgusData(ua)
-    setFerteconData(uf)
+    saveData(ARGUS_KEY, ua); saveData(FERTECON_KEY, uf)
+    setArgusData(ua); setFerteconData(uf)
   }
 
   function cancelEdit() { setForm(emptyForm()); setEditingDate(null); setError('') }
 
-  // All publication dates (union)
-  const allDates = [...new Set([...argusData.map(a => a.date), ...ferteconData.map(f => f.date)])]
-    .sort((a, b) => b.localeCompare(a))
+  // For history table — get aggregated call stats per publication week
+  function getCallStatsForDate(date) {
+    const thursday = getWeekThursday(date) || date
+    const entry = chartData.find(d => d.date === thursday)
+    return entry || null
+  }
 
   return (
     <div className={styles.wrap}>
@@ -280,7 +297,11 @@ export default function ArgusView({ calls }) {
             <ResponsiveContainer width="100%" height={340}>
               <ComposedChart data={chartData} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                <XAxis dataKey="label" tick={{ fill: 'var(--text3)', fontSize: 11 }} />
+                <XAxis
+                  dataKey="label"
+                  tick={{ fill: 'var(--text3)', fontSize: 11 }}
+                  interval={0}
+                />
                 <YAxis tick={{ fill: 'var(--text3)', fontSize: 11 }} domain={['auto', 'auto']} />
                 <Tooltip content={<CustomTooltip />} />
                 <Legend wrapperStyle={{ fontSize: 12, color: 'var(--text2)', paddingTop: 12 }} />
@@ -321,19 +342,7 @@ export default function ArgusView({ calls }) {
               {allDates.map(date => {
                 const argus = argusData.find(a => a.date === date)
                 const fertecon = ferteconData.find(f => f.date === date)
-                const pubWeekKey = getWeekKey(date) || date
-                // Aggregate all call stats whose date falls in same week as publication
-                const weekCallStats = callStats.filter(c => getWeekKey(c.week) === pubWeekKey || c.week === pubWeekKey)
-                const allPrices = weekCallStats.flatMap(cs => {
-                  const prices = []
-                  if (cs.callAvg) prices.push(cs.callAvg)
-                  return prices
-                })
-                const callWeek = weekCallStats.length ? {
-                  callAvg: weekCallStats.reduce((s, c) => s + (c.callAvg || 0), 0) / weekCallStats.filter(c => c.callAvg).length || null,
-                  lowestPrice: Math.min(...weekCallStats.map(c => c.lowestPrice).filter(Boolean)),
-                  highestPrice: Math.max(...weekCallStats.map(c => c.highestPrice).filter(Boolean)),
-                } : null
+                const stats = chartData.find(d => d.date === date)
                 return (
                   <tr key={date} className={styles.tr}>
                     <td className={styles.td}>{formatDateLabel(date)}</td>
@@ -343,9 +352,9 @@ export default function ArgusView({ calls }) {
                     <td className={styles.td} style={{ color: '#b860f0' }}>{fertecon?.low ?? '—'}</td>
                     <td className={styles.td} style={{ color: '#b860f0' }}>{fertecon?.high ?? '—'}</td>
                     <td className={styles.td} style={{ color: '#b860f0' }}>{fertecon ? Math.round((fertecon.low + fertecon.high) / 2) : '—'}</td>
-                    <td className={styles.td} style={{ color: 'var(--accent)' }}>{callWeek?.callAvg ?? '—'}</td>
-                    <td className={styles.td} style={{ color: 'var(--amber)' }}>{callWeek?.lowestPrice ?? '—'}</td>
-                    <td className={styles.td} style={{ color: 'var(--red)' }}>{callWeek?.highestPrice ?? '—'}</td>
+                    <td className={styles.td} style={{ color: 'var(--accent)' }}>{stats?.callAvg ?? '—'}</td>
+                    <td className={styles.td} style={{ color: 'var(--amber)' }}>{stats?.lowestPrice ?? '—'}</td>
+                    <td className={styles.td} style={{ color: 'var(--red)' }}>{stats?.highestPrice ?? '—'}</td>
                     <td className={styles.td}>
                       <div style={{ display: 'flex', gap: 6 }}>
                         <button className={styles.editBtn} onClick={() => startEdit(date)}>✎</button>
