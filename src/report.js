@@ -15,11 +15,12 @@ function formatDate(dateStr) {
   return dateStr
 }
 
-function formatChartDate(dateStr) {
+// Short label for chart X axis — matches Publication.jsx formatDateLabel exactly
+function formatDateLabel(dateStr) {
   if (!dateStr) return ''
   const d = new Date(dateStr + 'T00:00:00')
-  if (!isNaN(d.getTime())) return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-  return dateStr
+  if (isNaN(d.getTime())) return dateStr
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 }
 
 function parseDate(dateStr) {
@@ -42,18 +43,8 @@ function parsePrice(val) {
   return isNaN(p) ? null : p
 }
 
-function getWeekThursday(dateStr) {
-  const d = parseDate(dateStr)
-  if (d.getTime() === 0) return null
-  const day = d.getDay()
-  const monday = new Date(d)
-  monday.setDate(d.getDate() - (day === 0 ? 6 : day - 1))
-  const thursday = new Date(monday)
-  thursday.setDate(monday.getDate() + 3)
-  return thursday.toISOString().split('T')[0]
-}
-
-function getWeekKey(dateStr) {
+// Copied exactly from Publication.jsx
+function getWeekMonday(dateStr) {
   const d = parseDate(dateStr)
   if (d.getTime() === 0) return null
   const day = d.getDay()
@@ -62,14 +53,23 @@ function getWeekKey(dateStr) {
   return monday.toISOString().split('T')[0]
 }
 
-const PRODUCTS = ['Amsul', 'Urea', 'MAP', 'SSP', 'TSP', 'NP']
+function getWeekThursday(dateStr) {
+  const monday = getWeekMonday(dateStr)
+  if (!monday) return null
+  const d = new Date(monday + 'T00:00:00')
+  d.setDate(d.getDate() + 3)
+  return d.toISOString().split('T')[0]
+}
 
+// Copied exactly from Publication.jsx buildChartData
 function buildChartData(calls, argusData, ferteconData) {
   const weekMap = {}
 
   argusData.forEach(a => {
     if (!weekMap[a.date]) weekMap[a.date] = {}
     weekMap[a.date].argusAvg = Math.round((a.low + a.high) / 2)
+    weekMap[a.date].argusLow = a.low
+    weekMap[a.date].argusHigh = a.high
   })
 
   ferteconData.forEach(f => {
@@ -96,70 +96,87 @@ function buildChartData(calls, argusData, ferteconData) {
   Object.entries(callsByWeek).forEach(([thursday, prices]) => {
     if (!weekMap[thursday]) weekMap[thursday] = {}
     weekMap[thursday].callAvg = Math.round(prices.reduce((a, b) => a + b, 0) / prices.length)
+    weekMap[thursday].lowestPrice = Math.min(...prices)
+    weekMap[thursday].highestPrice = Math.max(...prices)
   })
 
   return Object.entries(weekMap)
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([date, data]) => ({
       date,
+      label: formatDateLabel(date),
       argusAvg: data.argusAvg ?? null,
       ferteconAvg: data.ferteconAvg ?? null,
       callAvg: data.callAvg ?? null,
+      lowestPrice: data.lowestPrice ?? null,
+      highestPrice: data.highestPrice ?? null,
     }))
 }
 
-
+// Build SVG chart using exact same data as Publication.jsx
 function buildChartSVG(chartData) {
-  if (chartData.length < 2) return '<p style="color:#888;font-size:12px;text-align:center;padding:40px 0">Not enough data for this period.</p>'
+  if (chartData.length < 2) return '<p style="color:#888;font-size:12px;text-align:center;padding:40px 0">Not enough data to display chart.</p>'
 
-  const W = 820, H = 260
-  const PAD = { top: 20, right: 40, bottom: 40, left: 50 }
+  const W = 860, H = 280
+  const PAD = { top: 20, right: 80, bottom: 40, left: 50 }
   const chartW = W - PAD.left - PAD.right
   const chartH = H - PAD.top - PAD.bottom
 
+  // Use only argus, fertecon, callAvg for Y scale — same as app
   const allVals = chartData.flatMap(d => [d.argusAvg, d.ferteconAvg, d.callAvg].filter(Boolean))
-  if (!allVals.length) return '<p style="color:#888;font-size:12px;text-align:center;padding:40px 0">No price data for this period.</p>'
+  if (!allVals.length) return '<p style="color:#888;font-size:12px;text-align:center;padding:40px 0">No price data available.</p>'
 
   const minY = Math.floor(Math.min(...allVals) - 10)
   const maxY = Math.ceil(Math.max(...allVals) + 10)
-  const xScale = i => PAD.left + (i / Math.max(chartData.length - 1, 1)) * chartW
+
+  const n = chartData.length
+  const xScale = i => PAD.left + (i / Math.max(n - 1, 1)) * chartW
   const yScale = v => PAD.top + chartH - ((v - minY) / (maxY - minY)) * chartH
 
   function makeLine(key, color, dash = '') {
     let path = ''
     chartData.forEach((d, i) => {
       if (d[key] == null) return
-      path += path === '' ? `M ${xScale(i)} ${yScale(d[key])}` : ` L ${xScale(i)} ${yScale(d[key])}`
+      path += path === '' ? `M ${xScale(i).toFixed(1)} ${yScale(d[key]).toFixed(1)}`
+                          : ` L ${xScale(i).toFixed(1)} ${yScale(d[key]).toFixed(1)}`
     })
     if (!path) return ''
-    return `<path d="${path}" stroke="${color}" stroke-width="2" fill="none" ${dash ? `stroke-dasharray="${dash}"` : ''} stroke-linejoin="round" stroke-linecap="round"/>`
+    return `<path d="${path}" stroke="${color}" stroke-width="2.5" fill="none" ${dash ? `stroke-dasharray="${dash}"` : ''} stroke-linejoin="round" stroke-linecap="round"/>`
   }
 
   function makeDots(key, color) {
     return chartData.map((d, i) => d[key] != null
-      ? `<circle cx="${xScale(i)}" cy="${yScale(d[key])}" r="4" fill="${color}" stroke="white" stroke-width="1.5"/>`
+      ? `<circle cx="${xScale(i).toFixed(1)}" cy="${yScale(d[key]).toFixed(1)}" r="5" fill="${color}" stroke="white" stroke-width="1.5"/>`
       : '').join('')
   }
 
+  // Y grid lines (5 levels)
   const gridLines = Array.from({ length: 5 }, (_, i) => {
     const v = minY + (i / 4) * (maxY - minY)
-    const y = yScale(v)
-    return `<line x1="${PAD.left}" y1="${y}" x2="${W - PAD.right}" y2="${y}" stroke="#e8e8e8" stroke-width="1"/>
-            <text x="${PAD.left - 6}" y="${y + 4}" text-anchor="end" font-size="10" fill="#999">${Math.round(v)}</text>`
+    const y = yScale(v).toFixed(1)
+    return `<line x1="${PAD.left}" y1="${y}" x2="${W - PAD.right}" y2="${y}" stroke="#e0e0e0" stroke-width="1" stroke-dasharray="3 3"/>
+            <text x="${PAD.left - 6}" y="${(parseFloat(y) + 4).toFixed(1)}" text-anchor="end" font-size="10" fill="#999">${Math.round(v)}</text>`
   }).join('')
 
+  // X labels — one per data point, same as app
   const xLabels = chartData.map((d, i) =>
-    `<text x="${xScale(i)}" y="${H - 6}" text-anchor="middle" font-size="9" fill="#999">${formatChartDate(d.date)}</text>`
+    `<text x="${xScale(i).toFixed(1)}" y="${H - 6}" text-anchor="middle" font-size="10" fill="#999">${d.label}</text>`
   ).join('')
 
-  return `<svg width="${W}" height="${H}" xmlns="http://www.w3.org/2000/svg" style="font-family:Arial,sans-serif;max-width:100%">
+  return `<svg width="${W}" height="${H}" xmlns="http://www.w3.org/2000/svg" style="font-family:'Helvetica Neue',Arial,sans-serif;max-width:100%;display:block">
+    <!-- Grid -->
     ${gridLines}
+    <!-- Border -->
+    <rect x="${PAD.left}" y="${PAD.top}" width="${chartW}" height="${chartH}" fill="none" stroke="#e0e0e0" stroke-width="1"/>
+    <!-- Lines — same order as Publication.jsx -->
     ${makeLine('argusAvg', '#60b8f0', '6 3')}
     ${makeLine('ferteconAvg', '#b860f0', '6 3')}
     ${makeLine('callAvg', '#4caf50')}
+    <!-- Dots -->
     ${makeDots('argusAvg', '#60b8f0')}
     ${makeDots('ferteconAvg', '#b860f0')}
     ${makeDots('callAvg', '#4caf50')}
+    <!-- X labels -->
     ${xLabels}
   </svg>`
 }
@@ -167,6 +184,7 @@ function buildChartSVG(chartData) {
 function buildPriceBubbles(calls, fromStr, toStr) {
   const fromD = parseDate(fromStr)
   const toD = parseDate(toStr); toD.setHours(23, 59, 59)
+  const PRODUCTS = ['Amsul', 'Urea', 'MAP', 'SSP', 'TSP', 'NP']
   const periodCalls = calls.filter(c => { const d = parseDate(c.date); return d >= fromD && d <= toD })
 
   return PRODUCTS.map(product => {
@@ -215,9 +233,11 @@ export function generateWeeklyReport(calls, signals, dateFrom, dateTo) {
   const toStr = dateTo || now.toISOString().split('T')[0]
   const periodLabel = `${formatDate(fromStr)} – ${formatDate(toStr)}`
 
-  // Chart shows ALL historical data — same as Publication vs Mrkt tab
+  // Chart uses ALL data — same as Publication vs Mrkt tab
   const chartData = buildChartData(calls, argusData, ferteconData)
   const chartSVG = buildChartSVG(chartData)
+
+  // Price bubbles and demand use selected date range
   const priceBubbles = buildPriceBubbles(calls, fromStr, toStr)
   const demandVolumes = buildDemandVolume(calls, fromStr, toStr)
 
@@ -234,33 +254,30 @@ export function generateWeeklyReport(calls, signals, dateFrom, dateTo) {
   .header { display: flex; justify-content: space-between; align-items: flex-start; padding-bottom: 20px; border-bottom: 2px solid #111; margin-bottom: 32px; }
   .header h1 { font-size: 22px; font-weight: 700; letter-spacing: -0.5px; }
   .header p { font-size: 12px; color: #666; margin-top: 4px; }
-  .header .brand { font-size: 13px; font-weight: 700; text-align: right; }
-  .header .meta { font-size: 11px; color: #888; margin-top: 3px; text-align: right; }
+  .brand { font-size: 13px; font-weight: 700; text-align: right; }
+  .meta { font-size: 11px; color: #888; margin-top: 3px; text-align: right; }
 
   .section { margin-bottom: 36px; }
   .section-title { font-size: 10px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: #666; padding-bottom: 6px; border-bottom: 1px solid #e0e0e0; margin-bottom: 16px; }
 
-  /* Chart */
   .chart-wrap { background: #fafafa; border: 1px solid #eee; border-radius: 8px; padding: 16px; overflow-x: auto; }
   .chart-legend { display: flex; gap: 20px; flex-wrap: wrap; margin-bottom: 14px; }
   .legend-item { display: flex; align-items: center; gap: 6px; font-size: 10px; color: #555; }
   .legend-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
-  .legend-dash { width: 20px; height: 0; border-top: 2px dashed; flex-shrink: 0; }
+  .legend-dash { width: 20px; height: 0; border-top: 2.5px dashed; flex-shrink: 0; }
 
-  /* Price bubbles */
   .bubbles-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
   .bubble-card { border: 1px solid #e0e0e0; border-radius: 10px; padding: 16px 18px; }
-  .bubble-product { font-size: 13px; font-weight: 700; color: #111; margin-bottom: 12px; }
+  .bubble-product { font-size: 13px; font-weight: 700; margin-bottom: 12px; }
   .bubble-stats { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; text-align: center; }
   .bubble-val { font-size: 18px; font-weight: 700; }
   .bubble-lbl { font-size: 9px; color: #888; text-transform: uppercase; letter-spacing: 0.06em; margin-top: 2px; }
   .bubble-count { font-size: 10px; color: #bbb; margin-top: 10px; }
 
-  /* Demand volume */
   .volume-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
   .volume-card { background: #f7f7f7; border-radius: 8px; padding: 14px 16px; }
   .volume-product { font-size: 11px; font-weight: 600; color: #666; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; }
-  .volume-num { font-size: 20px; font-weight: 700; color: #111; }
+  .volume-num { font-size: 20px; font-weight: 700; }
   .volume-unit { font-size: 10px; color: #999; margin-top: 2px; }
 
   .footer { margin-top: 40px; padding-top: 14px; border-top: 1px solid #e0e0e0; display: flex; justify-content: space-between; font-size: 10px; color: #aaa; }
@@ -285,7 +302,6 @@ export function generateWeeklyReport(calls, signals, dateFrom, dateTo) {
     </div>
   </div>
 
-  <!-- Amsul Chart -->
   <div class="section">
     <div class="section-title">Amsul CFR Brazil — Publication vs Market</div>
     <div class="chart-wrap">
@@ -298,37 +314,26 @@ export function generateWeeklyReport(calls, signals, dateFrom, dateTo) {
     </div>
   </div>
 
-  <!-- Price Bubbles -->
   ${priceBubbles.length > 0 ? `
   <div class="section">
-    <div class="section-title">Price Range per Product</div>
+    <div class="section-title">Price Range per Product — ${periodLabel}</div>
     <div class="bubbles-grid">
       ${priceBubbles.map(b => `
       <div class="bubble-card">
         <div class="bubble-product">${b.product}</div>
         <div class="bubble-stats">
-          <div>
-            <div class="bubble-val" style="color:#f0b840">${b.low}</div>
-            <div class="bubble-lbl">Lowest</div>
-          </div>
-          <div>
-            <div class="bubble-val" style="color:#4caf50">${b.avg}</div>
-            <div class="bubble-lbl">Average</div>
-          </div>
-          <div>
-            <div class="bubble-val" style="color:#e05c4b">${b.high}</div>
-            <div class="bubble-lbl">Highest</div>
-          </div>
+          <div><div class="bubble-val" style="color:#f0b840">${b.low}</div><div class="bubble-lbl">Lowest</div></div>
+          <div><div class="bubble-val" style="color:#4caf50">${b.avg}</div><div class="bubble-lbl">Average</div></div>
+          <div><div class="bubble-val" style="color:#e05c4b">${b.high}</div><div class="bubble-lbl">Highest</div></div>
         </div>
         <div class="bubble-count">${b.count} price point${b.count !== 1 ? 's' : ''} recorded</div>
       </div>`).join('')}
     </div>
   </div>` : ''}
 
-  <!-- Demand Volume -->
   ${demandVolumes.length > 0 ? `
   <div class="section">
-    <div class="section-title">Total Demand Volume per Product</div>
+    <div class="section-title">Total Demand Volume per Product — ${periodLabel}</div>
     <div class="volume-grid">
       ${demandVolumes.map(d => `
       <div class="volume-card">
