@@ -309,12 +309,13 @@ export default function ArgusView({ calls }) {
                 <YAxis tick={{ fill: 'var(--text3)', fontSize: 11 }} domain={['auto', 'auto']} />
                 <Tooltip content={<CustomTooltip />} />
                 <Legend wrapperStyle={{ fontSize: 12, color: 'var(--text2)', paddingTop: 12 }} />
-                {/* Hidden lines — values appear in tooltip only */}
-                <Line type="monotone" dataKey="argusAvg" stroke="transparent" strokeWidth={0} dot={false} legendType="none" name="Argus Avg" connectNulls />
-                <Line type="monotone" dataKey="ferteconAvg" stroke="transparent" strokeWidth={0} dot={false} legendType="none" name="Fertecon Avg" connectNulls />
+                {/* Argus & Fertecon — visible dashed lines, no dots */}
+                <Line type="monotone" dataKey="argusAvg" stroke="#60b8f0" strokeWidth={2.5} strokeDasharray="6 3" dot={{ r: 5, fill: '#60b8f0' }} name="Argus Avg" connectNulls />
+                <Line type="monotone" dataKey="ferteconAvg" stroke="#b860f0" strokeWidth={2.5} strokeDasharray="6 3" dot={{ r: 5, fill: '#b860f0' }} name="Fertecon Avg" connectNulls />
+                {/* Lowest & Highest — tooltip only, invisible */}
                 <Line type="monotone" dataKey="lowestPrice" stroke="transparent" strokeWidth={0} dot={false} legendType="none" name="Lowest Price" connectNulls />
                 <Line type="monotone" dataKey="highestPrice" stroke="transparent" strokeWidth={0} dot={false} legendType="none" name="Highest Price" connectNulls />
-                {/* Visible line */}
+                {/* Call Average — main solid line */}
                 <Line type="monotone" dataKey="callAvg" stroke="#c8f060" strokeWidth={2.5} dot={{ r: 5, fill: '#c8f060' }} name="Call Average" connectNulls />
               </ComposedChart>
             </ResponsiveContainer>
