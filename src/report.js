@@ -118,7 +118,7 @@ function buildChartSVG(chartData) {
   if (chartData.length < 2) return '<p style="color:#888;font-size:12px;text-align:center;padding:40px 0">Not enough data to display chart.</p>'
 
   const W = 860, H = 280
-  const PAD = { top: 20, right: 80, bottom: 40, left: 50 }
+  const PAD = { top: 20, right: 100, bottom: 40, left: 50 }
   const chartW = W - PAD.left - PAD.right
   const chartH = H - PAD.top - PAD.bottom
 
