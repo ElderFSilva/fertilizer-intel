@@ -15,6 +15,13 @@ function formatDate(dateStr) {
   return dateStr
 }
 
+function formatChartDate(dateStr) {
+  if (!dateStr) return ''
+  const d = new Date(dateStr + 'T00:00:00')
+  if (!isNaN(d.getTime())) return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  return dateStr
+}
+
 function parseDate(dateStr) {
   if (!dateStr) return new Date(0)
   const iso = new Date(dateStr + 'T00:00:00')
@@ -138,7 +145,7 @@ function buildChartSVG(chartData) {
   }).join('')
 
   const xLabels = chartData.map((d, i) =>
-    `<text x="${xScale(i)}" y="${H - 6}" text-anchor="middle" font-size="9" fill="#999">${d.label}</text>`
+    `<text x="${xScale(i)}" y="${H - 6}" text-anchor="middle" font-size="9" fill="#999">${formatChartDate(d.week)}</text>`
   ).join('')
 
   return `<svg width="${W}" height="${H}" xmlns="http://www.w3.org/2000/svg" style="font-family:Arial,sans-serif;max-width:100%">
