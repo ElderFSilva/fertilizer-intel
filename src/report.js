@@ -93,7 +93,7 @@ function buildChartSVG(chartData) {
   const chartW = W - PAD.left - PAD.right
   const chartH = H - PAD.top - PAD.bottom
 
-  const allVals = chartData.flatMap(d => [d.argusAvg, d.ferteconAvg, d.callAvg, d.callLow, d.callHigh].filter(Boolean))
+  const allVals = chartData.flatMap(d => [d.argusAvg, d.ferteconAvg, d.callAvg].filter(Boolean))
   if (!allVals.length) return '<p style="color:#888;font-size:12px;text-align:center;padding:40px 0">No price data for this period.</p>'
 
   const minY = Math.floor(Math.min(...allVals) - 10)
@@ -130,16 +130,12 @@ function buildChartSVG(chartData) {
 
   return `<svg width="${W}" height="${H}" xmlns="http://www.w3.org/2000/svg" style="font-family:Arial,sans-serif;max-width:100%">
     ${gridLines}
-    ${makeLine('callHigh', '#e05c4b')}
-    ${makeLine('callLow', '#f0b840')}
-    ${makeLine('callAvg', '#4caf50')}
     ${makeLine('argusAvg', '#60b8f0', '6 3')}
     ${makeLine('ferteconAvg', '#b860f0', '6 3')}
-    ${makeDots('callHigh', '#e05c4b')}
-    ${makeDots('callLow', '#f0b840')}
-    ${makeDots('callAvg', '#4caf50')}
+    ${makeLine('callAvg', '#4caf50')}
     ${makeDots('argusAvg', '#60b8f0')}
     ${makeDots('ferteconAvg', '#b860f0')}
+    ${makeDots('callAvg', '#4caf50')}
     ${xLabels}
   </svg>`
 }
@@ -276,8 +272,6 @@ export function generateWeeklyReport(calls, signals, dateFrom, dateTo) {
         <div class="legend-item"><div class="legend-dash" style="border-color:#60b8f0"></div> Argus Avg</div>
         <div class="legend-item"><div class="legend-dash" style="border-color:#b860f0"></div> Fertecon Avg</div>
         <div class="legend-item"><div class="legend-dot" style="background:#4caf50"></div> Call Average</div>
-        <div class="legend-item"><div class="legend-dot" style="background:#f0b840"></div> Lowest Price</div>
-        <div class="legend-item"><div class="legend-dot" style="background:#e05c4b"></div> Highest Price</div>
       </div>
       ${chartSVG}
     </div>
