@@ -21,6 +21,18 @@ function parseDate(dateStr) {
   return new Date(0)
 }
 
+const CustomTooltip = ({ active, payload, label }) => {
+  if (!active || !payload?.length) return null
+  const d = payload[0]?.payload
+  return (
+    <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 8, padding: '10px 14px', fontSize: 13 }}>
+      <p style={{ color: 'var(--text3)', fontSize: 11, fontFamily: 'DM Mono', marginBottom: 4 }}>{label}</p>
+      <p style={{ color: 'var(--text)', fontWeight: 700 }}>{d?.client}</p>
+      <p style={{ color: 'var(--accent)', marginTop: 2 }}>{payload[0]?.name}: <strong>{payload[0]?.value}</strong></p>
+    </div>
+  )
+}
+
 const TREND_ICON = { up: '↑', stable: '↔', down: '↓', none: '—' }
 const TREND_COLOR = { up: 'var(--accent)', stable: 'var(--blue)', down: 'var(--red)', none: 'var(--text3)' }
 
@@ -73,10 +85,7 @@ export default function PriceTrends({ calls }) {
               <LineChart data={series}>
                 <XAxis dataKey="date" tick={{ fill: 'var(--text3)', fontSize: 11 }} />
                 <YAxis tick={{ fill: 'var(--text3)', fontSize: 11 }} domain={['auto', 'auto']} />
-                <Tooltip
-                  contentStyle={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 13 }}
-                  labelStyle={{ color: 'var(--text)' }}
-                />
+                <Tooltip content={<CustomTooltip />} />
                 <Line type="monotone" dataKey="price" stroke="var(--accent)" strokeWidth={2} dot={{ fill: 'var(--accent)', r: 4 }} name={selected} />
               </LineChart>
             </ResponsiveContainer>
