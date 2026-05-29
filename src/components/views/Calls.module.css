@@ -255,6 +255,7 @@
 
 .editNpGrade {
   background: var(--bg3); border: 1px solid var(--accent); border-radius: 6px;
-  padding: 7px 6px; color: var(--accent); font-size: 11px; outline: none;
+  padding: 8px 6px; color: var(--accent); font-size: 11px; outline: none;
   font-family: 'DM Mono', monospace; cursor: pointer; font-weight: 600;
+  width: 100%;
 }
