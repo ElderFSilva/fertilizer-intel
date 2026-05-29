@@ -76,7 +76,7 @@
 
 .pricesGrid { display: flex; flex-direction: column; gap: 6px; }
 
-.priceRow { display: grid; grid-template-columns: 70px 1fr 140px; align-items: center; gap: 6px; }
+.priceRow { display: grid; grid-template-columns: 120px 1fr 120px; align-items: center; gap: 10px; }
 
 .productLabel { font-size: 13px; font-family: 'DM Mono', monospace; color: var(--text2); }
 
@@ -93,7 +93,7 @@
 
 @media (max-width: 600px) {
   .row { grid-template-columns: 1fr; }
-  .priceRow { grid-template-columns: 55px 1fr 120px; }
+  .priceRow { grid-template-columns: 100px 1fr 90px; }
 }
 
 .reviewHeader {
@@ -237,10 +237,10 @@
 }
 .removeDemandBtn:hover { border-color: var(--red); color: var(--red); }
 
-.npGradeSelect {
+.gradeSelect {
   background: var(--bg2); border: 1px solid var(--accent); border-radius: 6px;
-  padding: 8px 8px; color: var(--accent); font-size: 11px; outline: none;
+  padding: 9px 8px; color: var(--accent); font-size: 12px; outline: none;
   font-family: 'DM Mono', monospace; cursor: pointer; font-weight: 600;
-  transition: border-color 0.2s; width: 70px;
+  transition: border-color 0.2s; width: 100%;
 }
-.npGradeSelect:focus { border-color: var(--accent2); }
+.gradeSelect:focus { border-color: var(--accent2); }
