@@ -4,11 +4,12 @@ import { PRODUCTS } from '../../data.js'
 import styles from './Upload.module.css'
 
 const TREND_OPTIONS = ['up', 'stable', 'down', 'none']
+const NP_GRADES = ['NP 10-45', 'NP 11-44', 'NP 08-40', 'NP 08-40+5S']
 const TREND_LABEL = { up: '↑ Up', stable: '↔ Stable', down: '↓ Down', none: '—' }
 const DEMAND_PRODUCTS = ['', 'Amsul', 'Urea', 'MAP', 'SSP', 'TSP', 'NP 10-45', 'NP 08-40']
 
 function emptyPrices() {
-  return Object.fromEntries(PRODUCTS.map(p => [p, { value: '', trend: 'none' }]))
+  return Object.fromEntries(PRODUCTS.map(p => [p, { value: '', trend: 'none', grade: p === 'NP' ? 'NP 10-45' : '' }]))
 }
 
 function emptyCompOffer() {
@@ -35,7 +36,8 @@ function entryToForm(entry) {
       ...Object.fromEntries(
         PRODUCTS.map(p => [p, {
           value: entry.prices?.[p]?.value || '',
-          trend: entry.prices?.[p]?.trend || 'none'
+          trend: entry.prices?.[p]?.trend || 'none',
+          grade: p === 'NP' ? (entry.prices?.[p]?.grade || 'NP 10-45') : ''
         }])
       )
     },
@@ -212,7 +214,13 @@ Return ONLY a valid JSON array, no markdown, no explanation.` }
         <div className={styles.pricesGrid}>
           {PRODUCTS.map(p => (
             <div key={p} className={styles.priceRow}>
-              <span className={styles.productLabel}>{p}</span>
+              {p === 'NP' ? (
+                <select className={styles.npGradeSelect} value={form.prices[p].grade || 'NP 10-45'} onChange={e => setPriceField(p, 'grade', e.target.value)}>
+                  {NP_GRADES.map(g => <option key={g} value={g}>{g}</option>)}
+                </select>
+              ) : (
+                <span className={styles.productLabel}>{p}</span>
+              )}
               <input className={styles.priceInput} placeholder="Price" value={form.prices[p].value} onChange={e => setPriceField(p, 'value', e.target.value)} />
               <select className={styles.trendSelect} value={form.prices[p].trend} onChange={e => setPriceField(p, 'trend', e.target.value)}>
                 {TREND_OPTIONS.map(t => <option key={t} value={t}>{TREND_LABEL[t]}</option>)}
