@@ -232,3 +232,32 @@
 }
 
 .popupDemandCellValue { font-size: 13px; color: var(--text); font-weight: 600; }
+/* ── AI Analysis ── */
+.aiHeader { display: flex; align-items: center; justify-content: space-between; padding-bottom: 8px; border-bottom: 1px solid var(--border); margin-bottom: 14px; }
+.aiHeaderRight { display: flex; align-items: center; gap: 12px; }
+.aiTimestamp { font-size: 11px; color: var(--text3); font-family: 'DM Mono', monospace; }
+.refreshBtn {
+  background: var(--bg2); border: 1px solid var(--border2); color: var(--text2);
+  border-radius: 8px; padding: 7px 14px; font-size: 12px; cursor: pointer;
+  transition: all 0.15s; white-space: nowrap; font-family: inherit;
+}
+.refreshBtn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+.refreshBtn:disabled { opacity: 0.5; cursor: not-allowed; }
+.aiError { color: var(--red); font-size: 13px; font-family: 'DM Mono', monospace; padding: 8px 0; }
+.aiLoading {
+  background: var(--bg2); border: 1px solid var(--border);
+  border-radius: 10px; padding: 24px; text-align: center;
+  color: var(--text3); font-size: 14px; font-family: 'DM Mono', monospace;
+}
+.analysisGrid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.analysisCard {
+  background: var(--bg2); border: 1px solid var(--border);
+  border-radius: 12px; padding: 16px 18px;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.analysisCardHeader { display: flex; align-items: center; gap: 8px; }
+.analysisIcon { color: var(--accent); font-size: 14px; }
+.analysisLabel { font-size: 12px; font-family: 'DM Mono', monospace; color: var(--text2); text-transform: uppercase; letter-spacing: 0.06em; }
+.analysisText { font-size: 13px; color: var(--text); line-height: 1.6; }
+.aiDisclaimer { font-size: 10px; color: var(--text3); font-family: 'DM Mono', monospace; margin-top: 12px; text-align: center; }
+@media (max-width: 768px) { .analysisGrid { grid-template-columns: 1fr; } }
