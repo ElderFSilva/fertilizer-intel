@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { generateWeeklyReport } from '../../report.js'
+import { runAIAnalysis, getCachedAnalysis, shouldRefresh } from '../../aiAnalysis.js'
 import { PRODUCTS, buildDemandSummary } from '../../data.js'
 import styles from './Overview.module.css'
 
@@ -28,17 +29,30 @@ function parseDate(dateStr) {
   return new Date(0)
 }
 
+function formatTimestamp(iso) {
+  if (!iso) return ''
+  const d = new Date(iso)
+  if (isNaN(d.getTime())) return ''
+  return d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+}
+
 const SIGNAL_STYLE = {
   warning: { color: 'var(--amber)', icon: '⚠' },
   alert: { color: 'var(--red)', icon: '◉' },
   opportunity: { color: 'var(--accent)', icon: '◈' },
 }
 
-export default function Overview({ calls, signals }) {
+const ANALYSIS_SECTIONS = [
+  { key: 'priceTrends', label: 'Price Trends', icon: '◎' },
+  { key: 'demand', label: 'Demand', icon: '◈' },
+  { key: 'competitors', label: 'Competitor Activity', icon: '⊟' },
+  { key: 'opportunities', label: 'Opportunities & Risks', icon: '◇' },
+]
+
+export default function Overview({ calls }) {
   const demandMap = buildDemandSummary(calls)
   const clients = Object.keys(demandMap)
   const recentCalls = calls.slice(0, 5)
-  const [expandedSignal, setExpandedSignal] = useState(null)
   const [demandPopup, setDemandPopup] = useState(null)
   const [showReportModal, setShowReportModal] = useState(false)
   const [reportFrom, setReportFrom] = useState(() => {
@@ -46,15 +60,40 @@ export default function Overview({ calls, signals }) {
   })
   const [reportTo, setReportTo] = useState(() => new Date().toISOString().split('T')[0])
 
+  // AI analysis state
+  const [analysis, setAnalysis] = useState(() => getCachedAnalysis())
+  const [aiLoading, setAiLoading] = useState(false)
+  const [aiError, setAiError] = useState('')
+
+  async function refreshAnalysis() {
+    if (calls.length === 0) return
+    setAiLoading(true)
+    setAiError('')
+    try {
+      const result = await runAIAnalysis(calls)
+      setAnalysis(result)
+    } catch (e) {
+      setAiError('Could not generate analysis. Please try again.')
+    }
+    setAiLoading(false)
+  }
+
+  // Auto-run on load if needed (no cache or call count changed)
+  useEffect(() => {
+    if (calls.length > 0 && shouldRefresh(calls)) {
+      refreshAnalysis()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   function handleExport() {
-    const html = generateWeeklyReport(calls, signals, reportFrom, reportTo)
+    const html = generateWeeklyReport(calls, analysis?.signals || [], reportFrom, reportTo)
     const win = window.open('', '_blank')
     win.document.write(html)
     win.document.close()
     setShowReportModal(false)
   }
 
-  // Get latest call per client for demand popup
   const latestByClient = {}
   calls.forEach(c => {
     if (!latestByClient[c.client] || parseDate(c.date) > parseDate(latestByClient[c.client].date)) {
@@ -67,17 +106,17 @@ export default function Overview({ calls, signals }) {
     count: calls.filter(c => c.prices?.[p]?.value || c.prices?.[p]?.trend !== 'none').length,
   })).sort((a, b) => b.count - a.count)
 
-  // Build demand rows for popup — handles both old and new format
   function getDemandRows(call) {
     if (call.demandRows?.length) {
       return call.demandRows.filter(r => r.product || r.volume || r.port || r.priceTarget)
     }
-    // Legacy single-field format
     if (call.demandProduct || call.demandVolume || call.demandPort || call.demandPriceTarget) {
       return [{ product: call.demandProduct, volume: call.demandVolume, port: call.demandPort, priceTarget: call.demandPriceTarget }]
     }
     return []
   }
+
+  const signals = analysis?.signals || []
 
   return (
     <div className={styles.wrap}>
@@ -104,7 +143,6 @@ export default function Overview({ calls, signals }) {
                     style={{ background: 'var(--bg3)', border: '1px solid var(--border2)', borderRadius: 8, padding: '9px 12px', color: 'var(--text)', fontSize: 13, outline: 'none', width: '100%', fontFamily: 'inherit' }} />
                 </div>
               </div>
-
             </div>
             <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
               <button onClick={() => setShowReportModal(false)}
@@ -129,8 +167,6 @@ export default function Overview({ calls, signals }) {
               <span className={styles.popupDate}>{formatDate(demandPopup.date)}</span>
               <button className={styles.popupClose} onClick={() => setDemandPopup(null)}>✕</button>
             </div>
-
-            {/* Structured demand rows */}
             {demandPopup.demandRows?.length > 0 && (
               <div className={styles.popupBlock}>
                 <span className={styles.popupLabel}>Demand</span>
@@ -166,16 +202,12 @@ export default function Overview({ calls, signals }) {
                 </div>
               </div>
             )}
-
-            {/* Free text demand notes */}
             {demandPopup.demand && (
               <div className={styles.popupBlock}>
                 <span className={styles.popupLabel}>Notes</span>
                 <p className={styles.popupText}>{demandPopup.demand}</p>
               </div>
             )}
-
-            {/* Remarks */}
             {demandPopup.remarks && (
               <div className={styles.popupBlock}>
                 <span className={styles.popupLabel}>Remarks</span>
@@ -201,40 +233,69 @@ export default function Overview({ calls, signals }) {
         </div>
       </header>
 
-      {signals.length > 0 && (
-        <section className={styles.section}>
+      {/* AI Market Signals */}
+      <section className={styles.section}>
+        <div className={styles.aiHeader}>
           <h2 className={styles.sectionTitle}>⬡ Market Signals</h2>
+          <div className={styles.aiHeaderRight}>
+            {analysis?.generatedAt && !aiLoading && (
+              <span className={styles.aiTimestamp}>Updated {formatTimestamp(analysis.generatedAt)}</span>
+            )}
+            <button className={styles.refreshBtn} onClick={refreshAnalysis} disabled={aiLoading || calls.length === 0}>
+              {aiLoading ? '◌ Analyzing...' : '↻ Refresh'}
+            </button>
+          </div>
+        </div>
+
+        {aiError && <p className={styles.aiError}>{aiError}</p>}
+
+        {aiLoading && !analysis && (
+          <div className={styles.aiLoading}>
+            <p>◌ Claude is analyzing your market data...</p>
+          </div>
+        )}
+
+        {!aiLoading && signals.length === 0 && !aiError && (
+          <div className={styles.aiLoading}>
+            <p>{calls.length === 0 ? 'Log calls to generate market signals.' : 'No signals yet — click Refresh to analyze.'}</p>
+          </div>
+        )}
+
+        {signals.length > 0 && (
           <div className={styles.signals}>
             {signals.map((s, i) => {
               const st = SIGNAL_STYLE[s.type] || SIGNAL_STYLE.warning
-              const isOpen = expandedSignal === i
               return (
-                <div key={i} className={`${styles.signal} ${isOpen ? styles.signalOpen : ''}`}
-                  style={{ borderColor: st.color + '44' }}
-                  onClick={() => setExpandedSignal(isOpen ? null : i)}
-                >
+                <div key={i} className={styles.signal} style={{ borderColor: st.color + '44' }}>
                   <div className={styles.signalRow}>
                     <span style={{ color: st.color, fontSize: 18 }}>{st.icon}</span>
                     <p style={{ color: 'var(--text)', flex: 1 }}>{s.text}</p>
-                    <span className={styles.signalChevron} style={{ color: st.color }}>
-                      {isOpen ? '▲' : '▼'}
-                    </span>
                   </div>
-                  {isOpen && s.calls?.length > 0 && (
-                    <div className={styles.signalDetail}>
-                      {s.calls.map((sc, j) => (
-                        <div key={j} className={styles.signalCallRow}>
-                          <span className={styles.signalCallClient}>{sc.client}</span>
-                          <span className={styles.signalCallDate}>{formatDate(sc.date)}</span>
-                          {sc.detail && <span className={styles.signalCallDetail}>{sc.detail}</span>}
-                        </div>
-                      ))}
-                    </div>
-                  )}
                 </div>
               )
             })}
           </div>
+        )}
+      </section>
+
+      {/* AI Deep Analysis */}
+      {analysis?.analysis && (
+        <section className={styles.section}>
+          <h2 className={styles.sectionTitle}>✦ AI Market Analysis</h2>
+          <div className={styles.analysisGrid}>
+            {ANALYSIS_SECTIONS.map(sec => (
+              analysis.analysis[sec.key] && (
+                <div key={sec.key} className={styles.analysisCard}>
+                  <div className={styles.analysisCardHeader}>
+                    <span className={styles.analysisIcon}>{sec.icon}</span>
+                    <span className={styles.analysisLabel}>{sec.label}</span>
+                  </div>
+                  <p className={styles.analysisText}>{analysis.analysis[sec.key]}</p>
+                </div>
+              )
+            ))}
+          </div>
+          <p className={styles.aiDisclaimer}>Generated by Claude Opus 4.8 · Analysis is informational, not financial advice</p>
         </section>
       )}
 
