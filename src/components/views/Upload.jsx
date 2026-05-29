@@ -4,12 +4,23 @@ import { PRODUCTS } from '../../data.js'
 import styles from './Upload.module.css'
 
 const TREND_OPTIONS = ['up', 'stable', 'down', 'none']
-const NP_GRADES = ['NP 10-45', 'NP 11-44', 'NP 08-40', 'NP 08-40+5S']
+const PRODUCT_GRADES = {
+  Amsul: ['Amsul GR', 'Amsul STD'],
+  SSP: ['SSP 20%', 'SSP 19%'],
+  TSP: ['TSP 45%', 'TSP 46%'],
+  NP: ['NP 10-45', 'NP 11-44', 'NP 08-40', 'NP 08-40+5S'],
+}
+const DEFAULT_GRADE = {
+  Amsul: 'Amsul GR',
+  SSP: 'SSP 20%',
+  TSP: 'TSP 45%',
+  NP: 'NP 10-45',
+}
 const TREND_LABEL = { up: '↑ Up', stable: '↔ Stable', down: '↓ Down', none: '—' }
 const DEMAND_PRODUCTS = ['', 'Amsul', 'Urea', 'MAP', 'SSP', 'TSP', 'NP 10-45', 'NP 08-40']
 
 function emptyPrices() {
-  return Object.fromEntries(PRODUCTS.map(p => [p, { value: '', trend: 'none', grade: p === 'NP' ? 'NP 10-45' : '' }]))
+  return Object.fromEntries(PRODUCTS.map(p => [p, { value: '', trend: 'none', grade: DEFAULT_GRADE[p] || '' }]))
 }
 
 function emptyCompOffer() {
@@ -126,9 +137,9 @@ export default function Upload({ onAdd }) {
           <div className={styles.pricesGrid}>
             {PRODUCTS.map(p => (
               <div key={p} className={styles.priceRow}>
-                {p === 'NP' ? (
-                  <select className={styles.npGradeSelect} value={form.prices[p].grade || 'NP 10-45'} onChange={e => setPriceField(p, 'grade', e.target.value)}>
-                    {NP_GRADES.map(g => <option key={g} value={g}>{g}</option>)}
+                {PRODUCT_GRADES[p] ? (
+                  <select className={styles.gradeSelect} value={form.prices[p].grade || DEFAULT_GRADE[p]} onChange={e => setPriceField(p, 'grade', e.target.value)}>
+                    {PRODUCT_GRADES[p].map(g => <option key={g} value={g}>{g}</option>)}
                   </select>
                 ) : (
                   <span className={styles.productLabel}>{p}</span>
