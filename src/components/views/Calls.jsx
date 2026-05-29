@@ -27,6 +27,7 @@ const TREND_OPTIONS = ['up', 'stable', 'down', 'none']
 const TREND_LABEL = { up: '↑ Up', stable: '↔ Stable', down: '↓ Down', none: '—' }
 const TREND_ICON = { up: '↑', stable: '↔', down: '↓', none: '—' }
 const DEMAND_PRODUCTS = ['', 'Amsul', 'Urea', 'MAP', 'SSP', 'TSP', 'NP 10-45', 'NP 08-40']
+const NP_GRADES = ['NP 10-45', 'NP 11-44', 'NP 08-40', 'NP 08-40+5S']
 const TREND_COLOR = { up: 'var(--accent)', stable: 'var(--blue)', down: 'var(--red)', none: 'var(--text3)' }
 
 function emptyDemandRow() {
@@ -34,7 +35,7 @@ function emptyDemandRow() {
 }
 
 function emptyPrices() {
-  return Object.fromEntries(PRODUCTS.map(p => [p, { value: '', trend: 'none' }]))
+  return Object.fromEntries(PRODUCTS.map(p => [p, { value: '', trend: 'none', grade: p === 'NP' ? 'NP 10-45' : '' }]))
 }
 
 export default function Calls({ calls, onDelete, onEdit }) {
@@ -127,7 +128,7 @@ export default function Calls({ calls, onDelete, onEdit }) {
       ),
       demand: c.demand || '',
       remarks: c.remarks || '',
-      prices: { ...emptyPrices(), ...Object.fromEntries(PRODUCTS.map(p => [p, { value: c.prices?.[p]?.value || '', trend: c.prices?.[p]?.trend || 'none' }])) }
+      prices: { ...emptyPrices(), ...Object.fromEntries(PRODUCTS.map(p => [p, { value: c.prices?.[p]?.value || '', trend: c.prices?.[p]?.trend || 'none', grade: p === 'NP' ? (c.prices?.[p]?.grade || 'NP 10-45') : '' }])) }
     })
     setExpandedId(c.id)
   }
@@ -224,7 +225,7 @@ export default function Calls({ calls, onDelete, onEdit }) {
                 <div className={styles.pills}>
                   {PRODUCTS.filter(p => c.prices?.[p]?.trend && c.prices[p].trend !== 'none').map(p => (
                     <span key={p} className={styles.pill} style={{ color: TREND_COLOR[c.prices[p].trend] }}>
-                      {p} {TREND_ICON[c.prices[p].trend]}
+                      {p === 'NP' && c.prices[p].grade ? c.prices[p].grade : p} {TREND_ICON[c.prices[p].trend]}
                     </span>
                   ))}
                 </div>
@@ -239,9 +240,8 @@ export default function Calls({ calls, onDelete, onEdit }) {
                       if (!pr?.value && (!pr?.trend || pr.trend === 'none')) return null
                       return (
                         <div key={p} className={styles.priceRow}>
-                          <span className={styles.priceProduct}>{p}</span>
+                          <span className={styles.priceProduct}>{p === 'NP' && pr.grade ? pr.grade : p}</span>
                           <span className={styles.priceVal}>{pr.value || '—'}</span>
-
                           <span style={{ color: TREND_COLOR[pr.trend || 'none'] }}>{TREND_ICON[pr.trend || 'none']}</span>
                         </div>
                       )
@@ -303,6 +303,11 @@ export default function Calls({ calls, onDelete, onEdit }) {
                   {PRODUCTS.map(p => (
                     <div key={p} className={styles.editPriceRow}>
                       <span className={styles.editProductLabel}>{p}</span>
+                      {p === 'NP' ? (
+                        <select className={styles.editNpGrade} value={editForm.prices[p].grade || 'NP 10-45'} onChange={e => setEditPrice(p, 'grade', e.target.value)}>
+                          {NP_GRADES.map(g => <option key={g} value={g}>{g}</option>)}
+                        </select>
+                      ) : null}
                       <input className={styles.editPriceInput} placeholder="Price" value={editForm.prices[p].value} onChange={e => setEditPrice(p, 'value', e.target.value)} />
                       <select className={styles.editTrendSelect} value={editForm.prices[p].trend} onChange={e => setEditPrice(p, 'trend', e.target.value)}>
                         {TREND_OPTIONS.map(t => <option key={t} value={t}>{TREND_LABEL[t]}</option>)}
