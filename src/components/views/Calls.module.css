@@ -253,8 +253,8 @@
 
 .compPort { color: var(--text3); font-family: 'DM Mono', monospace; font-size: 12px; }
 
-.compPortWrap { flex: 1; min-width: 140px; }
-
-.compRow {
-  display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+.editNpGrade {
+  background: var(--bg3); border: 1px solid var(--accent); border-radius: 6px;
+  padding: 7px 6px; color: var(--accent); font-size: 11px; outline: none;
+  font-family: 'DM Mono', monospace; cursor: pointer; font-weight: 600;
 }
