@@ -4,6 +4,7 @@ import Sidebar from './Sidebar.jsx'
 import Overview from './views/Overview.jsx'
 import Calls from './views/Calls.jsx'
 import Upload from './views/Upload.jsx'
+import Sales from './views/Sales.jsx'
 import PriceTrends from './views/PriceTrends.jsx'
 import Publication from './views/Publication.jsx'
 import styles from './Dashboard.module.css'
@@ -30,6 +31,7 @@ export default function Dashboard({ onLogout }) {
         {view === 'calls' && <Calls calls={calls} onDelete={handleDelete} onEdit={handleEdit} />}
         {view === 'prices' && <PriceTrends calls={calls} />}
         {view === 'argus' && <Publication calls={calls} />}
+        {view === 'sales' && <Sales calls={calls} />}
         {view === 'backup' && <DataBackup onImport={() => window.location.reload()} />}
       </main>
     </div>
