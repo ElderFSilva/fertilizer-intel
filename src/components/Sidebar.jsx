@@ -4,6 +4,7 @@ const NAV = [
   { id: 'overview', icon: '◈', label: 'Overview' },
   { id: 'upload', icon: '⊕', label: 'Upload Call' },
   { id: 'calls', icon: '◧', label: 'All Calls' },
+  { id: 'sales', icon: '✓', label: 'Sales Log' },
   { id: 'prices', icon: '◎', label: 'Price Trends' },
   { id: 'argus', icon: '📰', label: 'Publication vs Mrkt' },
   { id: 'backup', icon: '⊞', label: 'Data Backup' },
