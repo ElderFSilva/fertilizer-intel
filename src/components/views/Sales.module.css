@@ -1,0 +1,104 @@
+.wrap { display: flex; flex-direction: column; gap: 28px; }
+
+.header { display: flex; align-items: flex-start; justify-content: space-between; }
+
+.title { font-family: 'Fraunces', serif; font-size: 32px; font-weight: 600; letter-spacing: -0.5px; }
+
+.sub { color: var(--text3); font-size: 13px; margin-top: 4px; font-family: 'DM Mono', monospace; }
+
+.section { display: flex; flex-direction: column; gap: 14px; }
+
+.sectionTitle {
+  font-size: 12px; font-family: 'DM Mono', monospace; color: var(--text3);
+  letter-spacing: 0.08em; text-transform: uppercase;
+  padding-bottom: 8px; border-bottom: 1px solid var(--border);
+}
+
+/* Quick add */
+.quickAdd {
+  background: var(--bg2); border: 1px solid var(--border);
+  border-radius: 12px; padding: 18px; display: flex; flex-direction: column; gap: 14px;
+}
+
+.coreGrid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+
+.optionalGrid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+
+.tableWrap { overflow-x: auto; }
+
+.field { display: flex; flex-direction: column; gap: 5px; }
+
+.label {
+  font-size: 10px; color: var(--text3); font-family: 'DM Mono', monospace;
+  text-transform: uppercase; letter-spacing: 0.06em;
+}
+
+.input {
+  background: var(--bg3); border: 1px solid var(--border2);
+  border-radius: 8px; padding: 10px 12px; color: var(--text);
+  font-size: 14px; outline: none; transition: border-color 0.2s; font-family: inherit; width: 100%;
+}
+.input:focus { border-color: var(--accent); }
+
+.optionalToggle {
+  align-self: flex-start; background: transparent; border: none;
+  color: var(--accent); font-size: 12px; cursor: pointer;
+  font-family: 'DM Mono', monospace; padding: 0;
+}
+.optionalToggle:hover { text-decoration: underline; }
+
+.saveBtn {
+  background: var(--accent); color: #0e0f0c; border: none; border-radius: 8px;
+  padding: 13px; font-size: 15px; font-weight: 700; cursor: pointer; transition: all 0.15s;
+  font-family: inherit;
+}
+.saveBtn:hover { background: var(--accent2); transform: translateY(-1px); }
+
+.error { color: var(--red); font-size: 13px; font-family: 'DM Mono', monospace; }
+.success { color: var(--accent); font-size: 13px; font-family: 'DM Mono', monospace; }
+
+/* Stats */
+.statsGrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+
+.statCard {
+  background: var(--bg2); border: 1px solid var(--border);
+  border-radius: 10px; padding: 16px 18px;
+}
+.statNum { font-size: 24px; font-weight: 700; color: var(--text); font-family: 'Fraunces', serif; }
+.statLbl { font-size: 10px; color: var(--text3); font-family: 'DM Mono', monospace; text-transform: uppercase; letter-spacing: 0.06em; margin-top: 4px; }
+
+.productStats { display: flex; flex-direction: column; gap: 4px; margin-top: 4px; }
+.productStatRow {
+  display: grid; grid-template-columns: 1fr auto auto auto; gap: 16px; align-items: center;
+  background: var(--bg2); border-radius: 8px; padding: 10px 14px;
+  font-family: 'DM Mono', monospace; font-size: 12px;
+}
+.productStatName { color: var(--text); font-weight: 600; }
+.productStatVol { color: var(--accent); }
+.productStatDeals { color: var(--text3); }
+.productStatDone { color: var(--text2); }
+
+/* Table */
+.table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.th {
+  text-align: left; padding: 9px 12px; font-size: 9px;
+  font-family: 'DM Mono', monospace; color: var(--text3);
+  border-bottom: 1px solid var(--border); white-space: nowrap;
+  text-transform: uppercase; letter-spacing: 0.05em;
+}
+.tr { border-bottom: 1px solid var(--border); }
+.tr:hover { background: var(--bg2); }
+.td { padding: 9px 12px; font-family: 'DM Mono', monospace; white-space: nowrap; }
+
+.deleteBtn {
+  background: transparent; border: 1px solid var(--border2); color: var(--text3);
+  border-radius: 6px; padding: 4px 8px; font-size: 11px; cursor: pointer; transition: all 0.15s;
+}
+.deleteBtn:hover { border-color: var(--red); color: var(--red); }
+
+.none { color: var(--text3); font-size: 14px; }
+
+@media (max-width: 768px) {
+  .coreGrid, .optionalGrid { grid-template-columns: 1fr 1fr; }
+  .statsGrid { grid-template-columns: 1fr; }
+}
