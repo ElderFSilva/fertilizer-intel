@@ -281,3 +281,44 @@
 .barWrap { background: var(--bg3); border-radius: 20px; height: 10px; overflow: hidden; }
 .bar { background: var(--accent); height: 100%; border-radius: 20px; transition: width 0.4s ease; }
 .productCount { font-size: 13px; font-family: 'DM Mono', monospace; color: var(--text3); text-align: right; }
+
+
+/* ── Duplicate-demand popup ── */
+.dupOverlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.7);
+  display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 20px;
+}
+.dupModal {
+  background: var(--bg2); border: 1px solid var(--border2); border-radius: 16px;
+  padding: 24px; max-width: 480px; width: 100%; display: flex; flex-direction: column; gap: 14px;
+}
+.dupHeader { display: flex; align-items: center; justify-content: space-between; }
+.dupTitle { font-size: 15px; font-weight: 700; color: var(--amber); font-family: 'DM Mono', monospace; }
+.dupClose { background: transparent; border: none; color: var(--text3); font-size: 18px; cursor: pointer; }
+.dupClose:hover { color: var(--text); }
+.dupIntro { font-size: 14px; color: var(--text2); line-height: 1.5; }
+.dupIntro strong { color: var(--text); }
+.dupList { display: flex; flex-direction: column; gap: 8px; }
+.dupItem {
+  background: var(--bg3); border: 1px solid var(--border); border-radius: 10px;
+  padding: 12px 14px; display: flex; flex-direction: column; gap: 3px;
+}
+.dupItemProduct { font-size: 14px; font-weight: 700; color: var(--accent); font-family: 'DM Mono', monospace; }
+.dupItemDetail { font-size: 13px; color: var(--text); font-family: 'DM Mono', monospace; }
+.dupItemDate { font-size: 11px; color: var(--text3); font-family: 'DM Mono', monospace; }
+.dupQuestion { font-size: 14px; color: var(--text); font-weight: 600; margin-top: 4px; }
+.dupActions { display: flex; flex-direction: column; gap: 10px; }
+.dupLinkBtn {
+  background: var(--accent); color: #0e0f0c; border: none; border-radius: 10px;
+  padding: 14px; font-size: 15px; font-weight: 700; cursor: pointer; font-family: inherit;
+  display: flex; flex-direction: column; gap: 2px; align-items: center; transition: all 0.15s;
+}
+.dupLinkBtn:hover { background: var(--accent2); }
+.dupBtnHint { font-size: 11px; font-weight: 400; opacity: 0.75; }
+.dupNewBtn {
+  background: transparent; color: var(--text2); border: 1px solid var(--border2);
+  border-radius: 10px; padding: 13px; font-size: 14px; cursor: pointer; font-family: inherit; transition: all 0.15s;
+}
+.dupNewBtn:hover { border-color: var(--text3); color: var(--text); }
+.dupTip { font-size: 11px; color: var(--text3); font-style: italic; line-height: 1.4; }
+
