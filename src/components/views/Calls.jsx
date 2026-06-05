@@ -127,6 +127,16 @@ export default function Calls({ calls, onDelete, onEdit }) {
     setFilterTrend('')
   }
 
+  // Product activity — count of calls referencing each product (price or demand)
+  const productActivity = PRODUCTS.map(p => ({
+    name: p,
+    count: calls.filter(c =>
+      (c.prices?.[p]?.value || (c.prices?.[p]?.trend && c.prices[p].trend !== 'none')) ||
+      (c.demandRows || []).some(r => r.product === p || (r.product || '').startsWith(p))
+    ).length,
+  })).sort((a, b) => b.count - a.count)
+  const maxActivity = Math.max(1, ...productActivity.map(p => p.count))
+
   function startEdit(c) {
     setEditingId(c.id)
     setEditForm({
@@ -213,6 +223,23 @@ export default function Calls({ calls, onDelete, onEdit }) {
             <input type="date" className={styles.filterSelect} value={filterDateTo} onChange={e => setFilterDateTo(e.target.value)} />
           </div>
         </div>
+      )}
+
+      {calls.length > 0 && (
+        <section className={styles.activitySection}>
+          <h2 className={styles.activityTitle}>◎ Product Activity</h2>
+          <div className={styles.productList}>
+            {productActivity.map(p => (
+              <div key={p.name} className={styles.productRow}>
+                <span className={styles.productName}>{p.name}</span>
+                <div className={styles.barWrap}>
+                  <div className={styles.bar} style={{ width: `${(p.count / maxActivity) * 100}%` }} />
+                </div>
+                <span className={styles.productCount}>{p.count}</span>
+              </div>
+            ))}
+          </div>
+        </section>
       )}
 
       {savedBanner && <div className={styles.savedBanner}>✓ Call updated successfully!</div>}
