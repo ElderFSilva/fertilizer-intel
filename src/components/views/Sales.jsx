@@ -48,9 +48,9 @@ export default function Sales({ calls }) {
       .sort((a, b) => parseDate(b.date) - parseDate(a.date))
       .forEach(c => {
         (c.demandRows || []).forEach((r, idx) => {
-          if (r.product || r.volume || r.port || r.priceTarget) {
+          if ((r.product || r.volume || r.port || r.priceTarget) && !r.isDuplicate && !r.linkedToDemandId) {
             clientDemands.push({
-              id: `${c.id}-${idx}`,
+              id: r.id || `${c.id}-${idx}`,
               label: `${formatDate(c.date)} · ${r.product || '?'} ${r.volume || '?'}t ${r.port || ''} @ ${r.priceTarget || '?'}`
             })
           }
