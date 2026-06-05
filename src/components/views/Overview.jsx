@@ -306,41 +306,6 @@ export default function Overview({ calls }) {
         </div>
       )}
 
-      <div className={styles.grid}>
-        <section className={styles.section}>
-          <h2 className={styles.sectionTitle}>◧ Recent Calls</h2>
-          {recentCalls.length === 0 ? <p className={styles.none}>No calls yet.</p> : (
-            <div className={styles.callList}>
-              {recentCalls.map(c => (
-                <div key={c.id} className={styles.callCard}>
-                  <div className={styles.callTop}>
-                    <span className={styles.callClient}>{c.client}</span>
-                    <span className={styles.callDate}>{formatDate(c.date)}</span>
-                  </div>
-                  {c.demand && <p className={styles.callDemand}>{c.demand}</p>}
-                  {c.remarks && <p className={styles.callRemarks}>{c.remarks}</p>}
-                </div>
-              ))}
-            </div>
-          )}
-        </section>
-
-        <section className={styles.section}>
-          <h2 className={styles.sectionTitle}>◎ Product Activity</h2>
-          <div className={styles.productList}>
-            {productActivity.map(p => (
-              <div key={p.name} className={styles.productRow}>
-                <span className={styles.productName}>{p.name}</span>
-                <div className={styles.barWrap}>
-                  <div className={styles.bar} style={{ width: calls.length ? `${(p.count / calls.length) * 100}%` : '0%' }} />
-                </div>
-                <span className={styles.productCount}>{p.count}</span>
-              </div>
-            ))}
-          </div>
-        </section>
-      </div>
-
       {clients.length > 0 && (
         <section className={styles.section}>
           <h2 className={styles.sectionTitle}>◈ Client Demand Status</h2>
