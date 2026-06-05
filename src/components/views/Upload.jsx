@@ -27,8 +27,13 @@ function emptyCompOffer() {
   return { competitor: '', product: 'Amsul', price: '', port: '' }
 }
 
+// Demand rows now carry a stable id so they can be referenced (sales link, report dedup)
+function newDemandId() {
+  return 'd_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7)
+}
+
 function emptyDemandRow() {
-  return { product: '', volume: '', port: '', priceTarget: '' }
+  return { id: newDemandId(), product: '', volume: '', port: '', priceTarget: '' }
 }
 
 function emptyForm() {
@@ -37,6 +42,55 @@ function emptyForm() {
     demandRows: [emptyDemandRow()],
     demand: '', remarks: '', prices: emptyPrices(), competitorOffers: []
   }
+}
+
+function parseDate(dateStr) {
+  if (!dateStr) return new Date(0)
+  const iso = new Date(dateStr + 'T00:00:00')
+  if (!isNaN(iso.getTime())) return iso
+  return new Date(0)
+}
+
+// Monday of the week for a given date
+function getWeekMonday(dateStr) {
+  const d = parseDate(dateStr)
+  if (d.getTime() === 0) return null
+  const day = d.getDay()
+  const monday = new Date(d)
+  monday.setDate(d.getDate() - (day === 0 ? 6 : day - 1))
+  monday.setHours(0, 0, 0, 0)
+  return monday
+}
+
+// Find this client's active demands recorded earlier the same Mon–Fri week
+function findActiveDemandsThisWeek(calls, client, dateStr) {
+  if (!client) return []
+  const weekMonday = getWeekMonday(dateStr)
+  if (!weekMonday) return []
+  const weekFriday = new Date(weekMonday)
+  weekFriday.setDate(weekMonday.getDate() + 4)
+  weekFriday.setHours(23, 59, 59, 999)
+  const thisDate = parseDate(dateStr)
+
+  const found = []
+  calls.forEach(c => {
+    if (c.client !== client) return
+    const cd = parseDate(c.date)
+    if (cd < weekMonday || cd > weekFriday) return
+    if (cd > thisDate) return // only earlier-or-same in the week
+    ;(c.demandRows || []).forEach(r => {
+      if (!r.product || !r.volume) return
+      if (r.closed) return // already closed (e.g. converted to sale)
+      found.push({ ...r, callDate: c.date, callId: c.id })
+    })
+  })
+  return found
+}
+
+function formatVol(v) {
+  const n = parseFloat(v)
+  if (isNaN(n)) return v
+  return n.toLocaleString('en-US', { maximumFractionDigits: 0 })
 }
 
 function CompetitorOffersEditor({ offers, onChange }) {
@@ -86,10 +140,11 @@ function CompetitorOffersEditor({ offers, onChange }) {
   )
 }
 
-export default function Upload({ onAdd }) {
+export default function Upload({ onAdd, calls = [] }) {
   const [error, setError] = useState('')
   const [savedBanner, setSavedBanner] = useState(false)
   const [form, setForm] = useState(emptyForm())
+  const [dupPopup, setDupPopup] = useState(null) // { existing: [...], pendingForm }
 
   function setField(field, val) {
     setForm(f => ({ ...f, [field]: val }))
@@ -103,13 +158,60 @@ export default function Upload({ onAdd }) {
     setForm(f => ({ ...f, competitorOffers: offers }))
   }
 
-  function handleSave() {
-    if (!form.client.trim()) { setError('Client name is required.'); return }
-    onAdd(form)
+  function finalizeSave(formToSave) {
+    onAdd(formToSave)
     setForm(emptyForm())
     setError('')
+    setDupPopup(null)
     setSavedBanner(true)
     setTimeout(() => setSavedBanner(false), 3000)
+  }
+
+  function handleSave() {
+    if (!form.client.trim()) { setError('Client name is required.'); return }
+
+    // Check for active demands this week that exactly match a demand row being logged now
+    const activeDemands = findActiveDemandsThisWeek(calls, form.client.trim(), form.date)
+    const currentRows = (form.demandRows || []).filter(r => r.product && r.volume)
+
+    if (activeDemands.length > 0 && currentRows.length > 0) {
+      // Find matches: existing active demands that share product (the trigger condition)
+      const matches = []
+      currentRows.forEach(row => {
+        activeDemands.forEach(ex => {
+          if (ex.product === row.product) {
+            matches.push({ existing: ex, current: row })
+          }
+        })
+      })
+      if (matches.length > 0) {
+        setDupPopup({ matches, allActive: activeDemands })
+        return
+      }
+    }
+
+    finalizeSave(form)
+  }
+
+  // User chose: link to existing — mark the current matching rows as linked (don't double-count)
+  function handleLink() {
+    const matchedCurrentIds = new Set(dupPopup.matches.map(m => m.current.id))
+    const linkMap = {}
+    dupPopup.matches.forEach(m => { linkMap[m.current.id] = m.existing.id })
+
+    const updatedRows = (form.demandRows || []).map(r => {
+      if (matchedCurrentIds.has(r.id)) {
+        // Mark as a link to the original demand so the report counts it only once
+        return { ...r, linkedToDemandId: linkMap[r.id], isDuplicate: true }
+      }
+      return r
+    })
+    finalizeSave({ ...form, demandRows: updatedRows })
+  }
+
+  // User chose: this is new/separate — save as-is, counts independently
+  function handleSaveAsNew() {
+    finalizeSave(form)
   }
 
   return (
@@ -119,6 +221,43 @@ export default function Upload({ onAdd }) {
       </header>
 
       {savedBanner && <div className={styles.successBanner}>✓ Call saved successfully!</div>}
+
+      {/* Duplicate-demand popup */}
+      {dupPopup && (
+        <div className={styles.dupOverlay} onClick={() => setDupPopup(null)}>
+          <div className={styles.dupModal} onClick={e => e.stopPropagation()}>
+            <div className={styles.dupHeader}>
+              <span className={styles.dupTitle}>⚠ Existing Demand This Week</span>
+              <button className={styles.dupClose} onClick={() => setDupPopup(null)}>✕</button>
+            </div>
+            <p className={styles.dupIntro}>
+              <strong>{form.client}</strong> already has an open demand recorded this week for the same product:
+            </p>
+            <div className={styles.dupList}>
+              {dupPopup.matches.map((m, i) => (
+                <div key={i} className={styles.dupItem}>
+                  <span className={styles.dupItemProduct}>{m.existing.product}</span>
+                  <span className={styles.dupItemDetail}>
+                    {formatVol(m.existing.volume)}t {m.existing.port ? `· ${m.existing.port}` : ''} {m.existing.priceTarget ? `· ${m.existing.priceTarget}` : ''}
+                  </span>
+                  <span className={styles.dupItemDate}>logged {new Date(m.existing.callDate + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</span>
+                </div>
+              ))}
+            </div>
+            <p className={styles.dupQuestion}>Is this the same demand, or new tonnage?</p>
+            <div className={styles.dupActions}>
+              <button className={styles.dupLinkBtn} onClick={handleLink}>
+                ↩ Same demand — link it
+                <span className={styles.dupBtnHint}>Won't double-count in reports</span>
+              </button>
+              <button className={styles.dupNewBtn} onClick={handleSaveAsNew}>
+                + New tonnage — count separately
+              </button>
+            </div>
+            <p className={styles.dupTip}>Tip: if the volume just grew, link it here and edit the original demand to the new figure.</p>
+          </div>
+        </div>
+      )}
 
       <div className={styles.form}>
         <div className={styles.row}>
@@ -159,7 +298,7 @@ export default function Upload({ onAdd }) {
             <button type="button" className={styles.addDemandBtn} onClick={() => setField('demandRows', [...(form.demandRows || []), emptyDemandRow()])}>+ Add Demand</button>
           </div>
           {(form.demandRows || [emptyDemandRow()]).map((row, i) => (
-            <div key={i} className={styles.demandRowWrap}>
+            <div key={row.id || i} className={styles.demandRowWrap}>
               <div className={styles.demandGrid}>
                 <div className={styles.demandField}>
                   <label className={styles.demandLabel}>Product</label>
