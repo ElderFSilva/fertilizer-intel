@@ -27,7 +27,7 @@ export default function Dashboard({ onLogout }) {
       <Sidebar view={view} setView={setView} onLogout={onLogout} signals={signals} />
       <main className={styles.main}>
         {view === 'overview' && <Overview calls={calls} signals={signals} />}
-        {view === 'upload' && <Upload onAdd={handleAdd} />}
+        {view === 'upload' && <Upload onAdd={handleAdd} calls={calls} />}
         {view === 'calls' && <Calls calls={calls} onDelete={handleDelete} onEdit={handleEdit} />}
         {view === 'prices' && <PriceTrends calls={calls} />}
         {view === 'argus' && <Publication calls={calls} />}
