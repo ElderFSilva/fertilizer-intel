@@ -41,8 +41,12 @@ const DEFAULT_GRADE = {
 }
 const TREND_COLOR = { up: 'var(--accent)', stable: 'var(--blue)', down: 'var(--red)', none: 'var(--text3)' }
 
+function newDemandId() {
+  return 'd_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7)
+}
+
 function emptyDemandRow() {
-  return { product: '', volume: '', port: '', priceTarget: '' }
+  return { id: newDemandId(), product: '', volume: '', port: '', priceTarget: '' }
 }
 
 function emptyPrices() {
@@ -142,7 +146,7 @@ export default function Calls({ calls, onDelete, onEdit }) {
     setEditForm({
       client: c.client,
       date: c.date,
-      demandRows: c.demandRows?.length ? c.demandRows : (
+      demandRows: c.demandRows?.length ? c.demandRows.map(r => r.id ? r : { ...r, id: newDemandId() }) : (
         (c.demandProduct || c.demandVolume || c.demandPort || c.demandPriceTarget)
           ? [{ product: c.demandProduct || '', volume: c.demandVolume || '', port: c.demandPort || '', priceTarget: c.demandPriceTarget || '' }]
           : [emptyDemandRow()]
