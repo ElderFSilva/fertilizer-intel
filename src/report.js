@@ -1,5 +1,6 @@
 const ARGUS_KEY = 'fertintel_argus_amsul'
 const FERTECON_KEY = 'fertintel_fertecon_amsul'
+const SALES_KEY = 'fertintel_sales'
 
 function loadStorage(key) {
   try { const r = localStorage.getItem(key); return r ? JSON.parse(r) : [] }
@@ -15,7 +16,6 @@ function formatDate(dateStr) {
   return dateStr
 }
 
-// Short label for chart X axis — matches Publication.jsx formatDateLabel exactly
 function formatDateLabel(dateStr) {
   if (!dateStr) return ''
   const d = new Date(dateStr + 'T00:00:00')
@@ -43,7 +43,6 @@ function parsePrice(val) {
   return isNaN(p) ? null : p
 }
 
-// Copied exactly from Publication.jsx
 function getWeekMonday(dateStr) {
   const d = parseDate(dateStr)
   if (d.getTime() === 0) return null
@@ -61,7 +60,6 @@ function getWeekThursday(dateStr) {
   return d.toISOString().split('T')[0]
 }
 
-// Copied exactly from Publication.jsx buildChartData
 function buildChartData(calls, argusData, ferteconData) {
   const weekMap = {}
 
@@ -113,7 +111,6 @@ function buildChartData(calls, argusData, ferteconData) {
     }))
 }
 
-// Build SVG chart using exact same data as Publication.jsx
 function buildChartSVG(chartData) {
   if (chartData.length < 2) return '<p style="color:#888;font-size:12px;text-align:center;padding:40px 0">Not enough data to display chart.</p>'
 
@@ -122,7 +119,6 @@ function buildChartSVG(chartData) {
   const chartW = W - PAD.left - PAD.right
   const chartH = H - PAD.top - PAD.bottom
 
-  // Use only argus, fertecon, callAvg for Y scale — same as app
   const allVals = chartData.flatMap(d => [d.argusAvg, d.ferteconAvg, d.callAvg].filter(Boolean))
   if (!allVals.length) return '<p style="color:#888;font-size:12px;text-align:center;padding:40px 0">No price data available.</p>'
 
@@ -150,7 +146,6 @@ function buildChartSVG(chartData) {
       : '').join('')
   }
 
-  // Y grid lines (5 levels)
   const gridLines = Array.from({ length: 5 }, (_, i) => {
     const v = minY + (i / 4) * (maxY - minY)
     const y = yScale(v).toFixed(1)
@@ -158,25 +153,19 @@ function buildChartSVG(chartData) {
             <text x="${PAD.left - 6}" y="${(parseFloat(y) + 4).toFixed(1)}" text-anchor="end" font-size="10" fill="#999">${Math.round(v)}</text>`
   }).join('')
 
-  // X labels — one per data point, same as app
   const xLabels = chartData.map((d, i) =>
     `<text x="${xScale(i).toFixed(1)}" y="${H - 6}" text-anchor="middle" font-size="10" fill="#999">${d.label}</text>`
   ).join('')
 
   return `<svg width="${W}" height="${H}" xmlns="http://www.w3.org/2000/svg" style="font-family:'Helvetica Neue',Arial,sans-serif;max-width:100%;display:block">
-    <!-- Grid -->
     ${gridLines}
-    <!-- Border -->
     <rect x="${PAD.left}" y="${PAD.top}" width="${chartW}" height="${chartH}" fill="none" stroke="#e0e0e0" stroke-width="1"/>
-    <!-- Lines — same order as Publication.jsx -->
     ${makeLine('argusAvg', '#60b8f0', '6 3')}
     ${makeLine('ferteconAvg', '#b860f0', '6 3')}
     ${makeLine('callAvg', '#4caf50')}
-    <!-- Dots -->
     ${makeDots('argusAvg', '#60b8f0')}
     ${makeDots('ferteconAvg', '#b860f0')}
     ${makeDots('callAvg', '#4caf50')}
-    <!-- X labels -->
     ${xLabels}
   </svg>`
 }
@@ -204,17 +193,23 @@ function buildPriceBubbles(calls, fromStr, toStr) {
   }).filter(Boolean)
 }
 
-function buildDemandVolume(calls, fromStr, toStr) {
+function buildDemandVolume(calls, fromStr, toStr, soldDemandIds) {
   const fromD = parseDate(fromStr)
   const toD = parseDate(toStr); toD.setHours(23, 59, 59)
   const periodCalls = calls.filter(c => { const d = parseDate(c.date); return d >= fromD && d <= toD })
 
+  // Count every recorded demand in the period, but:
+  //  - skip rows flagged isDuplicate (linked to an earlier same-week demand at logging time)
+  //  - skip demands that have been converted to a sale (id in soldDemandIds)
   const map = {}
   periodCalls.forEach(c => {
     const rows = c.demandRows?.length ? c.demandRows
       : (c.demandProduct || c.demandVolume) ? [{ product: c.demandProduct, volume: c.demandVolume }] : []
     rows.forEach(r => {
       if (!r.product || !r.volume) return
+      if (r.isDuplicate || r.linkedToDemandId) return          // linked duplicate — don't double count
+      if (r.closed) return                                      // explicitly closed
+      if (r.id && soldDemandIds && soldDemandIds.has(r.id)) return // converted to a sale
       const vol = parseFloat(r.volume); if (isNaN(vol)) return
       map[r.product] = (map[r.product] || 0) + vol
     })
@@ -222,6 +217,51 @@ function buildDemandVolume(calls, fromStr, toStr) {
 
   return Object.entries(map).map(([product, total]) => ({ product, total })).sort((a, b) => b.total - a.total)
 }
+
+function parseNum(v) {
+  if (v === '' || v == null) return null
+  const n = parseFloat(String(v).replace(/[^0-9.\-]/g, ''))
+  return isNaN(n) ? null : n
+}
+
+function buildSalesPerformance(fromStr, toStr) {
+  const sales = loadStorage(SALES_KEY)
+  const fromD = parseDate(fromStr)
+  const toD = parseDate(toStr); toD.setHours(23, 59, 59)
+
+  // Filter by laycan date within the period (fall back to any date field present)
+  const periodSales = sales.filter(s => {
+    const d = parseDate(s.laycan || s.date)
+    return d >= fromD && d <= toD
+  })
+
+  if (!periodSales.length) return null
+
+  const totalDeals = periodSales.length
+  const totalVolume = periodSales.reduce((sum, s) => sum + (parseNum(s.volume) || 0), 0)
+
+  const byProduct = {}
+  periodSales.forEach(s => {
+    const p = s.product || 'Unknown'
+    if (!byProduct[p]) byProduct[p] = { volume: 0, doneSum: 0, doneCount: 0, deals: 0 }
+    byProduct[p].volume += parseNum(s.volume) || 0
+    byProduct[p].deals += 1
+    const done = parseNum(s.donePrice)
+    if (done != null) { byProduct[p].doneSum += done; byProduct[p].doneCount += 1 }
+  })
+  const productStats = Object.entries(byProduct).map(([product, d]) => ({
+    product, volume: d.volume, deals: d.deals,
+    avgDone: d.doneCount ? Math.round(d.doneSum / d.doneCount) : null,
+  })).sort((a, b) => b.volume - a.volume)
+
+  // Set of demand ids that converted to a sale (to exclude from demand totals)
+  const soldDemandIds = new Set(
+    sales.map(s => s.linkedDemandId).filter(Boolean)
+  )
+
+  return { totalDeals, totalVolume, productStats, soldDemandIds, sales: periodSales }
+}
+
 
 export function generateWeeklyReport(calls, signals, dateFrom, dateTo) {
   const argusData = loadStorage(ARGUS_KEY)
@@ -233,13 +273,13 @@ export function generateWeeklyReport(calls, signals, dateFrom, dateTo) {
   const toStr = dateTo || now.toISOString().split('T')[0]
   const periodLabel = `${formatDate(fromStr)} – ${formatDate(toStr)}`
 
-  // Chart uses ALL data — same as Publication vs Mrkt tab
   const chartData = buildChartData(calls, argusData, ferteconData)
   const chartSVG = buildChartSVG(chartData)
 
-  // Price bubbles and demand use selected date range
+  const salesPerf = buildSalesPerformance(fromStr, toStr)
+  const soldDemandIds = salesPerf ? salesPerf.soldDemandIds : new Set()
   const priceBubbles = buildPriceBubbles(calls, fromStr, toStr)
-  const demandVolumes = buildDemandVolume(calls, fromStr, toStr)
+  const demandVolumes = buildDemandVolume(calls, fromStr, toStr, soldDemandIds)
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -280,6 +320,13 @@ export function generateWeeklyReport(calls, signals, dateFrom, dateTo) {
   .volume-num { font-size: 20px; font-weight: 700; }
   .volume-unit { font-size: 10px; color: #999; margin-top: 2px; }
 
+  .sales-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 16px; }
+  .sales-stat { border: 1px solid #e0e0e0; border-radius: 10px; padding: 16px 18px; text-align: center; }
+  .sales-stat-num { font-size: 22px; font-weight: 700; }
+  .sales-stat-lbl { font-size: 9px; color: #888; text-transform: uppercase; letter-spacing: 0.06em; margin-top: 3px; }
+  .sales-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+  .sales-table th { text-align: left; padding: 8px 10px; font-size: 9px; text-transform: uppercase; letter-spacing: 0.05em; color: #888; border-bottom: 1px solid #e0e0e0; }
+  .sales-table td { padding: 8px 10px; border-bottom: 1px solid #f0f0f0; }
   .footer { margin-top: 40px; padding-top: 14px; border-top: 1px solid #e0e0e0; display: flex; justify-content: space-between; font-size: 10px; color: #aaa; }
 
   @media print {
@@ -342,6 +389,39 @@ export function generateWeeklyReport(calls, signals, dateFrom, dateTo) {
         <div class="volume-unit">tons</div>
       </div>`).join('')}
     </div>
+  </div>` : ''}
+
+  ${salesPerf ? `
+  <div class="section">
+    <div class="section-title">Sales Performance — ${periodLabel}</div>
+    <div class="sales-stats">
+      <div class="sales-stat">
+        <div class="sales-stat-num">${salesPerf.totalDeals}</div>
+        <div class="sales-stat-lbl">Deals Closed</div>
+      </div>
+      <div class="sales-stat">
+        <div class="sales-stat-num">${salesPerf.totalVolume.toLocaleString('en-US', { maximumFractionDigits: 0 })}</div>
+        <div class="sales-stat-lbl">Total Volume (T)</div>
+      </div>
+      <div class="sales-stat">
+        <div class="sales-stat-num">${salesPerf.productStats.length}</div>
+        <div class="sales-stat-lbl">Products Sold</div>
+      </div>
+    </div>
+    <table class="sales-table">
+      <thead>
+        <tr><th>Product</th><th>Volume (T)</th><th>Deals</th><th>Avg Done Price</th></tr>
+      </thead>
+      <tbody>
+        ${salesPerf.productStats.map(p => `
+        <tr>
+          <td><strong>${p.product}</strong></td>
+          <td>${p.volume.toLocaleString('en-US', { maximumFractionDigits: 0 })}</td>
+          <td>${p.deals}</td>
+          <td>${p.avgDone != null ? p.avgDone : '—'}</td>
+        </tr>`).join('')}
+      </tbody>
+    </table>
   </div>` : ''}
 
   <div class="footer">
