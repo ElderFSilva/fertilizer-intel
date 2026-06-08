@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { PRODUCTS } from '../../data.js'
 import styles from './Calls.module.css'
 import PortSelect from './PortSelect.jsx'
+import ClientIntel from './ClientIntel.jsx'
 
 function formatDate(dateStr) {
   if (!dateStr) return '—'
@@ -65,6 +66,7 @@ export default function Calls({ calls, onDelete, onEdit }) {
   const [editingId, setEditingId] = useState(null)
   const [editForm, setEditForm] = useState(null)
   const [savedBanner, setSavedBanner] = useState(false)
+  const [intelClient, setIntelClient] = useState(null)
 
   function parseDate(dateStr) {
     if (!dateStr) return null
@@ -174,6 +176,9 @@ export default function Calls({ calls, onDelete, onEdit }) {
 
   return (
     <div className={styles.wrap}>
+      {intelClient && (
+        <ClientIntel client={intelClient} calls={calls} onClose={() => setIntelClient(null)} />
+      )}
       <header className={styles.header}>
         <div className={styles.headerLeft}>
           <h1 className={styles.title}>All Calls</h1>
@@ -261,7 +266,7 @@ export default function Calls({ calls, onDelete, onEdit }) {
             <div key={c.id} className={`${styles.card} ${open ? styles.cardOpen : ''}`}>
               <div className={styles.cardTop} onClick={() => !isEditing && setExpandedId(open ? null : c.id)}>
                 <div className={styles.meta}>
-                  <span className={styles.client}>{c.client}</span>
+                  <span className={styles.client} onClick={(e) => { e.stopPropagation(); setIntelClient(c.client) }} title="View client intelligence">{c.client}</span>
                   <span className={styles.date}>{formatDate(c.date)}</span>
                 </div>
                 <div className={styles.pills}>
