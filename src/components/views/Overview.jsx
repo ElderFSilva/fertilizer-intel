@@ -108,7 +108,7 @@ export default function Overview({ calls }) {
 
   function getDemandRows(call) {
     if (call.demandRows?.length) {
-      return call.demandRows.filter(r => r.product || r.volume || r.port || r.priceTarget)
+      return call.demandRows.filter(r => r.product || r.volume || r.port || r.priceTarget || r.laycan)
     }
     if (call.demandProduct || call.demandVolume || call.demandPort || call.demandPriceTarget) {
       return [{ product: call.demandProduct, volume: call.demandVolume, port: call.demandPort, priceTarget: call.demandPriceTarget }]
@@ -315,28 +315,41 @@ export default function Overview({ calls }) {
       {clients.filter(cl => demandMap[cl].active > 0).length > 0 && (
         <section className={styles.section}>
           <h2 className={styles.sectionTitle}>◈ Client Demand Status</h2>
-          <div className={styles.clientGrid}>
+          <div className={styles.demandListWrap}>
+            <div className={styles.demandListHead}>
+              <span>Client</span>
+              <span>Product</span>
+              <span>Volume</span>
+              <span>Port</span>
+              <span>Price Target</span>
+              <span>Laycan</span>
+            </div>
             {clients.filter(cl => demandMap[cl].active > 0).map(cl => {
               const latest = latestByClient[cl]
               const demandRows = latest ? getDemandRows(latest) : []
-              const color = 'var(--accent)'
+              const rows = demandRows.length ? demandRows : [{}]
               return (
-                <div
-                  key={cl}
-                  className={`${styles.clientCard} ${styles.clientCardClickable}`}
-                  onClick={() => latest && setDemandPopup({
-                    client: cl,
-                    date: latest.date,
-                    demandRows,
-                    demand: latest.demand,
-                    remarks: latest.remarks
-                  })}
-                >
-                  <span className={styles.clientName}>{cl}</span>
-                  <div className={styles.clientBottom}>
-                    <span className={styles.clientStatus} style={{ color, borderColor: color + '44' }}>Active</span>
-                    <span className={styles.clientHint}>view →</span>
-                  </div>
+                <div key={cl} className={styles.demandClientBlock}>
+                  {rows.map((row, idx) => (
+                    <div
+                      key={idx}
+                      className={styles.demandListRow}
+                      onClick={() => latest && setDemandPopup({
+                        client: cl,
+                        date: latest.date,
+                        demandRows,
+                        demand: latest.demand,
+                        remarks: latest.remarks
+                      })}
+                    >
+                      <span className={styles.demandListClient}>{idx === 0 ? cl : ''}</span>
+                      <span className={styles.demandListCell}>{row.product || '—'}</span>
+                      <span className={styles.demandListCell}>{row.volume ? formatVolume(row.volume) : '—'}</span>
+                      <span className={styles.demandListCell}>{row.port || '—'}</span>
+                      <span className={styles.demandListCell} style={{ color: row.priceTarget ? 'var(--accent)' : 'var(--text3)' }}>{row.priceTarget || '—'}</span>
+                      <span className={styles.demandListCell}>{row.laycan || '—'}</span>
+                    </div>
+                  ))}
                 </div>
               )
             })}
