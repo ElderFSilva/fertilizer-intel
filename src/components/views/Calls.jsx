@@ -27,7 +27,7 @@ function formatVolume(val) {
 const TREND_OPTIONS = ['up', 'stable', 'down', 'none']
 const TREND_LABEL = { up: '↑ Up', stable: '↔ Stable', down: '↓ Down', none: '—' }
 const TREND_ICON = { up: '↑', stable: '↔', down: '↓', none: '—' }
-const DEMAND_PRODUCTS = ['', 'Amsul', 'Urea', 'MAP', 'SSP', 'TSP', 'NP 10-45', 'NP 08-40']
+const DEMAND_PRODUCTS = ['', 'Amsul GR', 'Amsul STD', 'Urea', 'MAP', 'SSP 20%', 'SSP 19%', 'TSP 45%', 'TSP 46%', 'NP 10-45', 'NP 11-44', 'NP 08-40', 'NP 08-40+5S']
 const PRODUCT_GRADES = {
   Amsul: ['Amsul GR', 'Amsul STD'],
   SSP: ['SSP 20%', 'SSP 19%'],
@@ -298,12 +298,13 @@ export default function Calls({ calls, onDelete, onEdit }) {
                     <div className={styles.block}>
                       <span className={styles.blockLabel}>Demand</span>
                       {(c.demandRows || []).map((row, i) => (
-                        (row.product || row.volume || row.port || row.priceTarget) ? (
+                        (row.product || row.volume || row.port || row.priceTarget || row.laycan) ? (
                           <div key={i} className={styles.demandTags} style={{ marginBottom: 4 }}>
                             {row.product && <span className={styles.demandTag}><span className={styles.demandTagLabel}>Product</span> {row.product}</span>}
                             {row.volume && <span className={styles.demandTag}><span className={styles.demandTagLabel}>Vol</span> {formatVolume(row.volume)}</span>}
                             {row.port && <span className={styles.demandTag}><span className={styles.demandTagLabel}>Port</span> {row.port}</span>}
                             {row.priceTarget && <span className={styles.demandTag}><span className={styles.demandTagLabel}>Target</span> {row.priceTarget}</span>}
+                            {row.laycan && <span className={styles.demandTag}><span className={styles.demandTagLabel}>Laycan</span> {row.laycan}</span>}
                           </div>
                         ) : null
                       ))}
@@ -404,6 +405,14 @@ export default function Calls({ calls, onDelete, onEdit }) {
                               rows[i] = { ...rows[i], priceTarget: e.target.value }
                               setEditForm(f => ({ ...f, demandRows: rows }))
                             }} placeholder="e.g. 240 CFR" />
+                          </div>
+                          <div>
+                            <label className={styles.editSubLabel}>Laycan</label>
+                            <input className={styles.editInput} value={row.laycan || ''} onChange={e => {
+                              const rows = [...(editForm.demandRows || [])]
+                              rows[i] = { ...rows[i], laycan: e.target.value }
+                              setEditForm(f => ({ ...f, demandRows: rows }))
+                            }} placeholder="e.g. Jun 15-30" />
                           </div>
                         </div>
                         {(editForm.demandRows || []).length > 1 && (
