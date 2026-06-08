@@ -261,3 +261,58 @@
 .analysisText { font-size: 13px; color: var(--text); line-height: 1.6; }
 .aiDisclaimer { font-size: 10px; color: var(--text3); font-family: 'DM Mono', monospace; margin-top: 12px; text-align: center; }
 @media (max-width: 768px) { .analysisGrid { grid-template-columns: 1fr; } }
+/* ── Client Demand Status — list layout ── */
+.demandListWrap {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.demandListHead {
+  display: grid;
+  grid-template-columns: 1.4fr 1.2fr 1fr 1.2fr 1fr 1fr;
+  gap: 12px;
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--border);
+  font-size: 9px;
+  font-family: 'DM Mono', monospace;
+  color: var(--text3);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.demandClientBlock {
+  border-bottom: 1px solid var(--border);
+}
+.demandClientBlock:last-child { border-bottom: none; }
+
+.demandListRow {
+  display: grid;
+  grid-template-columns: 1.4fr 1.2fr 1fr 1.2fr 1fr 1fr;
+  gap: 12px;
+  padding: 11px 18px;
+  font-family: 'DM Mono', monospace;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.15s;
+  align-items: center;
+}
+.demandListRow:hover { background: var(--bg3); }
+
+.demandListClient {
+  color: var(--text);
+  font-weight: 700;
+}
+
+.demandListCell {
+  color: var(--text2);
+}
+
+@media (max-width: 768px) {
+  .demandListHead { display: none; }
+  .demandListRow {
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+  }
+  .demandListClient { grid-column: 1 / -1; }
