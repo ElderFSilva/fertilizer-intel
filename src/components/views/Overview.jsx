@@ -118,6 +118,38 @@ export default function Overview({ calls }) {
 
   const signals = analysis?.signals || []
 
+  // ── Current week (Mon–Fri) demand collection ──
+  // Resets every Saturday 00:00 — always shows Mon–Fri of the current week.
+  function currentWeekRange() {
+    const now = new Date()
+    const day = now.getDay() // 0=Sun, 1=Mon ... 6=Sat
+    const monday = new Date(now)
+    const diffToMonday = day === 0 ? 6 : day - 1
+    monday.setDate(now.getDate() - diffToMonday)
+    monday.setHours(0, 0, 0, 0)
+    const friday = new Date(monday)
+    friday.setDate(monday.getDate() + 4)
+    friday.setHours(23, 59, 59, 999)
+    return { monday, friday }
+  }
+
+  const { monday: weekMon, friday: weekFri } = currentWeekRange()
+
+  // Gather every demand row from every call dated within this Mon–Fri, grouped by client
+  const weekDemandsByClient = {}
+  calls.forEach(c => {
+    const d = parseDate(c.date)
+    if (d < weekMon || d > weekFri) return
+    const rows = getDemandRows(c)
+    if (!rows.length) return
+    if (!weekDemandsByClient[c.client]) weekDemandsByClient[c.client] = { rows: [], latestCall: c }
+    rows.forEach(r => weekDemandsByClient[c.client].rows.push(r))
+    if (parseDate(c.date) >= parseDate(weekDemandsByClient[c.client].latestCall.date)) {
+      weekDemandsByClient[c.client].latestCall = c
+    }
+  })
+  const weekDemandClients = Object.keys(weekDemandsByClient).sort()
+
   return (
     <div className={styles.wrap}>
 
@@ -312,7 +344,7 @@ export default function Overview({ calls }) {
         </div>
       )}
 
-      {clients.filter(cl => demandMap[cl].active > 0).length > 0 && (
+      {weekDemandClients.length > 0 && (
         <section className={styles.section}>
           <h2 className={styles.sectionTitle}>◈ Client Demand Status</h2>
           <div className={styles.demandListWrap}>
@@ -324,22 +356,20 @@ export default function Overview({ calls }) {
               <span>Price Target</span>
               <span>Laycan</span>
             </div>
-            {clients.filter(cl => demandMap[cl].active > 0).map(cl => {
-              const latest = latestByClient[cl]
-              const demandRows = latest ? getDemandRows(latest) : []
-              const rows = demandRows.length ? demandRows : [{}]
+            {weekDemandClients.map(cl => {
+              const { rows, latestCall } = weekDemandsByClient[cl]
               return (
                 <div key={cl} className={styles.demandClientBlock}>
                   {rows.map((row, idx) => (
                     <div
                       key={idx}
                       className={styles.demandListRow}
-                      onClick={() => latest && setDemandPopup({
+                      onClick={() => setDemandPopup({
                         client: cl,
-                        date: latest.date,
-                        demandRows,
-                        demand: latest.demand,
-                        remarks: latest.remarks
+                        date: latestCall.date,
+                        demandRows: rows,
+                        demand: latestCall.demand,
+                        remarks: latestCall.remarks
                       })}
                     >
                       <span className={styles.demandListClient}>{idx === 0 ? cl : ''}</span>
