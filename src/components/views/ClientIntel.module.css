@@ -1,0 +1,66 @@
+.overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.7);
+  display: flex; align-items: flex-start; justify-content: center;
+  z-index: 1000; padding: 40px 20px; overflow-y: auto;
+}
+
+.panel {
+  background: var(--bg); border: 1px solid var(--border2);
+  border-radius: 16px; padding: 28px; max-width: 720px; width: 100%;
+  display: flex; flex-direction: column; gap: 22px;
+}
+
+.header { display: flex; align-items: flex-start; justify-content: space-between; }
+.clientName { font-family: 'Fraunces', serif; font-size: 28px; font-weight: 600; letter-spacing: -0.5px; }
+.sub { color: var(--text3); font-size: 13px; margin-top: 4px; font-family: 'DM Mono', monospace; }
+.close { background: transparent; border: none; color: var(--text3); font-size: 20px; cursor: pointer; }
+.close:hover { color: var(--text); }
+
+.statsRow { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.statCard {
+  background: var(--bg2); border: 1px solid var(--border);
+  border-radius: 10px; padding: 14px; text-align: center;
+}
+.statNum { font-size: 22px; font-weight: 700; font-family: 'Fraunces', serif; }
+.statLbl { font-size: 9px; color: var(--text3); font-family: 'DM Mono', monospace; text-transform: uppercase; letter-spacing: 0.05em; margin-top: 3px; }
+
+.reliabilityNote {
+  font-size: 13px; color: var(--text2); line-height: 1.5;
+  background: var(--bg2); border-left: 2px solid var(--accent);
+  padding: 10px 14px; border-radius: 6px;
+}
+
+.section { display: flex; flex-direction: column; gap: 12px; }
+.sectionTitle {
+  font-size: 12px; font-family: 'DM Mono', monospace; color: var(--text3);
+  letter-spacing: 0.08em; text-transform: uppercase;
+  padding-bottom: 8px; border-bottom: 1px solid var(--border);
+}
+
+.chartWrap { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 14px; }
+
+.demandList { display: flex; flex-direction: column; gap: 6px; }
+.demandRow, .saleRow {
+  display: grid; grid-template-columns: 1.2fr 1fr 1fr 1.2fr 0.8fr auto;
+  gap: 10px; align-items: center;
+  background: var(--bg2); border-radius: 8px; padding: 10px 14px;
+  font-family: 'DM Mono', monospace; font-size: 12px;
+}
+.saleRow { border: 1px solid var(--accent-dim); }
+.demandDate { color: var(--text3); }
+.demandProduct { color: var(--text); font-weight: 600; }
+.demandVol { color: var(--text2); }
+.demandPort { color: var(--text2); }
+.demandTarget { color: var(--accent); }
+.saleDone { color: var(--accent); font-weight: 700; }
+.demandLinked { color: var(--text3); font-size: 10px; font-style: italic; }
+
+.totalSold { font-size: 13px; color: var(--text2); font-family: 'DM Mono', monospace; margin-top: 4px; }
+.totalSold strong { color: var(--accent); }
+
+.none { color: var(--text3); font-size: 13px; }
+
+@media (max-width: 640px) {
+  .statsRow { grid-template-columns: 1fr 1fr; }
+  .demandRow, .saleRow { grid-template-columns: 1fr 1fr; font-size: 11px; }
+}
