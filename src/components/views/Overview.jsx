@@ -306,23 +306,19 @@ export default function Overview({ calls }) {
         </div>
       )}
 
-      {clients.length > 0 && (
+      {clients.filter(cl => demandMap[cl].active > 0).length > 0 && (
         <section className={styles.section}>
           <h2 className={styles.sectionTitle}>◈ Client Demand Status</h2>
           <div className={styles.clientGrid}>
-            {clients.map(cl => {
-              const d = demandMap[cl]
-              const status = d.active > 0 ? 'active' : d.potential > 0 ? 'potential' : 'none'
-              const label = status === 'active' ? 'Active' : status === 'potential' ? 'Potential' : 'No Demand'
-              const color = status === 'active' ? 'var(--accent)' : status === 'potential' ? 'var(--amber)' : 'var(--red)'
-              const isClickable = status === 'active' || status === 'potential'
+            {clients.filter(cl => demandMap[cl].active > 0).map(cl => {
               const latest = latestByClient[cl]
               const demandRows = latest ? getDemandRows(latest) : []
+              const color = 'var(--accent)'
               return (
                 <div
                   key={cl}
-                  className={`${styles.clientCard} ${isClickable ? styles.clientCardClickable : ''}`}
-                  onClick={() => isClickable && latest && setDemandPopup({
+                  className={`${styles.clientCard} ${styles.clientCardClickable}`}
+                  onClick={() => latest && setDemandPopup({
                     client: cl,
                     date: latest.date,
                     demandRows,
@@ -332,8 +328,8 @@ export default function Overview({ calls }) {
                 >
                   <span className={styles.clientName}>{cl}</span>
                   <div className={styles.clientBottom}>
-                    <span className={styles.clientStatus} style={{ color, borderColor: color + '44' }}>{label}</span>
-                    {isClickable && <span className={styles.clientHint}>view →</span>}
+                    <span className={styles.clientStatus} style={{ color, borderColor: color + '44' }}>Active</span>
+                    <span className={styles.clientHint}>view →</span>
                   </div>
                 </div>
               )
