@@ -17,7 +17,7 @@ const DEFAULT_GRADE = {
   NP: 'NP 10-45',
 }
 const TREND_LABEL = { up: '↑ Up', stable: '↔ Stable', down: '↓ Down', none: '—' }
-const DEMAND_PRODUCTS = ['', 'Amsul', 'Urea', 'MAP', 'SSP', 'TSP', 'NP 10-45', 'NP 08-40']
+const DEMAND_PRODUCTS = ['', 'Amsul GR', 'Amsul STD', 'Urea', 'MAP', 'SSP 20%', 'SSP 19%', 'TSP 45%', 'TSP 46%', 'NP 10-45', 'NP 11-44', 'NP 08-40', 'NP 08-40+5S']
 
 function emptyPrices() {
   return Object.fromEntries(PRODUCTS.map(p => [p, { value: '', trend: 'none', grade: DEFAULT_GRADE[p] || '' }]))
@@ -33,7 +33,7 @@ function newDemandId() {
 }
 
 function emptyDemandRow() {
-  return { id: newDemandId(), product: '', volume: '', port: '', priceTarget: '' }
+  return { id: newDemandId(), product: '', volume: '', port: '', priceTarget: '', laycan: '' }
 }
 
 function emptyForm() {
@@ -339,6 +339,17 @@ export default function Upload({ onAdd, calls = [] }) {
                       setField('demandRows', rows)
                     }}
                     placeholder="e.g. 240 CFR"
+                  />
+                </div>
+                <div className={styles.demandField}>
+                  <label className={styles.demandLabel}>Laycan</label>
+                  <input className={styles.input} value={row.laycan || ''}
+                    onChange={e => {
+                      const rows = [...(form.demandRows || [])]
+                      rows[i] = { ...rows[i], laycan: e.target.value }
+                      setField('demandRows', rows)
+                    }}
+                    placeholder="e.g. Jun 15-30"
                   />
                 </div>
               </div>
