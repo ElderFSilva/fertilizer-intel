@@ -197,6 +197,12 @@ export default function Overview({ calls }) {
                           <span className={styles.popupDemandCellValue} style={{ color: 'var(--accent)' }}>{row.priceTarget}</span>
                         </div>
                       )}
+                      {row.laycan && (
+                        <div className={styles.popupDemandCell}>
+                          <span className={styles.popupDemandCellLabel}>Laycan</span>
+                          <span className={styles.popupDemandCellValue}>{row.laycan}</span>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
