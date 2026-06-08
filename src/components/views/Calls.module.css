@@ -322,3 +322,8 @@
 .dupNewBtn:hover { border-color: var(--text3); color: var(--text); }
 .dupTip { font-size: 11px; color: var(--text3); font-style: italic; line-height: 1.4; }
 
+/* Client name clickable → opens Client Intelligence */
+.client { cursor: pointer; transition: color 0.15s, text-decoration 0.15s; }
+.client:hover { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
+
+
