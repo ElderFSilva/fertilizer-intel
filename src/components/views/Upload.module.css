@@ -91,10 +91,6 @@
 
 .saveBtn:hover { background: var(--accent2); transform: translateY(-1px); }
 
-@media (max-width: 768px) {
-  .demandGrid { grid-template-columns: 1.3fr 0.8fr 1.4fr 1.1fr 1.1fr; }
-}
-
 .reviewHeader {
   display: flex; align-items: center; gap: 14px;
   padding-bottom: 16px; border-bottom: 1px solid var(--border);
@@ -203,23 +199,25 @@
 
 .demandSectionHeader { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
 
-.demandGrid {
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 10px;
-}
-
-.demandField { display: flex; flex-direction: column; gap: 4px; }
-
-.demandLabel {
-  font-size: 10px; color: var(--text3); font-family: 'DM Mono', monospace;
-  text-transform: uppercase; letter-spacing: 0.06em;
-}
-
 .demandRowWrap {
   background: var(--bg2); border: 1px solid var(--border2);
   border-radius: 10px; padding: 12px 14px;
   display: flex; align-items: flex-end; gap: 10px; margin-bottom: 6px;
+}
+
+.demandGrid {
+  display: grid;
+  grid-template-columns: 1.3fr 0.8fr 1.6fr 1.1fr 1.1fr;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+}
+
+.demandField { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+
+.demandLabel {
+  font-size: 10px; color: var(--text3); font-family: 'DM Mono', monospace;
+  text-transform: uppercase; letter-spacing: 0.06em;
 }
 
 .addDemandBtn {
@@ -248,3 +246,8 @@
   padding-right: 14px;
 }
 .gradeSelect:hover { color: var(--accent); }
+
+@media (max-width: 768px) {
+  .demandGrid { grid-template-columns: 1fr 1fr; }
+  .row { grid-template-columns: 1fr; }
+}
