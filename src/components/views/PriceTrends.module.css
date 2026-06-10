@@ -73,3 +73,46 @@
   font-family: 'DM Mono', monospace; margin-left: 3px;
   text-transform: capitalize;
 }
+
+.snapGrid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 12px;
+}
+
+.snapCard {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.snapLabel {
+  font-size: 9px;
+  color: var(--text3);
+  font-family: 'DM Mono', monospace;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.snapValue {
+  font-size: 24px;
+  font-weight: 700;
+  font-family: 'Fraunces', serif;
+  color: var(--text);
+  display: flex;
+  align-items: baseline;
+}
+
+.snapSub {
+  font-size: 10px;
+  color: var(--text3);
+  font-family: 'DM Mono', monospace;
+}
+
+@media (max-width: 900px) {
+  .snapGrid { grid-template-columns: repeat(2, 1fr); }
+}
