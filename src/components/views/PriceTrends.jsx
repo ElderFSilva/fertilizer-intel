@@ -83,17 +83,49 @@ export default function PriceTrends({ calls }) {
 
   const series = buildGradeSeries(calls, tab)
 
-  // Latest call per client that matches the selected grade
-  const latestByClient = {}
-  calls.forEach(c => {
-    if (!matchesGrade(c.prices?.[tab.product], tab)) return
-    if (!latestByClient[c.client] || parseDate(c.date) > parseDate(latestByClient[c.client].date)) {
-      latestByClient[c.client] = c
-    }
-  })
+  // ── Price snapshot stats for the selected grade ──
+  function currentWeekMonday() {
+    const now = new Date()
+    const day = now.getDay()
+    const monday = new Date(now)
+    monday.setDate(now.getDate() - (day === 0 ? 6 : day - 1))
+    monday.setHours(0, 0, 0, 0)
+    return monday
+  }
 
-  const clientsWithProduct = Object.entries(latestByClient)
-    .sort((a, b) => parseDate(b[1].date) - parseDate(a[1].date))
+  let snapshot = null
+  if (series.length > 0) {
+    const prices = series.map(s => s.price)
+    const latest = series[series.length - 1]
+    const first = series[0]
+
+    // Last-7-days window
+    const weekAgo = new Date(); weekAgo.setDate(weekAgo.getDate() - 7)
+    const weekPrices = series.filter(s => parseDate(s.date) >= weekAgo).map(s => s.price)
+
+    // Active clients this week (Mon-based current week)
+    const wkMon = currentWeekMonday()
+    const activeClients = new Set(
+      calls.filter(c => matchesGrade(c.prices?.[tab.product], tab) && parseDate(c.date) >= wkMon)
+        .map(c => c.client)
+    ).size
+
+    const periodLow = Math.min(...prices)
+    const periodHigh = Math.max(...prices)
+    const weekLow = weekPrices.length ? Math.min(...weekPrices) : null
+    const weekHigh = weekPrices.length ? Math.max(...weekPrices) : null
+
+    // Direction: latest vs first (period), and latest vs week-ago first
+    const periodChange = latest.price - first.price
+    const periodPct = first.price ? (periodChange / first.price) * 100 : 0
+    const weekFirst = series.find(s => parseDate(s.date) >= weekAgo)
+    const weekChange = weekFirst ? latest.price - weekFirst.price : null
+
+    snapshot = {
+      latest, periodLow, periodHigh, weekLow, weekHigh,
+      periodChange, periodPct, weekChange, activeClients,
+    }
+  }
 
   return (
     <div className={styles.wrap}>
@@ -135,42 +167,54 @@ export default function PriceTrends({ calls }) {
       </section>
 
       <section className={styles.section}>
-        <h2 className={styles.sectionTitle}>◈ Latest {tab.label} Prices per Client</h2>
-        {clientsWithProduct.length === 0 ? (
-          <p className={styles.none}>No clients with {tab.label} price data yet.</p>
+        <h2 className={styles.sectionTitle}>◈ {tab.label} Snapshot</h2>
+        {!snapshot ? (
+          <p className={styles.none}>No {tab.label} price data yet.</p>
         ) : (
-          <div className={styles.tableWrap}>
-            <table className={styles.table}>
-              <thead>
-                <tr>
-                  <th className={styles.th}>Client</th>
-                  <th className={styles.thDate}>Date</th>
-                  <th className={styles.th}>{tab.label} Price</th>
-                  <th className={styles.th}>Trend</th>
-                </tr>
-              </thead>
-              <tbody>
-                {clientsWithProduct.map(([cl, call]) => {
-                  const pr = call.prices?.[tab.product]
-                  return (
-                    <tr key={cl} className={styles.tr}>
-                      <td className={styles.tdClient}>{cl}</td>
-                      <td className={styles.tdDate}>{formatDate(call.date)}</td>
-                      <td className={styles.td}>
-                        <span className={styles.price}>{pr?.value}</span>
-                      </td>
-                      <td className={styles.td}>
-                        {pr?.trend && pr.trend !== 'none' && (
-                          <span style={{ color: TREND_COLOR[pr.trend], fontSize: 14 }}>
-                            {TREND_ICON[pr.trend]}
-                          </span>
-                        )}
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
+          <div className={styles.snapGrid}>
+            <div className={styles.snapCard}>
+              <div className={styles.snapLabel}>Latest</div>
+              <div className={styles.snapValue}>
+                {snapshot.latest.price}
+                {snapshot.latest.trend && snapshot.latest.trend !== 'none' && (
+                  <span style={{ color: TREND_COLOR[snapshot.latest.trend], fontSize: 18, marginLeft: 6 }}>
+                    {TREND_ICON[snapshot.latest.trend]}
+                  </span>
+                )}
+              </div>
+              <div className={styles.snapSub}>{formatDate(snapshot.latest.date)}</div>
+            </div>
+
+            <div className={styles.snapCard}>
+              <div className={styles.snapLabel}>This Week Range</div>
+              <div className={styles.snapValue}>
+                {snapshot.weekLow != null ? `${snapshot.weekLow}–${snapshot.weekHigh}` : '—'}
+              </div>
+              <div className={styles.snapSub}>last 7 days</div>
+            </div>
+
+            <div className={styles.snapCard}>
+              <div className={styles.snapLabel}>Period Range</div>
+              <div className={styles.snapValue}>{snapshot.periodLow}–{snapshot.periodHigh}</div>
+              <div className={styles.snapSub}>all logged data</div>
+            </div>
+
+            <div className={styles.snapCard}>
+              <div className={styles.snapLabel}>Direction</div>
+              <div className={styles.snapValue} style={{ color: snapshot.periodChange < 0 ? 'var(--red)' : snapshot.periodChange > 0 ? 'var(--accent)' : 'var(--text)' }}>
+                {snapshot.periodChange > 0 ? '+' : ''}{snapshot.periodChange.toFixed(0)}
+                <span style={{ fontSize: 13, marginLeft: 4 }}>({snapshot.periodPct > 0 ? '+' : ''}{snapshot.periodPct.toFixed(1)}%)</span>
+              </div>
+              <div className={styles.snapSub}>
+                {snapshot.weekChange != null ? `${snapshot.weekChange > 0 ? '+' : ''}${snapshot.weekChange.toFixed(0)} past week` : 'over period'}
+              </div>
+            </div>
+
+            <div className={styles.snapCard}>
+              <div className={styles.snapLabel}>Active Clients</div>
+              <div className={styles.snapValue}>{snapshot.activeClients}</div>
+              <div className={styles.snapSub}>quoted this week</div>
+            </div>
           </div>
         )}
       </section>
