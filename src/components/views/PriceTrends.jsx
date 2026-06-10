@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
-import { PRODUCTS, buildPriceSeries } from '../../data.js'
 import styles from './PriceTrends.module.css'
 
 function formatDate(dateStr) {
@@ -21,6 +20,48 @@ function parseDate(dateStr) {
   return new Date(0)
 }
 
+// ── Grade tabs ──
+// Each tab maps to a base product + (optional) required grade.
+// Urea & MAP have no grade. Defaults: old data with no grade is treated as the
+// product's default grade so it still shows under that tab.
+const GRADE_TABS = [
+  { label: 'Amsul GR', product: 'Amsul', grade: 'Amsul GR', isDefault: true },
+  { label: 'Amsul STD', product: 'Amsul', grade: 'Amsul STD' },
+  { label: 'Urea', product: 'Urea', grade: null },
+  { label: 'MAP', product: 'MAP', grade: null },
+  { label: 'SSP 20%', product: 'SSP', grade: 'SSP 20%', isDefault: true },
+  { label: 'SSP 19%', product: 'SSP', grade: 'SSP 19%' },
+  { label: 'TSP 45%', product: 'TSP', grade: 'TSP 45%', isDefault: true },
+  { label: 'TSP 46%', product: 'TSP', grade: 'TSP 46%' },
+  { label: 'NP 10-45', product: 'NP', grade: 'NP 10-45', isDefault: true },
+  { label: 'NP 11-44', product: 'NP', grade: 'NP 11-44' },
+  { label: 'NP 08-40', product: 'NP', grade: 'NP 08-40' },
+  { label: 'NP 08-40+5S', product: 'NP', grade: 'NP 08-40+5S' },
+]
+
+// Does this call's price entry match the selected grade tab?
+function matchesGrade(priceEntry, tab) {
+  if (!priceEntry?.value) return false
+  if (!tab.grade) return true // Urea / MAP — no grade filtering
+  const g = priceEntry.grade
+  if (g) return g === tab.grade
+  // No grade stored (legacy data) → counts as the product's default grade
+  return !!tab.isDefault
+}
+
+function buildGradeSeries(calls, tab) {
+  return calls
+    .filter(c => matchesGrade(c.prices?.[tab.product], tab))
+    .sort((a, b) => parseDate(a.date) - parseDate(b.date))
+    .map(c => ({
+      date: c.date,
+      client: c.client,
+      price: parseFloat(c.prices[tab.product].value),
+      trend: c.prices[tab.product].trend,
+    }))
+    .filter(d => !isNaN(d.price))
+}
+
 const CustomTooltip = ({ active, payload, label }) => {
   if (!active || !payload?.length) return null
   const d = payload[0]?.payload
@@ -37,21 +78,21 @@ const TREND_ICON = { up: '↑', stable: '↔', down: '↓', none: '—' }
 const TREND_COLOR = { up: 'var(--accent)', stable: 'var(--blue)', down: 'var(--red)', none: 'var(--text3)' }
 
 export default function PriceTrends({ calls }) {
-  const [selected, setSelected] = useState('Amsul')
+  const [selectedLabel, setSelectedLabel] = useState('Amsul GR')
+  const tab = GRADE_TABS.find(t => t.label === selectedLabel) || GRADE_TABS[0]
 
-  const series = buildPriceSeries(calls, selected)
+  const series = buildGradeSeries(calls, tab)
 
-  // Get latest call per client
+  // Latest call per client that matches the selected grade
   const latestByClient = {}
   calls.forEach(c => {
+    if (!matchesGrade(c.prices?.[tab.product], tab)) return
     if (!latestByClient[c.client] || parseDate(c.date) > parseDate(latestByClient[c.client].date)) {
       latestByClient[c.client] = c
     }
   })
 
-  // Filter to only clients that have data for the selected product
   const clientsWithProduct = Object.entries(latestByClient)
-    .filter(([, call]) => call.prices?.[selected]?.value)
     .sort((a, b) => parseDate(b[1].date) - parseDate(a[1].date))
 
   return (
@@ -63,21 +104,21 @@ export default function PriceTrends({ calls }) {
       <section className={styles.section}>
         <h2 className={styles.sectionTitle}>◎ Price History by Product</h2>
         <div className={styles.tabs}>
-          {PRODUCTS.map(p => (
+          {GRADE_TABS.map(t => (
             <button
-              key={p}
-              className={`${styles.tab} ${selected === p ? styles.tabActive : ''}`}
-              onClick={() => setSelected(p)}
+              key={t.label}
+              className={`${styles.tab} ${selectedLabel === t.label ? styles.tabActive : ''}`}
+              onClick={() => setSelectedLabel(t.label)}
             >
-              {p}
+              {t.label}
             </button>
           ))}
         </div>
 
         {series.length < 2 ? (
           <div className={styles.noData}>
-            <p>Not enough data for {selected} yet.</p>
-            <p className={styles.noDataSub}>Log at least 2 calls with {selected} prices to see a trend chart.</p>
+            <p>Not enough data for {tab.label} yet.</p>
+            <p className={styles.noDataSub}>Log at least 2 calls with {tab.label} prices to see a trend chart.</p>
           </div>
         ) : (
           <div className={styles.chartWrap}>
@@ -86,7 +127,7 @@ export default function PriceTrends({ calls }) {
                 <XAxis dataKey="date" tick={{ fill: 'var(--text3)', fontSize: 11 }} />
                 <YAxis tick={{ fill: 'var(--text3)', fontSize: 11 }} domain={['auto', 'auto']} />
                 <Tooltip content={<CustomTooltip />} />
-                <Line type="monotone" dataKey="price" stroke="var(--accent)" strokeWidth={2} dot={{ fill: 'var(--accent)', r: 4 }} name={selected} />
+                <Line type="monotone" dataKey="price" stroke="var(--accent)" strokeWidth={2} dot={{ fill: 'var(--accent)', r: 4 }} name={tab.label} />
               </LineChart>
             </ResponsiveContainer>
           </div>
@@ -94,9 +135,9 @@ export default function PriceTrends({ calls }) {
       </section>
 
       <section className={styles.section}>
-        <h2 className={styles.sectionTitle}>◈ Latest {selected} Prices per Client</h2>
+        <h2 className={styles.sectionTitle}>◈ Latest {tab.label} Prices per Client</h2>
         {clientsWithProduct.length === 0 ? (
-          <p className={styles.none}>No clients with {selected} price data yet.</p>
+          <p className={styles.none}>No clients with {tab.label} price data yet.</p>
         ) : (
           <div className={styles.tableWrap}>
             <table className={styles.table}>
@@ -104,13 +145,13 @@ export default function PriceTrends({ calls }) {
                 <tr>
                   <th className={styles.th}>Client</th>
                   <th className={styles.thDate}>Date</th>
-                  <th className={styles.th}>{selected} Price</th>
+                  <th className={styles.th}>{tab.label} Price</th>
                   <th className={styles.th}>Trend</th>
                 </tr>
               </thead>
               <tbody>
                 {clientsWithProduct.map(([cl, call]) => {
-                  const pr = call.prices?.[selected]
+                  const pr = call.prices?.[tab.product]
                   return (
                     <tr key={cl} className={styles.tr}>
                       <td className={styles.tdClient}>{cl}</td>
