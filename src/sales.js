@@ -1,7 +1,7 @@
 // Sales / trade log — stored separately from calls
 const SALES_KEY = 'fertintel_sales'
 
-export const SALE_PRODUCTS = ['Amsul', 'Urea', 'MAP', 'SSP', 'TSP', 'NP 10-45', 'NP 11-44', 'NP 08-40', 'NP 08-40+5S']
+export const SALE_PRODUCTS = ['Amsul GR', 'Amsul STD', 'Urea', 'MAP', 'SSP 20%', 'SSP 19%', 'TSP 45%', 'TSP 46%', 'NP 10-45', 'NP 11-44', 'NP 08-40', 'NP 08-40+5S']
 
 export function loadSales() {
   try {
