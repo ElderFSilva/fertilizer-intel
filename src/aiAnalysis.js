@@ -97,7 +97,7 @@ export async function runAIAnalysis(calls) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       model: 'claude-opus-4-8',
-      max_tokens: 2000,
+      max_tokens: 4000,
       system: SYSTEM_PROMPT,
       messages: [{ role: 'user', content: `Analyze this fertilizer market data and provide intelligence:\n\n${dataSummary}` }],
     }),
@@ -110,12 +110,31 @@ export async function runAIAnalysis(calls) {
 
   const data = await response.json()
   const text = (data.content || []).map(b => b.text || '').join('')
-  const clean = text.replace(/```json|```/g, '').trim()
-  const parsed = JSON.parse(clean)
+
+  // Resilient parse: strip code fences, then extract the outermost JSON object
+  let parsed
+  try {
+    let clean = text.replace(/```json/gi, '').replace(/```/g, '').trim()
+    // If there's surrounding prose, grab from first { to last }
+    const first = clean.indexOf('{')
+    const last = clean.lastIndexOf('}')
+    if (first !== -1 && last !== -1 && last > first) {
+      clean = clean.slice(first, last + 1)
+    }
+    parsed = JSON.parse(clean)
+  } catch (e) {
+    throw new Error('Could not parse analysis response')
+  }
+
+  // Validate shape — ensure we at least have signals or analysis
+  if (!parsed || (!parsed.signals && !parsed.analysis)) {
+    throw new Error('Analysis response missing expected fields')
+  }
 
   // Cache result with timestamp and call count
   const result = {
-    ...parsed,
+    signals: parsed.signals || [],
+    analysis: parsed.analysis || null,
     generatedAt: new Date().toISOString(),
     callCount: calls.length,
   }
