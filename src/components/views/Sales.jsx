@@ -25,7 +25,7 @@ function parseDate(dateStr) {
 
 function emptyForm() {
   return {
-    client: '', product: 'Amsul', volume: '', donePrice: '',
+    client: '', product: 'Amsul GR', volume: '', donePrice: '',
     laycan: '', vessel: '', port: '',
     offerPrice: '', bidPrice: '', linkedDemandId: ''
   }
@@ -41,6 +41,9 @@ export default function Sales({ calls }) {
   const clientNames = [...new Set(calls.map(c => c.client).filter(Boolean))].sort()
 
   // Build demand options for the selected client (to optionally link)
+  // Include ALL demands with content — duplicates are still real, sellable demands.
+  // Only exclude demands already converted to a sale (linked from another sale).
+  const linkedDemandIds = new Set(sales.map(s => s.linkedDemandId).filter(Boolean))
   const clientDemands = []
   if (form.client) {
     calls
@@ -48,10 +51,12 @@ export default function Sales({ calls }) {
       .sort((a, b) => parseDate(b.date) - parseDate(a.date))
       .forEach(c => {
         (c.demandRows || []).forEach((r, idx) => {
-          if ((r.product || r.volume || r.port || r.priceTarget) && !r.isDuplicate && !r.linkedToDemandId) {
+          const did = r.id || `${c.id}-${idx}`
+          const hasContent = r.product || r.volume || r.port || r.priceTarget
+          if (hasContent && !linkedDemandIds.has(did)) {
             clientDemands.push({
-              id: r.id || `${c.id}-${idx}`,
-              label: `${formatDate(c.date)} · ${r.product || '?'} ${r.volume || '?'}t ${r.port || ''} @ ${r.priceTarget || '?'}`
+              id: did,
+              label: `${formatDate(c.date)} · ${r.product || '?'} ${r.volume || '?'}t ${r.port || ''} @ ${r.priceTarget || '?'}${r.laycan ? ` · ${r.laycan}` : ''}`
             })
           }
         })
@@ -122,7 +127,7 @@ export default function Sales({ calls }) {
             </div>
             <div className={styles.field}>
               <label className={styles.label}>Laycan *</label>
-              <input type="date" className={styles.input} value={form.laycan} onChange={e => set('laycan', e.target.value)} />
+              <input className={styles.input} value={form.laycan} placeholder="e.g. Jul 15-30" onChange={e => set('laycan', e.target.value)} />
             </div>
             <div className={styles.field}>
               <label className={styles.label}>Vessel *</label>
@@ -225,7 +230,7 @@ export default function Sales({ calls }) {
               <tbody>
                 {sales.map(s => (
                   <tr key={s.id} className={styles.tr}>
-                    <td className={styles.td}>{formatDate(s.laycan)}</td>
+                    <td className={styles.td}>{s.laycan || '—'}</td>
                     <td className={styles.td} style={{ fontWeight: 700 }}>{s.client}</td>
                     <td className={styles.td}>{s.product}</td>
                     <td className={styles.td}>{formatVolume(s.volume)} T</td>
