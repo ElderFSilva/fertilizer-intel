@@ -18,13 +18,14 @@ const DEFAULT_GRADE = {
 }
 const TREND_LABEL = { up: '↑ Up', stable: '↔ Stable', down: '↓ Down', none: '—' }
 const DEMAND_PRODUCTS = ['', 'Amsul GR', 'Amsul STD', 'Urea', 'MAP', 'SSP 20%', 'SSP 19%', 'TSP 45%', 'TSP 46%', 'NP 10-45', 'NP 11-44', 'NP 08-40', 'NP 08-40+5S']
+const COMP_PRODUCTS = ['Amsul GR', 'Amsul STD', 'Urea', 'MAP', 'SSP 20%', 'SSP 19%', 'TSP 45%', 'TSP 46%', 'NP 10-45', 'NP 11-44', 'NP 08-40', 'NP 08-40+5S']
 
 function emptyPrices() {
   return Object.fromEntries(PRODUCTS.map(p => [p, { value: '', trend: 'none', grade: DEFAULT_GRADE[p] || '' }]))
 }
 
 function emptyCompOffer() {
-  return { competitor: '', product: 'Amsul', price: '', port: '' }
+  return { competitor: '', product: 'Amsul GR', price: '', port: '' }
 }
 
 // Demand rows now carry a stable id so they can be referenced (sales link, report dedup)
@@ -119,7 +120,7 @@ function CompetitorOffersEditor({ offers, onChange }) {
             <div className={styles.compFieldWrap}>
               <span className={styles.compFieldLabel}>Product</span>
               <select className={styles.compSelect} value={o.product} onChange={e => updateOffer(i, 'product', e.target.value)}>
-                {PRODUCTS.map(p => <option key={p} value={p}>{p}</option>)}
+                {COMP_PRODUCTS.map(p => <option key={p} value={p}>{p}</option>)}
               </select>
             </div>
           </div>
