@@ -55,6 +55,11 @@ export default function Overview({ calls }) {
   const recentCalls = calls.slice(0, 5)
   const [demandPopup, setDemandPopup] = useState(null)
   const [showReportModal, setShowReportModal] = useState(false)
+  // Client Demand Status filters
+  const [filterProduct, setFilterProduct] = useState('')
+  const [filterPort, setFilterPort] = useState('')
+  const [filterLaycan, setFilterLaycan] = useState('')
+  const [filterClient, setFilterClient] = useState('')
   const [reportFrom, setReportFrom] = useState(() => {
     const d = new Date(); d.setDate(d.getDate() - 6); return d.toISOString().split('T')[0]
   })
@@ -149,6 +154,31 @@ export default function Overview({ calls }) {
     }
   })
   const weekDemandClients = Object.keys(weekDemandsByClient).sort()
+
+  // ── Filter option lists (populated from this week's demand rows) ──
+  const allWeekRows = weekDemandClients.flatMap(cl => weekDemandsByClient[cl].rows)
+  const productOptions = [...new Set(allWeekRows.map(r => r.product).filter(Boolean))].sort()
+  const portOptions = [...new Set(allWeekRows.map(r => r.port).filter(Boolean))].sort()
+  const laycanOptions = [...new Set(allWeekRows.map(r => r.laycan).filter(Boolean))].sort()
+
+  const filtersActive = filterProduct || filterPort || filterLaycan || filterClient.trim()
+
+  function rowMatches(row) {
+    if (filterProduct && row.product !== filterProduct) return false
+    if (filterPort && row.port !== filterPort) return false
+    if (filterLaycan && row.laycan !== filterLaycan) return false
+    return true
+  }
+
+  function clearFilters() {
+    setFilterProduct(''); setFilterPort(''); setFilterLaycan(''); setFilterClient('')
+  }
+
+  // Apply filters → clients with at least one matching row (and matching client search)
+  const filteredClients = weekDemandClients
+    .filter(cl => !filterClient.trim() || cl.toLowerCase().includes(filterClient.trim().toLowerCase()))
+    .map(cl => ({ client: cl, rows: weekDemandsByClient[cl].rows.filter(rowMatches), latestCall: weekDemandsByClient[cl].latestCall }))
+    .filter(entry => entry.rows.length > 0)
 
   return (
     <div className={styles.wrap}>
@@ -346,7 +376,35 @@ export default function Overview({ calls }) {
 
       {weekDemandClients.length > 0 && (
         <section className={styles.section}>
-          <h2 className={styles.sectionTitle}>◈ Client Demand Status</h2>
+          <div className={styles.demandHeadRow}>
+            <h2 className={styles.sectionTitle}>◈ Client Demand Status</h2>
+            {filtersActive ? (
+              <button className={styles.clearFiltersBtn} onClick={clearFilters}>✕ Clear filters</button>
+            ) : null}
+          </div>
+
+          {/* Filter bar */}
+          <div className={styles.demandFilters}>
+            <select className={styles.demandFilterSelect} value={filterProduct} onChange={e => setFilterProduct(e.target.value)}>
+              <option value="">All products</option>
+              {productOptions.map(p => <option key={p} value={p}>{p}</option>)}
+            </select>
+            <select className={styles.demandFilterSelect} value={filterPort} onChange={e => setFilterPort(e.target.value)}>
+              <option value="">All ports</option>
+              {portOptions.map(p => <option key={p} value={p}>{p}</option>)}
+            </select>
+            <select className={styles.demandFilterSelect} value={filterLaycan} onChange={e => setFilterLaycan(e.target.value)}>
+              <option value="">All laycans</option>
+              {laycanOptions.map(l => <option key={l} value={l}>{l}</option>)}
+            </select>
+            <input
+              className={styles.demandFilterInput}
+              placeholder="Search client…"
+              value={filterClient}
+              onChange={e => setFilterClient(e.target.value)}
+            />
+          </div>
+
           <div className={styles.demandListWrap}>
             <div className={styles.demandListHead}>
               <span>Client</span>
@@ -356,9 +414,10 @@ export default function Overview({ calls }) {
               <span>Price Target</span>
               <span>Laycan</span>
             </div>
-            {weekDemandClients.map(cl => {
-              const { rows, latestCall } = weekDemandsByClient[cl]
-              return (
+            {filteredClients.length === 0 ? (
+              <div className={styles.demandNoMatch}>No demands match these filters.</div>
+            ) : (
+              filteredClients.map(({ client: cl, rows, latestCall }) => (
                 <div key={cl} className={styles.demandClientBlock}>
                   {rows.map((row, idx) => (
                     <div
@@ -367,7 +426,7 @@ export default function Overview({ calls }) {
                       onClick={() => setDemandPopup({
                         client: cl,
                         date: latestCall.date,
-                        demandRows: rows,
+                        demandRows: weekDemandsByClient[cl].rows,
                         demand: latestCall.demand,
                         remarks: latestCall.remarks
                       })}
@@ -381,8 +440,8 @@ export default function Overview({ calls }) {
                     </div>
                   ))}
                 </div>
-              )
-            })}
+              ))
+            )}
           </div>
         </section>
       )}
