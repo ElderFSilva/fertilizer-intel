@@ -317,3 +317,59 @@
   }
   .demandListClient { grid-column: 1 / -1; }
 }
+/* ── Client Demand Status — filters ── */
+.demandHeadRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.clearFiltersBtn {
+  background: transparent;
+  border: 1px solid var(--border2);
+  color: var(--text3);
+  border-radius: 6px;
+  padding: 5px 12px;
+  font-size: 11px;
+  font-family: 'DM Mono', monospace;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.clearFiltersBtn:hover { border-color: var(--red); color: var(--red); }
+
+.demandFilters {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.demandFilterSelect,
+.demandFilterInput {
+  background: var(--bg2);
+  border: 1px solid var(--border2);
+  border-radius: 8px;
+  padding: 9px 12px;
+  color: var(--text);
+  font-size: 13px;
+  outline: none;
+  font-family: inherit;
+  transition: border-color 0.15s;
+}
+.demandFilterSelect { cursor: pointer; }
+.demandFilterSelect:focus,
+.demandFilterInput:focus { border-color: var(--accent); }
+.demandFilterInput::placeholder { color: var(--text3); }
+
+.demandNoMatch {
+  padding: 24px 18px;
+  text-align: center;
+  color: var(--text3);
+  font-family: 'DM Mono', monospace;
+  font-size: 13px;
+}
+
+@media (max-width: 768px) {
+  .demandFilters { grid-template-columns: 1fr 1fr; }
+}
