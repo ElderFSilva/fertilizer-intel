@@ -373,3 +373,15 @@
 @media (max-width: 768px) {
   .demandFilters { grid-template-columns: 1fr 1fr; }
 }
+/* ── Weekly snapshot "stale" note ── */
+.staleNote {
+  font-size: 12px;
+  color: var(--amber);
+  font-family: 'DM Mono', monospace;
+  background: var(--amber-dim, rgba(240,184,64,0.08));
+  border: 1px solid var(--amber);
+  border-radius: 8px;
+  padding: 8px 14px;
+  margin-bottom: 12px;
+  line-height: 1.5;
+}
