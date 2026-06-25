@@ -17,13 +17,52 @@ function parseDate(dateStr) {
   return new Date(0)
 }
 
-// Build a compact text summary of all data for the AI to analyze
-function buildDataSummary(calls) {
-  const argus = loadStorage(ARGUS_KEY)
-  const fertecon = loadStorage(FERTECON_KEY)
+// ── Current week (Mon–Fri) range, plus that week's Thursday (publication key) ──
+export function currentWeekInfo() {
+  const now = new Date()
+  const day = now.getDay() // 0=Sun ... 6=Sat
+  const monday = new Date(now)
+  monday.setDate(now.getDate() - (day === 0 ? 6 : day - 1))
+  monday.setHours(0, 0, 0, 0)
+  const friday = new Date(monday)
+  friday.setDate(monday.getDate() + 4)
+  friday.setHours(23, 59, 59, 999)
+  const thursday = new Date(monday)
+  thursday.setDate(monday.getDate() + 3)
+  const fmt = d => d.toISOString().split('T')[0]
+  return { monday, friday, thursdayStr: fmt(thursday), mondayStr: fmt(monday), fridayStr: fmt(friday) }
+}
+
+// Human label like "Jun 23–27, 2026"
+export function weekLabel(info = currentWeekInfo()) {
+  const opts = { month: 'short', day: 'numeric' }
+  const mon = info.monday.toLocaleDateString('en-US', opts)
+  const friDay = info.friday.toLocaleDateString('en-US', { day: 'numeric' })
+  const year = info.friday.getFullYear()
+  return `${mon}–${friDay}, ${year}`
+}
+
+// Build a compact text summary. If weekOnly is true, restrict to current Mon–Fri
+// calls and the publication entry dated to this week's Thursday.
+function buildDataSummary(calls, weekOnly = false) {
+  const week = currentWeekInfo()
+
+  let useCalls = calls
+  let argus = loadStorage(ARGUS_KEY)
+  let fertecon = loadStorage(FERTECON_KEY)
+
+  if (weekOnly) {
+    useCalls = calls.filter(c => {
+      const d = parseDate(c.date)
+      return d >= week.monday && d <= week.friday
+    })
+    // Only this week's publication (keyed by the week's Thursday)
+    argus = argus.filter(a => a.date === week.thursdayStr)
+    fertecon = fertecon.filter(f => f.date === week.thursdayStr)
+  }
 
   // Sort calls newest first
-  const sorted = [...calls].sort((a, b) => parseDate(b.date) - parseDate(a.date))
+  const sorted = [...useCalls].sort((a, b) => parseDate(b.date) - parseDate(a.date))
 
   const callLines = sorted.map(c => {
     const prices = Object.entries(c.prices || {})
@@ -56,8 +95,13 @@ function buildDataSummary(calls) {
   const argusLines = argus.map(a => `[${a.date}] Argus Amsul CFR Brazil: ${a.low}-${a.high}`).join('\n')
   const ferteconLines = fertecon.map(f => `[${f.date}] Fertecon Amsul CFR Brazil: ${f.low}-${f.high}`).join('\n')
 
-  return `## CLIENT CALLS (${calls.length} total, newest first)
-${callLines}
+  const header = weekOnly
+    ? `## WEEKLY ANALYSIS — ${weekLabel(week)} (Mon–Fri calls + this week's publications)`
+    : `## CLIENT CALLS (${useCalls.length} total, newest first)`
+
+  return `${header}
+## CLIENT CALLS (${useCalls.length} in scope, newest first)
+${callLines || 'None'}
 
 ## ARGUS PUBLICATIONS
 ${argusLines || 'None'}
@@ -89,9 +133,7 @@ Rules:
 - Focus on what changed and what it means for trading decisions.
 - If data is thin, say so honestly rather than inventing trends.`
 
-export async function runAIAnalysis(calls) {
-  const dataSummary = buildDataSummary(calls)
-
+async function callAnalysis(dataSummary) {
   const response = await fetch('/api/analyze', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -115,7 +157,6 @@ export async function runAIAnalysis(calls) {
   let parsed
   try {
     let clean = text.replace(/```json/gi, '').replace(/```/g, '').trim()
-    // If there's surrounding prose, grab from first { to last }
     const first = clean.indexOf('{')
     const last = clean.lastIndexOf('}')
     if (first !== -1 && last !== -1 && last > first) {
@@ -126,17 +167,36 @@ export async function runAIAnalysis(calls) {
     throw new Error('Could not parse analysis response')
   }
 
-  // Validate shape — ensure we at least have signals or analysis
   if (!parsed || (!parsed.signals && !parsed.analysis)) {
     throw new Error('Analysis response missing expected fields')
   }
+  return parsed
+}
 
-  // Cache result with timestamp and call count
+// Legacy all-data analysis (kept for compatibility)
+export async function runAIAnalysis(calls) {
+  const parsed = await callAnalysis(buildDataSummary(calls, false))
   const result = {
     signals: parsed.signals || [],
     analysis: parsed.analysis || null,
     generatedAt: new Date().toISOString(),
     callCount: calls.length,
+  }
+  localStorage.setItem(CACHE_KEY, JSON.stringify(result))
+  return result
+}
+
+// ── Weekly snapshot: Mon–Fri calls + this week's publications, locked & stamped ──
+export async function runWeeklyAnalysis(calls) {
+  const week = currentWeekInfo()
+  const parsed = await callAnalysis(buildDataSummary(calls, true))
+  const result = {
+    signals: parsed.signals || [],
+    analysis: parsed.analysis || null,
+    generatedAt: new Date().toISOString(),
+    callCount: calls.length,
+    weekThursday: week.thursdayStr,   // identifies which week this snapshot is for
+    weekLabel: weekLabel(week),       // human label, e.g. "Jun 23–27, 2026"
   }
   localStorage.setItem(CACHE_KEY, JSON.stringify(result))
   return result
@@ -149,7 +209,14 @@ export function getCachedAnalysis() {
   } catch { return null }
 }
 
-// Should we auto-run? Yes if no cache, or if call count changed
+// Is the cached snapshot for the CURRENT week? (used to show "generate this week" state)
+export function isCurrentWeekSnapshot() {
+  const cached = getCachedAnalysis()
+  if (!cached || !cached.weekThursday) return false
+  return cached.weekThursday === currentWeekInfo().thursdayStr
+}
+
+// Legacy auto-refresh check (no longer used for weekly snapshot flow)
 export function shouldRefresh(calls) {
   const cached = getCachedAnalysis()
   if (!cached) return true
