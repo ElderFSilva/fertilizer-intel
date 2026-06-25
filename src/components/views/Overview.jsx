@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { generateWeeklyReport } from '../../report.js'
-import { runAIAnalysis, getCachedAnalysis, shouldRefresh } from '../../aiAnalysis.js'
+import { runWeeklyAnalysis, getCachedAnalysis, isCurrentWeekSnapshot, weekLabel } from '../../aiAnalysis.js'
 import { PRODUCTS, buildDemandSummary } from '../../data.js'
 import styles from './Overview.module.css'
 
@@ -70,12 +70,12 @@ export default function Overview({ calls }) {
   const [aiLoading, setAiLoading] = useState(false)
   const [aiError, setAiError] = useState('')
 
-  async function refreshAnalysis() {
+  async function generateWeekly() {
     if (calls.length === 0) return
     setAiLoading(true)
     setAiError('')
     try {
-      const result = await runAIAnalysis(calls)
+      const result = await runWeeklyAnalysis(calls)
       setAnalysis(result)
     } catch (e) {
       setAiError('Could not generate analysis. Please try again.')
@@ -83,13 +83,9 @@ export default function Overview({ calls }) {
     setAiLoading(false)
   }
 
-  // Auto-run on load if needed (no cache or call count changed)
-  useEffect(() => {
-    if (calls.length > 0 && shouldRefresh(calls)) {
-      refreshAnalysis()
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  // Whether the cached snapshot is for the current week
+  const snapshotIsCurrent = isCurrentWeekSnapshot()
+  const thisWeekLabel = weekLabel()
 
   function handleExport() {
     const html = generateWeeklyReport(calls, analysis?.signals || [], reportFrom, reportTo)
@@ -301,31 +297,41 @@ export default function Overview({ calls }) {
         </div>
       </header>
 
-      {/* AI Market Signals */}
+      {/* AI Market Signals — Weekly Snapshot */}
       <section className={styles.section}>
         <div className={styles.aiHeader}>
           <h2 className={styles.sectionTitle}>⬡ Market Signals</h2>
           <div className={styles.aiHeaderRight}>
-            {analysis?.generatedAt && !aiLoading && (
-              <span className={styles.aiTimestamp}>Updated {formatTimestamp(analysis.generatedAt)}</span>
+            {analysis?.weekLabel && !aiLoading && (
+              <span className={styles.aiTimestamp}>
+                Week of {analysis.weekLabel} · generated {formatTimestamp(analysis.generatedAt)}
+              </span>
             )}
-            <button className={styles.refreshBtn} onClick={refreshAnalysis} disabled={aiLoading || calls.length === 0}>
-              {aiLoading ? '◌ Analyzing...' : '↻ Refresh'}
+            <button className={styles.refreshBtn} onClick={generateWeekly} disabled={aiLoading || calls.length === 0}>
+              {aiLoading
+                ? '◌ Analyzing...'
+                : snapshotIsCurrent ? '↻ Regenerate this week' : `✦ Generate ${thisWeekLabel} analysis`}
             </button>
           </div>
         </div>
+
+        {!snapshotIsCurrent && analysis?.weekLabel && !aiLoading && (
+          <p className={styles.staleNote}>
+            Showing last locked read ({analysis.weekLabel}). Generate this week's analysis when your calls and publications are in.
+          </p>
+        )}
 
         {aiError && <p className={styles.aiError}>{aiError}</p>}
 
         {aiLoading && !analysis && (
           <div className={styles.aiLoading}>
-            <p>◌ Claude is analyzing your market data...</p>
+            <p>◌ Claude is analyzing this week's market data...</p>
           </div>
         )}
 
         {!aiLoading && signals.length === 0 && !aiError && (
           <div className={styles.aiLoading}>
-            <p>{calls.length === 0 ? 'Log calls to generate market signals.' : 'No signals yet — click Refresh to analyze.'}</p>
+            <p>{calls.length === 0 ? 'Log calls to generate market signals.' : 'No analysis yet — click Generate to analyze this week.'}</p>
           </div>
         )}
 
