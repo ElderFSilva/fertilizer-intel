@@ -43,6 +43,13 @@ function parsePrice(val) {
   return isNaN(p) ? null : p
 }
 
+function escapeHtml(str) {
+  if (str == null) return ''
+  return String(str)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;')
+}
+
 function getWeekMonday(dateStr) {
   const d = parseDate(dateStr)
   if (d.getTime() === 0) return null
@@ -58,6 +65,32 @@ function getWeekThursday(dateStr) {
   const d = new Date(monday + 'T00:00:00')
   d.setDate(d.getDate() + 3)
   return d.toISOString().split('T')[0]
+}
+
+// Current Mon–Fri window (for the always-current demand list)
+function currentWeekRange() {
+  const now = new Date()
+  const day = now.getDay()
+  const monday = new Date(now)
+  monday.setDate(now.getDate() - (day === 0 ? 6 : day - 1))
+  monday.setHours(0, 0, 0, 0)
+  const friday = new Date(monday)
+  friday.setDate(monday.getDate() + 4)
+  friday.setHours(23, 59, 59, 999)
+  return { monday, friday }
+}
+
+// Derive the date a sale was logged. Prefer an explicit date field; otherwise
+// recover it from the numeric id (which is Date.now() at creation).
+function saleLoggedDate(sale) {
+  if (sale.loggedAt) return new Date(sale.loggedAt)
+  if (sale.date) {
+    const d = parseDate(sale.date)
+    if (d.getTime() !== 0) return d
+  }
+  const idNum = Number(sale.id)
+  if (!isNaN(idNum) && idNum > 1000000000000) return new Date(idNum)
+  return new Date(0)
 }
 
 function buildChartData(calls, argusData, ferteconData) {
@@ -199,23 +232,49 @@ function buildDemandVolume(calls, fromStr, toStr, soldDemandIds) {
   const periodCalls = calls.filter(c => { const d = parseDate(c.date); return d >= fromD && d <= toD })
 
   // Count every recorded demand in the period, but:
-  //  - skip rows flagged isDuplicate (linked to an earlier same-week demand at logging time)
-  //  - skip demands that have been converted to a sale (id in soldDemandIds)
+  //  - skip rows flagged isDuplicate / linkedToDemandId (don't double count)
+  //  - skip demands converted to a sale (id in soldDemandIds)
+  //  - dedupe exact-match repeats (same client+product+volume+port+target) within the period
   const map = {}
+  const seen = new Set()
   periodCalls.forEach(c => {
     const rows = c.demandRows?.length ? c.demandRows
-      : (c.demandProduct || c.demandVolume) ? [{ product: c.demandProduct, volume: c.demandVolume }] : []
+      : (c.demandProduct || c.demandVolume) ? [{ product: c.demandProduct, volume: c.demandVolume, port: c.demandPort, priceTarget: c.demandPriceTarget }] : []
     rows.forEach(r => {
       if (!r.product || !r.volume) return
-      if (r.isDuplicate || r.linkedToDemandId) return          // linked duplicate — don't double count
-      if (r.closed) return                                      // explicitly closed
-      if (r.id && soldDemandIds && soldDemandIds.has(r.id)) return // converted to a sale
+      if (r.isDuplicate || r.linkedToDemandId) return
+      if (r.closed) return
+      if (r.id && soldDemandIds && soldDemandIds.has(r.id)) return
       const vol = parseFloat(r.volume); if (isNaN(vol)) return
+      const sig = [
+        (c.client || '?').trim().toLowerCase(),
+        (r.product || '').trim().toLowerCase(),
+        String(vol),
+        (r.port || '').trim().toLowerCase(),
+        (r.priceTarget || '').trim().toLowerCase(),
+      ].join('|')
+      if (seen.has(sig)) return
+      seen.add(sig)
       map[r.product] = (map[r.product] || 0) + vol
     })
   })
 
   return Object.entries(map).map(([product, total]) => ({ product, total })).sort((a, b) => b.total - a.total)
+}
+
+// Client Demand Status — always the current Mon–Fri week, grouped by client
+function buildCurrentWeekDemandList(calls) {
+  const { monday, friday } = currentWeekRange()
+  const byClient = {}
+  calls.forEach(c => {
+    const d = parseDate(c.date)
+    if (d < monday || d > friday) return
+    const rows = (c.demandRows || []).filter(r => r.product || r.volume || r.port || r.priceTarget || r.laycan)
+    if (!rows.length) return
+    if (!byClient[c.client]) byClient[c.client] = []
+    rows.forEach(r => byClient[c.client].push(r))
+  })
+  return Object.keys(byClient).sort().map(client => ({ client, rows: byClient[client] }))
 }
 
 function parseNum(v) {
@@ -224,18 +283,21 @@ function parseNum(v) {
   return isNaN(n) ? null : n
 }
 
+// Sales performed in the period — filtered by the date the sale was LOGGED
 function buildSalesPerformance(fromStr, toStr) {
   const sales = loadStorage(SALES_KEY)
   const fromD = parseDate(fromStr)
   const toD = parseDate(toStr); toD.setHours(23, 59, 59)
 
-  // Filter by laycan date within the period (fall back to any date field present)
   const periodSales = sales.filter(s => {
-    const d = parseDate(s.laycan || s.date)
+    const d = saleLoggedDate(s)
     return d >= fromD && d <= toD
   })
 
-  if (!periodSales.length) return null
+  // soldDemandIds spans ALL sales (not just period) so demand totals stay correct
+  const soldDemandIds = new Set(sales.map(s => s.linkedDemandId).filter(Boolean))
+
+  if (!periodSales.length) return { empty: true, soldDemandIds }
 
   const totalDeals = periodSales.length
   const totalVolume = periodSales.reduce((sum, s) => sum + (parseNum(s.volume) || 0), 0)
@@ -254,32 +316,46 @@ function buildSalesPerformance(fromStr, toStr) {
     avgDone: d.doneCount ? Math.round(d.doneSum / d.doneCount) : null,
   })).sort((a, b) => b.volume - a.volume)
 
-  // Set of demand ids that converted to a sale (to exclude from demand totals)
-  const soldDemandIds = new Set(
-    sales.map(s => s.linkedDemandId).filter(Boolean)
-  )
-
-  return { totalDeals, totalVolume, productStats, soldDemandIds, sales: periodSales }
+  return { empty: false, totalDeals, totalVolume, productStats, soldDemandIds, sales: periodSales }
 }
 
+const ANALYSIS_SECTIONS = [
+  { key: 'priceTrends', label: 'Price Trends' },
+  { key: 'demand', label: 'Demand' },
+  { key: 'competitors', label: 'Competitor Activity' },
+  { key: 'opportunities', label: 'Opportunities & Risks' },
+]
 
-export function generateWeeklyReport(calls, signals, dateFrom, dateTo) {
+const SIGNAL_COLOR = { warning: '#f0b840', alert: '#e05c4b', opportunity: '#4caf50' }
+
+
+export function generateWeeklyReport(calls, signals, dateFrom, dateTo, analysis) {
   const argusData = loadStorage(ARGUS_KEY)
   const ferteconData = loadStorage(FERTECON_KEY)
 
-  const now = new Date()
-  const defaultFrom = new Date(now); defaultFrom.setDate(now.getDate() - 6)
-  const fromStr = dateFrom || defaultFrom.toISOString().split('T')[0]
-  const toStr = dateTo || now.toISOString().split('T')[0]
+  // Default range = current Mon–Fri
+  const { monday, friday } = currentWeekRange()
+  const fromStr = dateFrom || monday.toISOString().split('T')[0]
+  const toStr = dateTo || friday.toISOString().split('T')[0]
   const periodLabel = `${formatDate(fromStr)} – ${formatDate(toStr)}`
+
+  const now = new Date()
 
   const chartData = buildChartData(calls, argusData, ferteconData)
   const chartSVG = buildChartSVG(chartData)
 
   const salesPerf = buildSalesPerformance(fromStr, toStr)
-  const soldDemandIds = salesPerf ? salesPerf.soldDemandIds : new Set()
+  const soldDemandIds = salesPerf.soldDemandIds || new Set()
   const priceBubbles = buildPriceBubbles(calls, fromStr, toStr)
   const demandVolumes = buildDemandVolume(calls, fromStr, toStr, soldDemandIds)
+  const demandList = buildCurrentWeekDemandList(calls)
+
+  const fmtVol = v => Number(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+
+  // AI analysis block (uses saved weekly snapshot as-is)
+  const aiSignals = (analysis && analysis.signals) || signals || []
+  const aiDeep = analysis && analysis.analysis
+  const aiWeekLabel = analysis && analysis.weekLabel
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -320,6 +396,20 @@ export function generateWeeklyReport(calls, signals, dateFrom, dateTo) {
   .volume-num { font-size: 20px; font-weight: 700; }
   .volume-unit { font-size: 10px; color: #999; margin-top: 2px; }
 
+  .demand-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+  .demand-table th { text-align: left; padding: 8px 10px; font-size: 9px; text-transform: uppercase; letter-spacing: 0.05em; color: #888; border-bottom: 1px solid #e0e0e0; }
+  .demand-table td { padding: 8px 10px; border-bottom: 1px solid #f0f0f0; }
+  .demand-client { font-weight: 700; }
+  .demand-target { color: #2e7d32; font-weight: 600; }
+
+  .ai-signals { display: flex; flex-direction: column; gap: 8px; margin-bottom: 18px; }
+  .ai-signal { display: flex; align-items: flex-start; gap: 10px; border: 1px solid #e0e0e0; border-left-width: 3px; border-radius: 6px; padding: 10px 14px; font-size: 12px; }
+  .ai-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .ai-card { border: 1px solid #e0e0e0; border-radius: 10px; padding: 14px 16px; }
+  .ai-card-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: #666; margin-bottom: 6px; }
+  .ai-card-text { font-size: 12px; line-height: 1.55; color: #222; }
+  .ai-disclaimer { font-size: 9px; color: #aaa; margin-top: 12px; text-align: center; }
+
   .sales-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 16px; }
   .sales-stat { border: 1px solid #e0e0e0; border-radius: 10px; padding: 16px 18px; text-align: center; }
   .sales-stat-num { font-size: 22px; font-weight: 700; }
@@ -332,6 +422,7 @@ export function generateWeeklyReport(calls, signals, dateFrom, dateTo) {
   @media print {
     body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     .page { padding: 20px 24px; }
+    .ai-card, .bubble-card, .sales-stat, .demand-table tr { break-inside: avoid; }
   }
 </style>
 </head>
@@ -348,6 +439,28 @@ export function generateWeeklyReport(calls, signals, dateFrom, dateTo) {
       <div class="meta">Generated ${now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</div>
     </div>
   </div>
+
+  ${(aiSignals.length > 0 || aiDeep) ? `
+  <div class="section">
+    <div class="section-title">AI Market Analysis${aiWeekLabel ? ` — Week of ${escapeHtml(aiWeekLabel)}` : ''}</div>
+    ${aiSignals.length > 0 ? `
+    <div class="ai-signals">
+      ${aiSignals.map(s => `
+      <div class="ai-signal" style="border-left-color:${SIGNAL_COLOR[s.type] || '#888'}">
+        <span style="color:${SIGNAL_COLOR[s.type] || '#888'};font-weight:700">●</span>
+        <span>${escapeHtml(s.text)}</span>
+      </div>`).join('')}
+    </div>` : ''}
+    ${aiDeep ? `
+    <div class="ai-grid">
+      ${ANALYSIS_SECTIONS.map(sec => aiDeep[sec.key] ? `
+      <div class="ai-card">
+        <div class="ai-card-label">${sec.label}</div>
+        <div class="ai-card-text">${escapeHtml(aiDeep[sec.key])}</div>
+      </div>` : '').join('')}
+    </div>
+    <div class="ai-disclaimer">Generated by Claude Opus 4.8 · Analysis is informational, not financial advice</div>` : ''}
+  </div>` : ''}
 
   <div class="section">
     <div class="section-title">Amsul CFR Brazil — Publication vs Market</div>
@@ -391,9 +504,30 @@ export function generateWeeklyReport(calls, signals, dateFrom, dateTo) {
     </div>
   </div>` : ''}
 
-  ${salesPerf ? `
+  ${demandList.length > 0 ? `
   <div class="section">
-    <div class="section-title">Sales Performance — ${periodLabel}</div>
+    <div class="section-title">Client Demand Status — Current Week (Mon–Fri)</div>
+    <table class="demand-table">
+      <thead>
+        <tr><th>Client</th><th>Product</th><th>Volume (T)</th><th>Port</th><th>Price Target</th><th>Laycan</th></tr>
+      </thead>
+      <tbody>
+        ${demandList.map(({ client, rows }) => rows.map((r, idx) => `
+        <tr>
+          <td class="demand-client">${idx === 0 ? escapeHtml(client) : ''}</td>
+          <td>${escapeHtml(r.product) || '—'}</td>
+          <td>${r.volume ? fmtVol(r.volume) : '—'}</td>
+          <td>${escapeHtml(r.port) || '—'}</td>
+          <td class="demand-target">${escapeHtml(r.priceTarget) || '—'}</td>
+          <td>${escapeHtml(r.laycan) || '—'}</td>
+        </tr>`).join('')).join('')}
+      </tbody>
+    </table>
+  </div>` : ''}
+
+  ${!salesPerf.empty ? `
+  <div class="section">
+    <div class="section-title">Sales Performed — ${periodLabel}</div>
     <div class="sales-stats">
       <div class="sales-stat">
         <div class="sales-stat-num">${salesPerf.totalDeals}</div>
@@ -410,15 +544,17 @@ export function generateWeeklyReport(calls, signals, dateFrom, dateTo) {
     </div>
     <table class="sales-table">
       <thead>
-        <tr><th>Product</th><th>Volume (T)</th><th>Deals</th><th>Avg Done Price</th></tr>
+        <tr><th>Client</th><th>Product</th><th>Volume (T)</th><th>Done Price</th><th>Port</th><th>Laycan</th></tr>
       </thead>
       <tbody>
-        ${salesPerf.productStats.map(p => `
+        ${salesPerf.sales.map(s => `
         <tr>
-          <td><strong>${p.product}</strong></td>
-          <td>${p.volume.toLocaleString('en-US', { maximumFractionDigits: 0 })}</td>
-          <td>${p.deals}</td>
-          <td>${p.avgDone != null ? p.avgDone : '—'}</td>
+          <td><strong>${escapeHtml(s.client) || '—'}</strong></td>
+          <td>${escapeHtml(s.product) || '—'}</td>
+          <td>${s.volume ? Number(s.volume).toLocaleString('en-US', { maximumFractionDigits: 0 }) : '—'}</td>
+          <td>${escapeHtml(s.donePrice) || '—'}</td>
+          <td>${escapeHtml(s.port) || '—'}</td>
+          <td>${escapeHtml(s.laycan) || '—'}</td>
         </tr>`).join('')}
       </tbody>
     </table>
