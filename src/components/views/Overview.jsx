@@ -61,9 +61,16 @@ export default function Overview({ calls }) {
   const [filterLaycan, setFilterLaycan] = useState('')
   const [filterClient, setFilterClient] = useState('')
   const [reportFrom, setReportFrom] = useState(() => {
-    const d = new Date(); d.setDate(d.getDate() - 6); return d.toISOString().split('T')[0]
+    const now = new Date(); const day = now.getDay()
+    const monday = new Date(now); monday.setDate(now.getDate() - (day === 0 ? 6 : day - 1))
+    return monday.toISOString().split('T')[0]
   })
-  const [reportTo, setReportTo] = useState(() => new Date().toISOString().split('T')[0])
+  const [reportTo, setReportTo] = useState(() => {
+    const now = new Date(); const day = now.getDay()
+    const monday = new Date(now); monday.setDate(now.getDate() - (day === 0 ? 6 : day - 1))
+    const friday = new Date(monday); friday.setDate(monday.getDate() + 4)
+    return friday.toISOString().split('T')[0]
+  })
 
   // AI analysis state
   const [analysis, setAnalysis] = useState(() => getCachedAnalysis())
@@ -88,7 +95,7 @@ export default function Overview({ calls }) {
   const thisWeekLabel = weekLabel()
 
   function handleExport() {
-    const html = generateWeeklyReport(calls, analysis?.signals || [], reportFrom, reportTo)
+    const html = generateWeeklyReport(calls, analysis?.signals || [], reportFrom, reportTo, analysis)
     const win = window.open('', '_blank')
     win.document.write(html)
     win.document.close()
