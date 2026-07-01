@@ -118,6 +118,9 @@ function buildChartData(calls, argusData, ferteconData) {
     if (!thursday) return
     const pr = c.prices?.Amsul
     if (!pr?.value) return
+    // Only Amsul GR counts (matches Argus/Fertecon benchmark); legacy data = GR default
+    const grade = pr.grade || 'Amsul GR'
+    if (grade !== 'Amsul GR') return
     const price = parsePrice(pr.value)
     if (!price) return
     if (!callsByWeek[thursday]) callsByWeek[thursday] = []
