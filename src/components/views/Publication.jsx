@@ -90,7 +90,9 @@ function buildChartData(calls, argusData, ferteconData) {
     weekMap[f.date].ferteconAvg = Math.round((f.low + f.high) / 2)
   })
 
-  // Add call data — Mon-Fri only, grouped by that week's Thursday
+  // Add call data — Mon-Fri only, grouped by that week's Thursday.
+  // Only Amsul GR counts here — it's the grade Argus/Fertecon Amsul CFR Brazil tracks.
+  // (Amsul STD is a different price level and would distort the comparison.)
   const callsByWeek = {}
   calls.forEach(c => {
     const d = parseDate(c.date)
@@ -101,6 +103,9 @@ function buildChartData(calls, argusData, ferteconData) {
     if (!thursday) return
     const pr = c.prices?.Amsul
     if (!pr?.value) return
+    // Restrict to Amsul GR; legacy data with no grade is treated as GR (the default)
+    const grade = pr.grade || 'Amsul GR'
+    if (grade !== 'Amsul GR') return
     const price = parsePrice(pr.value)
     if (!price) return
     if (!callsByWeek[thursday]) callsByWeek[thursday] = []
