@@ -32,6 +32,15 @@ function parseDate(dateStr) {
   return new Date(0)
 }
 
+// Format a Date to YYYY-MM-DD using LOCAL components (not UTC) so week keys
+// don't shift a day back in negative-UTC timezones (e.g. Brazil UTC-3).
+function toLocalYMD(d) {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
 function parsePrice(val) {
   if (!val) return null
   const raw = String(val).replace(/[^0-9.\-]/g, '')
@@ -56,7 +65,7 @@ function getWeekMonday(dateStr) {
   const day = d.getDay()
   const monday = new Date(d)
   monday.setDate(d.getDate() - (day === 0 ? 6 : day - 1))
-  return monday.toISOString().split('T')[0]
+  return toLocalYMD(monday)
 }
 
 function getWeekThursday(dateStr) {
@@ -64,7 +73,7 @@ function getWeekThursday(dateStr) {
   if (!monday) return null
   const d = new Date(monday + 'T00:00:00')
   d.setDate(d.getDate() + 3)
-  return d.toISOString().split('T')[0]
+  return toLocalYMD(d)
 }
 
 // Current Mon–Fri window (for the always-current demand list)
@@ -338,8 +347,8 @@ export function generateWeeklyReport(calls, signals, dateFrom, dateTo, analysis)
 
   // Default range = current Mon–Fri
   const { monday, friday } = currentWeekRange()
-  const fromStr = dateFrom || monday.toISOString().split('T')[0]
-  const toStr = dateTo || friday.toISOString().split('T')[0]
+  const fromStr = dateFrom || toLocalYMD(monday)
+  const toStr = dateTo || toLocalYMD(friday)
   const periodLabel = `${formatDate(fromStr)} – ${formatDate(toStr)}`
 
   const now = new Date()
