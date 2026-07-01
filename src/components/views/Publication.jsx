@@ -21,7 +21,7 @@ function getLastThursday() {
   const diff = day >= 4 ? day - 4 : day + 3
   const thursday = new Date(d)
   thursday.setDate(d.getDate() - diff)
-  return thursday.toISOString().split('T')[0]
+  return toLocalYMD(thursday)
 }
 
 function formatDateLabel(dateStr) {
@@ -38,6 +38,16 @@ function parseDate(dateStr) {
   return new Date(0)
 }
 
+// Format a Date to YYYY-MM-DD using LOCAL components (not UTC).
+// Using toISOString() here would shift the date back a day in negative-UTC
+// timezones (e.g. Brazil UTC-3), which mis-keys the week's Thursday.
+function toLocalYMD(d) {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
 // Get the Monday of the week for a given date
 function getWeekMonday(dateStr) {
   const d = parseDate(dateStr)
@@ -45,7 +55,7 @@ function getWeekMonday(dateStr) {
   const day = d.getDay()
   const monday = new Date(d)
   monday.setDate(d.getDate() - (day === 0 ? 6 : day - 1))
-  return monday.toISOString().split('T')[0]
+  return toLocalYMD(monday)
 }
 
 // Get the Thursday of the week for a given date
@@ -54,7 +64,7 @@ function getWeekThursday(dateStr) {
   if (!monday) return null
   const d = new Date(monday + 'T00:00:00')
   d.setDate(d.getDate() + 3)
-  return d.toISOString().split('T')[0]
+  return toLocalYMD(d)
 }
 
 function parsePrice(val) {
