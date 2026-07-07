@@ -1,5 +1,26 @@
 import { supabase } from './supabaseClient.js'
 
+// Normalize a date value to YYYY-MM-DD, or return null if it can't be parsed.
+// Legacy calls sometimes stored dates as display strings like "May 5" which
+// are NOT valid SQL dates — those become null in the call_date column (the
+// original text stays intact inside the JSON data).
+function normalizeDate(val) {
+  if (!val) return null
+  // Already ISO-ish (YYYY-MM-DD)?
+  if (/^\d{4}-\d{2}-\d{2}/.test(String(val))) return String(val).slice(0, 10)
+  const d = new Date(val)
+  if (isNaN(d.getTime())) return null
+  // Reject implausible years (e.g. "May 5" with no year defaults to 2001).
+  // Better to leave call_date empty than store a wrong year; the original
+  // date text is preserved inside the JSON data regardless.
+  const y = d.getFullYear()
+  if (y < 2020 || y > 2100) return null
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
+
 // ── Cloud data layer for CALLS ──
 // Each row: { id (uuid), trader_id, data (the call object), call_date }
 // The rest of the app treats a "call" as the data object plus its id.
@@ -22,7 +43,7 @@ export async function cloudLoadCalls() {
 
 // Insert a new call for the current user
 export async function cloudAddCall(entry, traderId) {
-  const callDate = entry.date || null
+  const callDate = normalizeDate(entry.date)
   // strip any legacy id from the payload; the DB assigns a uuid
   const { id, trader_id, ...clean } = entry
   const { data, error } = await supabase
@@ -40,7 +61,7 @@ export async function cloudEditCall(id, updates, existing) {
   const { id: _i, trader_id: _t, ...restExisting } = existing || {}
   const merged = { ...restExisting, ...updates }
   const { id: _i2, trader_id: _t2, ...clean } = merged
-  const callDate = clean.date || null
+  const callDate = normalizeDate(clean.date)
   const { data, error } = await supabase
     .from('calls')
     .update({ data: clean, call_date: callDate, updated_at: new Date().toISOString() })
@@ -61,7 +82,7 @@ export async function cloudDeleteCall(id) {
 export async function cloudBulkInsertCalls(callObjects, traderId) {
   const rows = callObjects.map(c => {
     const { id, trader_id, ...clean } = c
-    return { trader_id: traderId, data: clean, call_date: clean.date || null }
+    return { trader_id: traderId, data: clean, call_date: normalizeDate(clean.date) }
   })
   const CHUNK = 100
   let inserted = 0
@@ -203,10 +224,12 @@ export async function cloudDeletePublication(source, date) {
 export async function cloudBulkInsertPublications(argusArr, ferteconArr) {
   const rows = []
   ;(argusArr || []).forEach(a => {
-    if (a.date && a.low != null && a.high != null) rows.push({ source: 'argus', pub_date: a.date, low: a.low, high: a.high })
+    const d = normalizeDate(a.date)
+    if (d && a.low != null && a.high != null) rows.push({ source: 'argus', pub_date: d, low: a.low, high: a.high })
   })
   ;(ferteconArr || []).forEach(f => {
-    if (f.date && f.low != null && f.high != null) rows.push({ source: 'fertecon', pub_date: f.date, low: f.low, high: f.high })
+    const d = normalizeDate(f.date)
+    if (d && f.low != null && f.high != null) rows.push({ source: 'fertecon', pub_date: d, low: f.low, high: f.high })
   })
   if (!rows.length) return 0
   const { error } = await supabase
