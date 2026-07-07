@@ -73,3 +73,84 @@ export async function cloudBulkInsertCalls(callObjects, traderId) {
   }
   return inserted
 }
+
+// ── Cloud data layer for SALES ──
+
+export async function cloudLoadSales() {
+  const { data, error } = await supabase
+    .from('sales')
+    .select('id, trader_id, data, created_at')
+    .order('created_at', { ascending: false })
+  if (error) throw error
+  const sales = (data || []).map(row => ({
+    ...row.data,
+    id: row.id,
+    trader_id: row.trader_id,
+    created_at: row.created_at,
+  }))
+  // Mirror to localStorage so legacy synchronous readers (report.js,
+  // ClientIntel.jsx) that read 'fertintel_sales' keep working unchanged.
+  try { localStorage.setItem('fertintel_sales', JSON.stringify(sales)) } catch {}
+  return sales
+}
+
+// Refresh the localStorage sales mirror from the cloud (for legacy readers)
+async function refreshSalesMirror() {
+  try {
+    const { data } = await supabase
+      .from('sales')
+      .select('id, trader_id, data, created_at')
+      .order('created_at', { ascending: false })
+    const sales = (data || []).map(row => ({ ...row.data, id: row.id, trader_id: row.trader_id, created_at: row.created_at }))
+    localStorage.setItem('fertintel_sales', JSON.stringify(sales))
+  } catch {}
+}
+
+export async function cloudAddSale(sale, traderId) {
+  const { id, trader_id, created_at, ...clean } = sale
+  const { data, error } = await supabase
+    .from('sales')
+    .insert({ trader_id: traderId, data: clean })
+    .select('id, trader_id, data, created_at')
+    .single()
+  if (error) throw error
+  await refreshSalesMirror()
+  return { ...data.data, id: data.id, trader_id: data.trader_id, created_at: data.created_at }
+}
+
+export async function cloudEditSale(id, patch, existing) {
+  const { id: _i, trader_id: _t, created_at: _c, ...restExisting } = existing || {}
+  const merged = { ...restExisting, ...patch }
+  const { id: _i2, trader_id: _t2, created_at: _c2, ...clean } = merged
+  const { data, error } = await supabase
+    .from('sales')
+    .update({ data: clean, updated_at: new Date().toISOString() })
+    .eq('id', id)
+    .select('id, trader_id, data, created_at')
+    .single()
+  if (error) throw error
+  await refreshSalesMirror()
+  return { ...data.data, id: data.id, trader_id: data.trader_id, created_at: data.created_at }
+}
+
+export async function cloudDeleteSale(id) {
+  const { error } = await supabase.from('sales').delete().eq('id', id)
+  if (error) throw error
+  await refreshSalesMirror()
+}
+
+export async function cloudBulkInsertSales(saleObjects, traderId) {
+  const rows = saleObjects.map(s => {
+    const { id, trader_id, created_at, ...clean } = s
+    return { trader_id: traderId, data: clean }
+  })
+  const CHUNK = 100
+  let inserted = 0
+  for (let i = 0; i < rows.length; i += CHUNK) {
+    const slice = rows.slice(i, i + CHUNK)
+    const { error } = await supabase.from('sales').insert(slice)
+    if (error) throw error
+    inserted += slice.length
+  }
+  return inserted
+}
