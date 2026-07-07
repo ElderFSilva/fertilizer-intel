@@ -154,3 +154,65 @@ export async function cloudBulkInsertSales(saleObjects, traderId) {
   }
   return inserted
 }
+
+// ── Cloud data layer for PUBLICATIONS (shared, admin-managed) ──
+
+// Load all publications, split into argus/fertecon arrays shaped like the
+// legacy localStorage format: [{ date, low, high }]. Also mirrors to
+// localStorage so the report chart (which reads those keys) keeps working.
+export async function cloudLoadPublications() {
+  const { data, error } = await supabase
+    .from('publications')
+    .select('source, pub_date, low, high')
+    .order('pub_date', { ascending: true })
+  if (error) throw error
+  const argus = []
+  const fertecon = []
+  ;(data || []).forEach(r => {
+    const entry = { date: r.pub_date, low: Number(r.low), high: Number(r.high) }
+    if (r.source === 'argus') argus.push(entry)
+    else if (r.source === 'fertecon') fertecon.push(entry)
+  })
+  try {
+    localStorage.setItem('fertintel_argus_amsul', JSON.stringify(argus))
+    localStorage.setItem('fertintel_fertecon_amsul', JSON.stringify(fertecon))
+  } catch {}
+  return { argus, fertecon }
+}
+
+// Upsert a publication (admin only — RLS enforces). source: 'argus'|'fertecon'
+export async function cloudUpsertPublication(source, date, low, high) {
+  const { error } = await supabase
+    .from('publications')
+    .upsert({ source, pub_date: date, low, high }, { onConflict: 'source,pub_date' })
+  if (error) throw error
+  await cloudLoadPublications() // refresh mirror
+}
+
+export async function cloudDeletePublication(source, date) {
+  const { error } = await supabase
+    .from('publications')
+    .delete()
+    .eq('source', source)
+    .eq('pub_date', date)
+  if (error) throw error
+  await cloudLoadPublications()
+}
+
+// Bulk import publications from a backup's argus/fertecon arrays (admin only)
+export async function cloudBulkInsertPublications(argusArr, ferteconArr) {
+  const rows = []
+  ;(argusArr || []).forEach(a => {
+    if (a.date && a.low != null && a.high != null) rows.push({ source: 'argus', pub_date: a.date, low: a.low, high: a.high })
+  })
+  ;(ferteconArr || []).forEach(f => {
+    if (f.date && f.low != null && f.high != null) rows.push({ source: 'fertecon', pub_date: f.date, low: f.low, high: f.high })
+  })
+  if (!rows.length) return 0
+  const { error } = await supabase
+    .from('publications')
+    .upsert(rows, { onConflict: 'source,pub_date' })
+  if (error) throw error
+  await cloudLoadPublications()
+  return rows.length
+}
