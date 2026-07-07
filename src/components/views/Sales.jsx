@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import PortSelect from './PortSelect.jsx'
-import { loadSales, addSale, deleteSale, buildSalesStats, SALE_PRODUCTS } from '../../sales.js'
+import { buildSalesStats, SALE_PRODUCTS } from '../../sales.js'
 import styles from './Sales.module.css'
 
 function formatDate(dateStr) {
@@ -31,18 +31,16 @@ function emptyForm() {
   }
 }
 
-export default function Sales({ calls }) {
-  const [sales, setSales] = useState(loadSales())
+export default function Sales({ calls, sales = [], onAddSale, onDeleteSale }) {
   const [form, setForm] = useState(emptyForm())
   const [error, setError] = useState('')
   const [saved, setSaved] = useState(false)
   const [showOptional, setShowOptional] = useState(false)
+  const [busy, setBusy] = useState(false)
 
   const clientNames = [...new Set(calls.map(c => c.client).filter(Boolean))].sort()
 
   // Build demand options for the selected client (to optionally link)
-  // Include ALL demands with content — duplicates are still real, sellable demands.
-  // Only exclude demands already converted to a sale (linked from another sale).
   const linkedDemandIds = new Set(sales.map(s => s.linkedDemandId).filter(Boolean))
   const clientDemands = []
   if (form.client) {
@@ -67,7 +65,7 @@ export default function Sales({ calls }) {
 
   function set(field, val) { setForm(f => ({ ...f, [field]: val })) }
 
-  function handleSave() {
+  async function handleSave() {
     if (!form.client.trim()) { setError('Client is required.'); return }
     if (!form.product) { setError('Product is required.'); return }
     if (!form.volume) { setError('Volume is required.'); return }
@@ -76,17 +74,26 @@ export default function Sales({ calls }) {
     if (!form.vessel.trim()) { setError('Vessel name is required.'); return }
     if (!form.port) { setError('Port is required.'); return }
 
-    const updated = addSale(form)
-    setSales(updated)
-    setForm(emptyForm())
-    setShowOptional(false)
-    setError('')
-    setSaved(true)
-    setTimeout(() => setSaved(false), 2500)
+    setBusy(true)
+    try {
+      await onAddSale(form)
+      setForm(emptyForm())
+      setShowOptional(false)
+      setError('')
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2500)
+    } catch (e) {
+      setError('Could not save the sale to the cloud.')
+    }
+    setBusy(false)
   }
 
-  function handleDelete(id) {
-    setSales(deleteSale(id))
+  async function handleDelete(id) {
+    try {
+      await onDeleteSale(id)
+    } catch (e) {
+      setError('Could not delete the sale.')
+    }
   }
 
   return (
@@ -167,7 +174,7 @@ export default function Sales({ calls }) {
           {error && <p className={styles.error}>{error}</p>}
           {saved && <p className={styles.success}>✓ Sale logged!</p>}
 
-          <button className={styles.saveBtn} onClick={handleSave}>◈ Log Sale</button>
+          <button className={styles.saveBtn} onClick={handleSave} disabled={busy}>{busy ? 'Saving…' : '◈ Log Sale'}</button>
         </div>
       </section>
 
