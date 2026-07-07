@@ -1,22 +1,29 @@
 import { useState } from 'react'
 import styles from './Login.module.css'
+import { signIn } from '../supabaseClient.js'
 
-// Simple hardcoded password — change this before deploying
-const TEAM_PASSWORD = 'fertintel2025'
-
-export default function Login({ onLogin }) {
+export default function Login() {
+  const [email, setEmail] = useState('')
   const [pw, setPw] = useState('')
-  const [error, setError] = useState(false)
+  const [error, setError] = useState('')
   const [shake, setShake] = useState(false)
+  const [loading, setLoading] = useState(false)
 
-  function handleSubmit(e) {
+  async function handleSubmit(e) {
     e.preventDefault()
-    if (pw === TEAM_PASSWORD) {
-      onLogin()
-    } else {
-      setError(true)
+    if (loading) return
+    setError('')
+    setLoading(true)
+    try {
+      await signIn(email.trim(), pw)
+      // On success, App's auth listener swaps to the Dashboard automatically.
+    } catch (err) {
+      setError(err?.message === 'Invalid login credentials'
+        ? 'Incorrect email or password'
+        : (err?.message || 'Could not sign in'))
       setShake(true)
       setTimeout(() => setShake(false), 500)
+      setLoading(false)
     }
   }
 
@@ -31,15 +38,26 @@ export default function Login({ onLogin }) {
         <p className={styles.sub}>Market Intelligence Platform</p>
         <form onSubmit={handleSubmit} className={styles.form}>
           <input
-            type="password"
-            placeholder="Team password"
-            value={pw}
-            onChange={e => { setPw(e.target.value); setError(false) }}
+            type="email"
+            placeholder="Email"
+            value={email}
+            onChange={e => { setEmail(e.target.value); setError('') }}
             className={`${styles.input} ${error ? styles.inputError : ''}`}
             autoFocus
+            autoComplete="email"
           />
-          {error && <p className={styles.err}>Incorrect password</p>}
-          <button type="submit" className={styles.btn}>Enter →</button>
+          <input
+            type="password"
+            placeholder="Password"
+            value={pw}
+            onChange={e => { setPw(e.target.value); setError('') }}
+            className={`${styles.input} ${error ? styles.inputError : ''}`}
+            autoComplete="current-password"
+          />
+          {error && <p className={styles.err}>{error}</p>}
+          <button type="submit" className={styles.btn} disabled={loading}>
+            {loading ? 'Signing in…' : 'Enter →'}
+          </button>
         </form>
       </div>
     </div>
