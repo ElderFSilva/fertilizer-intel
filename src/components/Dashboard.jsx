@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { buildMarketSignals } from '../data.js'
-import { cloudLoadCalls, cloudAddCall, cloudEditCall, cloudDeleteCall } from '../cloudData.js'
+import { cloudLoadCalls, cloudAddCall, cloudEditCall, cloudDeleteCall, cloudLoadSales, cloudAddSale, cloudEditSale, cloudDeleteSale } from '../cloudData.js'
 import Sidebar from './Sidebar.jsx'
 import Overview from './views/Overview.jsx'
 import Calls from './views/Calls.jsx'
@@ -14,6 +14,7 @@ import DataBackup from './views/DataBackup.jsx'
 export default function Dashboard({ onLogout, user, profile, role }) {
   const [view, setView] = useState('overview')
   const [calls, setCalls] = useState([])
+  const [sales, setSales] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
@@ -29,15 +30,24 @@ export default function Dashboard({ onLogout, user, profile, role }) {
     }
   }
 
+  async function reloadAll() {
+    try {
+      const [c, s] = await Promise.all([cloudLoadCalls(), cloudLoadSales()])
+      setCalls(c); setSales(s); setError('')
+    } catch (e) {
+      setError('Could not load data from the cloud.')
+    }
+  }
+
   useEffect(() => {
     let active = true
     ;(async () => {
       setLoading(true)
       try {
-        const rows = await cloudLoadCalls()
-        if (active) setCalls(rows)
+        const [c, s] = await Promise.all([cloudLoadCalls(), cloudLoadSales()])
+        if (active) { setCalls(c); setSales(s) }
       } catch (e) {
-        if (active) setError('Could not load calls from the cloud.')
+        if (active) setError('Could not load data from the cloud.')
       }
       if (active) setLoading(false)
     })()
@@ -72,6 +82,24 @@ export default function Dashboard({ onLogout, user, profile, role }) {
     }
   }
 
+  async function handleAddSale(sale) {
+    const saved = await cloudAddSale(sale, traderId)
+    setSales(prev => [saved, ...prev])
+    return saved
+  }
+
+  async function handleDeleteSale(id) {
+    await cloudDeleteSale(id)
+    setSales(prev => prev.filter(s => s.id !== id))
+  }
+
+  async function handleEditSale(id, patch) {
+    const existing = sales.find(s => s.id === id)
+    const saved = await cloudEditSale(id, patch, existing)
+    setSales(prev => prev.map(s => s.id === id ? saved : s))
+    return saved
+  }
+
   const signals = buildMarketSignals(calls)
 
   if (loading) {
@@ -91,13 +119,13 @@ export default function Dashboard({ onLogout, user, profile, role }) {
             {error}
           </div>
         )}
-        {view === 'overview' && <Overview calls={calls} signals={signals} />}
+        {view === 'overview' && <Overview calls={calls} sales={sales} signals={signals} />}
         {view === 'upload' && <Upload onAdd={handleAdd} calls={calls} />}
-        {view === 'calls' && <Calls calls={calls} onDelete={handleDelete} onEdit={handleEdit} />}
+        {view === 'calls' && <Calls calls={calls} sales={sales} onDelete={handleDelete} onEdit={handleEdit} />}
         {view === 'prices' && <PriceTrends calls={calls} />}
         {view === 'argus' && <Publication calls={calls} />}
-        {view === 'sales' && <Sales calls={calls} />}
-        {view === 'backup' && <DataBackup traderId={traderId} onImport={reloadCalls} />}
+        {view === 'sales' && <Sales calls={calls} sales={sales} onAddSale={handleAddSale} onDeleteSale={handleDeleteSale} onEditSale={handleEditSale} />}
+        {view === 'backup' && <DataBackup traderId={traderId} onImport={reloadAll} />}
       </main>
     </div>
   )
