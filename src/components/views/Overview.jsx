@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { generateWeeklyReport } from '../../report.js'
 import { runWeeklyAnalysis, getCachedAnalysis, isCurrentWeekSnapshot, weekLabel } from '../../aiAnalysis.js'
 import { PRODUCTS, buildDemandSummary } from '../../data.js'
@@ -49,7 +49,7 @@ const ANALYSIS_SECTIONS = [
   { key: 'opportunities', label: 'Opportunities & Risks', icon: '◇' },
 ]
 
-export default function Overview({ calls, sales }) {
+export default function Overview({ calls, sales, scope, scopeLabel }) {
   const demandMap = buildDemandSummary(calls)
   const clients = Object.keys(demandMap)
   const recentCalls = calls.slice(0, 5)
@@ -72,17 +72,26 @@ export default function Overview({ calls, sales }) {
     return friday.toISOString().split('T')[0]
   })
 
-  // AI analysis state
-  const [analysis, setAnalysis] = useState(() => getCachedAnalysis())
+  // AI analysis state — scoped per view (global vs per-trader), so switching
+  // the admin trader toggle shows that view's own snapshot instead of clobbering.
+  const [analysis, setAnalysis] = useState(() => getCachedAnalysis(scope))
   const [aiLoading, setAiLoading] = useState(false)
   const [aiError, setAiError] = useState('')
+
+  // When the viewed scope changes (admin toggles trader), load that scope's
+  // cached snapshot. Option A: no auto-generation — an unseen scope simply
+  // shows the "Generate" state until the user asks for it.
+  useEffect(() => {
+    setAnalysis(getCachedAnalysis(scope))
+    setAiError('')
+  }, [scope])
 
   async function generateWeekly() {
     if (calls.length === 0) return
     setAiLoading(true)
     setAiError('')
     try {
-      const result = await runWeeklyAnalysis(calls)
+      const result = await runWeeklyAnalysis(calls, scope)
       setAnalysis(result)
     } catch (e) {
       setAiError('Could not generate analysis. Please try again.')
@@ -91,7 +100,7 @@ export default function Overview({ calls, sales }) {
   }
 
   // Whether the cached snapshot is for the current week
-  const snapshotIsCurrent = isCurrentWeekSnapshot()
+  const snapshotIsCurrent = isCurrentWeekSnapshot(scope)
   const thisWeekLabel = weekLabel()
 
   function handleExport() {
@@ -307,7 +316,14 @@ export default function Overview({ calls, sales }) {
       {/* AI Market Signals — Weekly Snapshot */}
       <section className={styles.section}>
         <div className={styles.aiHeader}>
-          <h2 className={styles.sectionTitle}>⬡ Market Signals</h2>
+          <h2 className={styles.sectionTitle}>
+            ⬡ Market Signals
+            {scopeLabel && (
+              <span style={{ marginLeft: 8, fontSize: 11, fontFamily: 'DM Mono, monospace', color: 'var(--accent, #c8f060)', border: '1px solid var(--accent, #c8f060)', borderRadius: 4, padding: '1px 7px', verticalAlign: 'middle' }}>
+                {scopeLabel}
+              </span>
+            )}
+          </h2>
           <div className={styles.aiHeaderRight}>
             {analysis?.weekLabel && !aiLoading && (
               <span className={styles.aiTimestamp}>
