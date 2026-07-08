@@ -3,6 +3,13 @@ const ARGUS_KEY = 'fertintel_argus_amsul'
 const FERTECON_KEY = 'fertintel_fertecon_amsul'
 const CACHE_KEY = 'fertintel_ai_analysis'
 
+// Each view keeps its own snapshot so admin's global and per-trader analyses
+// don't overwrite each other. scope is 'global' (all traders) or a trader id.
+// Undefined scope maps to the original single key for backward compatibility.
+function cacheKey(scope) {
+  return scope ? `${CACHE_KEY}:${scope}` : CACHE_KEY
+}
+
 function loadStorage(key) {
   try { const r = localStorage.getItem(key); return r ? JSON.parse(r) : [] }
   catch { return [] }
@@ -174,7 +181,7 @@ async function callAnalysis(dataSummary) {
 }
 
 // Legacy all-data analysis (kept for compatibility)
-export async function runAIAnalysis(calls) {
+export async function runAIAnalysis(calls, scope) {
   const parsed = await callAnalysis(buildDataSummary(calls, false))
   const result = {
     signals: parsed.signals || [],
@@ -182,12 +189,12 @@ export async function runAIAnalysis(calls) {
     generatedAt: new Date().toISOString(),
     callCount: calls.length,
   }
-  localStorage.setItem(CACHE_KEY, JSON.stringify(result))
+  localStorage.setItem(cacheKey(scope), JSON.stringify(result))
   return result
 }
 
 // ── Weekly snapshot: Mon–Fri calls + this week's publications, locked & stamped ──
-export async function runWeeklyAnalysis(calls) {
+export async function runWeeklyAnalysis(calls, scope) {
   const week = currentWeekInfo()
   const parsed = await callAnalysis(buildDataSummary(calls, true))
   const result = {
@@ -198,27 +205,27 @@ export async function runWeeklyAnalysis(calls) {
     weekThursday: week.thursdayStr,   // identifies which week this snapshot is for
     weekLabel: weekLabel(week),       // human label, e.g. "Jun 23–27, 2026"
   }
-  localStorage.setItem(CACHE_KEY, JSON.stringify(result))
+  localStorage.setItem(cacheKey(scope), JSON.stringify(result))
   return result
 }
 
-export function getCachedAnalysis() {
+export function getCachedAnalysis(scope) {
   try {
-    const raw = localStorage.getItem(CACHE_KEY)
+    const raw = localStorage.getItem(cacheKey(scope))
     return raw ? JSON.parse(raw) : null
   } catch { return null }
 }
 
 // Is the cached snapshot for the CURRENT week? (used to show "generate this week" state)
-export function isCurrentWeekSnapshot() {
-  const cached = getCachedAnalysis()
+export function isCurrentWeekSnapshot(scope) {
+  const cached = getCachedAnalysis(scope)
   if (!cached || !cached.weekThursday) return false
   return cached.weekThursday === currentWeekInfo().thursdayStr
 }
 
 // Legacy auto-refresh check (no longer used for weekly snapshot flow)
-export function shouldRefresh(calls) {
-  const cached = getCachedAnalysis()
+export function shouldRefresh(calls, scope) {
+  const cached = getCachedAnalysis(scope)
   if (!cached) return true
   if (cached.callCount !== calls.length) return true
   return false
