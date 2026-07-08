@@ -54,7 +54,8 @@ function emptyPrices() {
   return Object.fromEntries(PRODUCTS.map(p => [p, { value: '', trend: 'none', grade: DEFAULT_GRADE[p] || '' }]))
 }
 
-export default function Calls({ calls, onDelete, onEdit }) {
+export default function Calls({ calls, onDelete, onEdit, role, traderNames = {} }) {
+  const isAdmin = role === 'admin'
   const [search, setSearch] = useState('')
   const [filterProduct, setFilterProduct] = useState('')
   const [filterPort, setFilterPort] = useState('')
@@ -267,6 +268,11 @@ export default function Calls({ calls, onDelete, onEdit }) {
               <div className={styles.cardTop} onClick={() => !isEditing && setExpandedId(open ? null : c.id)}>
                 <div className={styles.meta}>
                   <span className={styles.client} onClick={(e) => { e.stopPropagation(); setIntelClient(c.client) }} title="View client intelligence">{c.client}</span>
+                  {isAdmin && (
+                    <span title="Trader" style={{ fontSize: 10, fontFamily: 'DM Mono, monospace', color: 'var(--accent, #c8f060)', border: '1px solid var(--accent, #c8f060)', borderRadius: 4, padding: '1px 6px', whiteSpace: 'nowrap' }}>
+                      {traderNames[c.trader_id] || 'Trader'}
+                    </span>
+                  )}
                   <span className={styles.date}>{formatDate(c.date)}</span>
                 </div>
                 <div className={styles.pills}>
@@ -327,10 +333,12 @@ export default function Calls({ calls, onDelete, onEdit }) {
                       </div>
                     </div>
                   )}
-                  <div className={styles.actions}>
-                    <button className={styles.editBtn} onClick={() => startEdit(c)}>✎ Edit</button>
-                    <button className={styles.deleteBtn} onClick={() => onDelete(c.id)}>⊗ Delete</button>
-                  </div>
+                  {!isAdmin && (
+                    <div className={styles.actions}>
+                      <button className={styles.editBtn} onClick={() => startEdit(c)}>✎ Edit</button>
+                      <button className={styles.deleteBtn} onClick={() => onDelete(c.id)}>⊗ Delete</button>
+                    </div>
+                  )}
                 </div>
               )}
 
