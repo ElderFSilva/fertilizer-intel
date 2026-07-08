@@ -10,16 +10,24 @@ const NAV = [
   { id: 'backup', icon: '⊞', label: 'Data Backup' },
 ]
 
-export default function Sidebar({ view, setView, onLogout, signals }) {
+export default function Sidebar({ view, setView, onLogout, signals, role }) {
+  const isAdmin = role === 'admin'
+  // Admin runs a read-only aggregate environment — hide call entry (admin
+  // cannot write calls; RLS would block it anyway).
+  const nav = NAV.filter(n => !(isAdmin && n.id === 'upload'))
+
   return (
     <aside className={styles.sidebar}>
       <div className={styles.logo}>
         <span className={styles.mark}>⬡</span>
         <span className={styles.name}>FertIntel</span>
+        {isAdmin && (
+          <span style={{ marginLeft: 'auto', fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', color: 'var(--accent, #c8f060)', border: '1px solid var(--accent, #c8f060)', borderRadius: 4, padding: '2px 5px', fontFamily: 'DM Mono, monospace' }}>ADMIN</span>
+        )}
       </div>
 
       <nav className={styles.nav}>
-        {NAV.map(n => (
+        {nav.map(n => (
           <button
             key={n.id}
             className={`${styles.navBtn} ${view === n.id ? styles.active : ''}`}
