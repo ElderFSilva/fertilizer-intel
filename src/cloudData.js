@@ -21,6 +21,27 @@ function normalizeDate(val) {
 }
 
 
+// Guarded write to a localStorage mirror. Refuses to overwrite a NON-empty
+// mirror with an empty array — this is the exact failure that wiped sales when
+// an empty cloud response clobbered the local copy on load. An empty→empty or
+// any non-empty write proceeds normally.
+function safeMirrorWrite(key, arr) {
+  try {
+    if (!arr || arr.length === 0) {
+      const existing = localStorage.getItem(key)
+      if (existing) {
+        const prev = JSON.parse(existing)
+        if (Array.isArray(prev) && prev.length > 0) {
+          console.warn(`[FertIntel] Skipped overwriting non-empty "${key}" (${prev.length} items) with an empty result.`)
+          return
+        }
+      }
+    }
+    localStorage.setItem(key, JSON.stringify(arr || []))
+  } catch {}
+}
+
+
 // ── Cloud data layer for CALLS ──
 // Each row: { id (uuid), trader_id, data (the call object), call_date }
 // The rest of the app treats a "call" as the data object plus its id.
@@ -111,7 +132,7 @@ export async function cloudLoadSales() {
   }))
   // Mirror to localStorage so legacy synchronous readers (report.js,
   // ClientIntel.jsx) that read 'fertintel_sales' keep working unchanged.
-  try { localStorage.setItem('fertintel_sales', JSON.stringify(sales)) } catch {}
+  safeMirrorWrite('fertintel_sales', sales)
   return sales
 }
 
@@ -123,7 +144,7 @@ async function refreshSalesMirror() {
       .select('id, trader_id, data, created_at')
       .order('created_at', { ascending: false })
     const sales = (data || []).map(row => ({ ...row.data, id: row.id, trader_id: row.trader_id, created_at: row.created_at }))
-    localStorage.setItem('fertintel_sales', JSON.stringify(sales))
+    safeMirrorWrite('fertintel_sales', sales)
   } catch {}
 }
 
@@ -195,8 +216,8 @@ export async function cloudLoadPublications() {
     else if (r.source === 'fertecon') fertecon.push(entry)
   })
   try {
-    localStorage.setItem('fertintel_argus_amsul', JSON.stringify(argus))
-    localStorage.setItem('fertintel_fertecon_amsul', JSON.stringify(fertecon))
+    safeMirrorWrite('fertintel_argus_amsul', argus)
+    safeMirrorWrite('fertintel_fertecon_amsul', fertecon)
   } catch {}
   return { argus, fertecon }
 }
@@ -249,4 +270,134 @@ export async function cloudBulkInsertPublications(argusArr, ferteconArr) {
   if (error) throw error
   await cloudLoadPublications()
   return rows.length
+}
+
+// ── Automatic weekly backup (admin-run, cloud-sourced) ──
+
+const LAST_BACKUP_KEY = 'fertintel_last_backup'
+
+// Build a COMPLETE backup object from the cloud (the source of truth) — never
+// from the localStorage mirrors, which can be stale/empty. For admin this spans
+// every trader; for a trader it's their own calls/sales plus shared publications.
+export async function cloudExportAllData() {
+  const [calls, sales, pubs] = await Promise.all([
+    cloudLoadCalls(),
+    cloudLoadSales(),
+    cloudLoadPublications(),
+  ])
+  return {
+    version: 3,
+    exportedAt: new Date().toISOString(),
+    data: {
+      fertintel_calls: calls,
+      fertintel_sales: sales,
+      fertintel_argus_amsul: pubs.argus || [],
+      fertintel_fertecon_amsul: pubs.fertecon || [],
+    },
+  }
+}
+
+// Trigger a browser download of a backup object as a dated JSON file.
+export function triggerBackupDownload(backupObj) {
+  const blob = new Blob([JSON.stringify(backupObj, null, 2)], { type: 'application/json' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  const date = (backupObj.exportedAt || new Date().toISOString()).split('T')[0]
+  a.href = url
+  a.download = `fertintel-backup-${date}.json`
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  URL.revokeObjectURL(url)
+}
+
+// YYYY-MM-DD of the most recent Friday on or before `now` (local components).
+function mostRecentFridayYMD(now = new Date()) {
+  const d = new Date(now)
+  const since = (d.getDay() - 5 + 7) % 7  // 0=Sun..5=Fri..6=Sat → days since Friday
+  d.setDate(d.getDate() - since)
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
+export function lastBackupDate() {
+  try { return localStorage.getItem(LAST_BACKUP_KEY) || null } catch { return null }
+}
+
+// Run the weekly backup if this week's Friday hasn't been captured yet.
+// Admin-only (admin is the only role that can read ALL data). Saves a snapshot
+// row into Supabase AND downloads a JSON file. Returns the backup date if it
+// ran, otherwise null.
+export async function runWeeklyBackupIfDue(role) {
+  if (role !== 'admin') return null
+  const targetFriday = mostRecentFridayYMD()
+  const last = lastBackupDate()
+  if (last && last >= targetFriday) return null   // already done for this week
+  const backup = await cloudExportAllData()
+  // Save into Supabase first (the durable copy); a failure here must not stop
+  // the file download, which is the off-platform copy.
+  try { await cloudSaveBackup(backup, targetFriday) } catch (e) { /* keep going */ }
+  triggerBackupDownload(backup)
+  try { localStorage.setItem(LAST_BACKUP_KEY, targetFriday) } catch {}
+  return targetFriday
+}
+
+// ── Cloud-stored backup snapshots (Supabase `backups` table, admin-only) ──
+
+// Save/refresh the snapshot for a given week into the backups table. One row
+// per week (upsert on week_key), so re-running a week refreshes it. Snapshots
+// are kept indefinitely.
+export async function cloudSaveBackup(backupObj, weekKey) {
+  const wk = weekKey || mostRecentFridayYMD()
+  const d = backupObj?.data || {}
+  const counts = {
+    calls: (d.fertintel_calls || []).length,
+    sales: (d.fertintel_sales || []).length,
+    argus: (d.fertintel_argus_amsul || []).length,
+    fertecon: (d.fertintel_fertecon_amsul || []).length,
+  }
+  let userId = null
+  try { const { data } = await supabase.auth.getUser(); userId = data?.user?.id ?? null } catch {}
+  const { error } = await supabase
+    .from('backups')
+    .upsert(
+      { week_key: wk, created_by: userId, created_at: new Date().toISOString(), counts, payload: backupObj },
+      { onConflict: 'week_key' }
+    )
+  if (error) throw error
+  return { week_key: wk, counts }
+}
+
+// Build a fresh snapshot, save it to Supabase, and download the file. Used by
+// the "Back up now" button. Admin only (RLS enforces the insert).
+export async function cloudBackupNow() {
+  const backup = await cloudExportAllData()
+  const wk = mostRecentFridayYMD()
+  const meta = await cloudSaveBackup(backup, wk)
+  triggerBackupDownload(backup)
+  try { localStorage.setItem(LAST_BACKUP_KEY, wk) } catch {}
+  return meta
+}
+
+// List saved snapshots (metadata only — never the heavy payload).
+export async function cloudListBackups() {
+  const { data, error } = await supabase
+    .from('backups')
+    .select('id, week_key, created_at, counts')
+    .order('week_key', { ascending: false })
+  if (error) throw error
+  return data || []
+}
+
+// Fetch the full payload of one snapshot (for download / inspection).
+export async function cloudGetBackupPayload(id) {
+  const { data, error } = await supabase
+    .from('backups')
+    .select('payload')
+    .eq('id', id)
+    .single()
+  if (error) throw error
+  return data?.payload || null
 }
