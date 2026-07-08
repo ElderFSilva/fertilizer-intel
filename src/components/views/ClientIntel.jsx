@@ -35,12 +35,14 @@ function targetNum(v) {
   return parseNum(v)
 }
 
-export default function ClientIntel({ client, calls, onClose }) {
+export default function ClientIntel({ client, calls, sales: salesProp, onClose }) {
   const clientCalls = calls
     .filter(c => c.client === client)
     .sort((a, b) => parseDate(a.date) - parseDate(b.date)) // oldest → newest for charting
 
-  const sales = loadSales().filter(s => s.client === client)
+  // Use the caller-provided (already trader-scoped) sales when available;
+  // fall back to the localStorage mirror for any legacy caller.
+  const sales = (Array.isArray(salesProp) ? salesProp : loadSales()).filter(s => s.client === client)
 
   // ── Target movement: for each product, series of price targets over time ──
   // Uses demand priceTarget where available, else the recorded price value.
