@@ -1,39 +1,59 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import styles from './DataBackup.module.css'
-import { cloudBulkInsertCalls, cloudBulkInsertSales, cloudBulkInsertPublications } from '../../cloudData.js'
-
-const STORAGE_KEYS = [
-  { key: 'fertintel_calls', label: 'Call Notes' },
-  { key: 'fertintel_sales', label: 'Sales' },
-  { key: 'fertintel_argus_amsul', label: 'Argus Publications' },
-  { key: 'fertintel_fertecon_amsul', label: 'Fertecon Publications' },
-]
+import { cloudBulkInsertCalls, cloudBulkInsertSales, cloudBulkInsertPublications, cloudExportAllData, triggerBackupDownload, lastBackupDate, cloudBackupNow, cloudListBackups, cloudGetBackupPayload } from '../../cloudData.js'
 
 export default function DataBackup({ onImport, traderId, role }) {
   const [importing, setImporting] = useState(false)
+  const [exporting, setExporting] = useState(false)
   const [message, setMessage] = useState(null)
+  const [history, setHistory] = useState([])
+  const [historyLoading, setHistoryLoading] = useState(false)
+  const [downloadingId, setDownloadingId] = useState(null)
   const fileRef = useRef(null)
 
   const isAdmin = role === 'admin'
+  const lastBackup = lastBackupDate()
 
-  function handleExport() {
-    const backup = { version: 2, exportedAt: new Date().toISOString(), data: {} }
-    STORAGE_KEYS.forEach(({ key }) => {
-      try {
-        const raw = localStorage.getItem(key)
-        backup.data[key] = raw ? JSON.parse(raw) : []
-      } catch { backup.data[key] = [] }
-    })
-    const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    const date = new Date().toISOString().split('T')[0]
-    a.href = url
-    a.download = `fertintel-backup-${date}.json`
-    a.click()
-    URL.revokeObjectURL(url)
-    setMessage({ type: 'success', text: `✓ Backup downloaded — ${Object.values(backup.data).flat().length} records exported.` })
+  async function loadHistory() {
+    if (!isAdmin) return
+    setHistoryLoading(true)
+    try { setHistory(await cloudListBackups()) } catch { /* table may not exist yet */ }
+    setHistoryLoading(false)
+  }
+
+  useEffect(() => { loadHistory() }, [])
+
+  async function handleExport() {
+    setExporting(true)
+    setMessage(null)
+    try {
+      if (isAdmin) {
+        const meta = await cloudBackupNow()   // saves to Supabase AND downloads
+        const t = meta?.counts ? Object.values(meta.counts).reduce((n, x) => n + (x || 0), 0) : 0
+        setMessage({ type: 'success', text: `✓ Backup saved to Supabase and downloaded — ${t} records.` })
+        await loadHistory()
+      } else {
+        const backup = await cloudExportAllData()   // traders: file only
+        triggerBackupDownload(backup)
+        const total = Object.values(backup.data).reduce((n, arr) => n + (arr?.length || 0), 0)
+        setMessage({ type: 'success', text: `✓ Backup downloaded — ${total} records exported from the cloud.` })
+      }
+    } catch (err) {
+      setMessage({ type: 'error', text: `✗ Backup failed — ${err.message || err}` })
+    }
+    setExporting(false)
     setTimeout(() => setMessage(null), 5000)
+  }
+
+  async function handleDownloadSnapshot(id, weekKey) {
+    setDownloadingId(id)
+    try {
+      const payload = await cloudGetBackupPayload(id)
+      if (payload) triggerBackupDownload(payload)
+    } catch (err) {
+      setMessage({ type: 'error', text: `✗ Could not download snapshot — ${err.message || err}` })
+    }
+    setDownloadingId(null)
   }
 
   function handleImportClick() { fileRef.current?.click() }
@@ -88,10 +108,18 @@ export default function DataBackup({ onImport, traderId, role }) {
         <div className={styles.actionCard}>
           <div className={styles.actionIcon}>↓</div>
           <div className={styles.actionContent}>
-            <h3 className={styles.actionTitle}>Export Backup</h3>
-            <p className={styles.actionDesc}>Download the currently loaded data as a JSON file (safety copy).</p>
+            <h3 className={styles.actionTitle}>{isAdmin ? 'Back Up Now (Supabase + File)' : 'Export Full Backup'}</h3>
+            <p className={styles.actionDesc}>
+              {isAdmin
+                ? 'Save a complete snapshot (calls, sales, publications) into Supabase and download a copy as a JSON file.'
+                : 'Download a complete copy of all cloud data (calls, sales, publications) as a JSON file.'}
+              {isAdmin && ' A snapshot is also saved automatically once a week (on/after Friday) when you open the app.'}
+              {lastBackup && ` Last automatic backup: ${lastBackup}.`}
+            </p>
           </div>
-          <button className={styles.exportBtn} onClick={handleExport}>↓ Download Backup</button>
+          <button className={styles.exportBtn} onClick={handleExport} disabled={exporting}>
+            {exporting ? '◌ Exporting…' : '↓ Download Backup'}
+          </button>
         </div>
 
         <div className={styles.actionCard}>
@@ -114,6 +142,45 @@ export default function DataBackup({ onImport, traderId, role }) {
       {message && (
         <div className={`${styles.message} ${message.type === 'error' ? styles.messageError : styles.messageSuccess}`}>
           {message.text}
+        </div>
+      )}
+
+      {isAdmin && (
+        <div style={{ marginTop: 24 }}>
+          <p style={{ fontSize: 12, fontFamily: 'DM Mono, monospace', color: 'var(--text3, #888)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 10 }}>
+            Backup History (stored in Supabase)
+          </p>
+          {historyLoading ? (
+            <p style={{ fontSize: 13, color: 'var(--text3, #888)' }}>◌ Loading snapshots…</p>
+          ) : history.length === 0 ? (
+            <p style={{ fontSize: 13, color: 'var(--text3, #888)' }}>
+              No snapshots yet. Click “Back Up Now”, or one will be created automatically on/after Friday.
+            </p>
+          ) : (
+            <div style={{ border: '1px solid var(--border, #2a2d20)', borderRadius: 10, overflow: 'hidden' }}>
+              {history.map((b, i) => (
+                <div key={b.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', borderTop: i ? '1px solid var(--border, #2a2d20)' : 'none', fontFamily: 'DM Mono, monospace', fontSize: 13 }}>
+                  <span style={{ color: 'var(--accent, #c8f060)', fontWeight: 700, minWidth: 96 }}>{b.week_key}</span>
+                  <span style={{ color: 'var(--text3, #888)', fontSize: 11 }}>
+                    {b.counts ? `${b.counts.calls || 0} calls · ${b.counts.sales || 0} sales · ${(b.counts.argus || 0) + (b.counts.fertecon || 0)} pubs` : ''}
+                  </span>
+                  <span style={{ marginLeft: 'auto', color: 'var(--text3, #666)', fontSize: 11 }}>
+                    {b.created_at ? new Date(b.created_at).toLocaleString() : ''}
+                  </span>
+                  <button
+                    onClick={() => handleDownloadSnapshot(b.id, b.week_key)}
+                    disabled={downloadingId === b.id}
+                    style={{ fontFamily: 'DM Mono, monospace', fontSize: 12, cursor: 'pointer', padding: '4px 10px', borderRadius: 6, border: '1px solid var(--border2, #33362a)', background: 'transparent', color: 'var(--text2, #bbb)' }}
+                  >
+                    {downloadingId === b.id ? '◌' : '↓ Download'}
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+          <p style={{ fontSize: 11, color: 'var(--text3, #666)', marginTop: 8 }}>
+            To restore a snapshot, download it and use “Import to Cloud” (best when recovering into an empty or partial table). All snapshots are kept indefinitely.
+          </p>
         </div>
       )}
 
