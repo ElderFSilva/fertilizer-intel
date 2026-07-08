@@ -163,6 +163,13 @@ export default function Dashboard({ onLogout, user, profile, role }) {
   const visibleCalls = filtering ? calls.filter(c => c.trader_id === traderFilter) : calls
   const visibleSales = filtering ? sales.filter(s => s.trader_id === traderFilter) : sales
 
+  // AI snapshot scope: admin sees a global analysis on "All traders" and a
+  // separate per-trader analysis otherwise; a trader always scopes to their own.
+  const aiScope = isAdmin ? (traderFilter === 'all' ? 'global' : traderFilter) : (traderId || 'self')
+  const aiScopeLabel = isAdmin
+    ? (traderFilter === 'all' ? 'All traders' : (traderNames[traderFilter] || 'Trader'))
+    : (traderNames[traderId] || 'You')
+
   const signals = buildMarketSignals(visibleCalls)
 
   if (loading) {
@@ -215,7 +222,7 @@ export default function Dashboard({ onLogout, user, profile, role }) {
             {error}
           </div>
         )}
-        {view === 'overview' && <Overview calls={visibleCalls} sales={visibleSales} signals={signals} />}
+        {view === 'overview' && <Overview calls={visibleCalls} sales={visibleSales} scope={aiScope} scopeLabel={aiScopeLabel} />}
         {view === 'upload' && !isAdmin && <Upload onAdd={handleAdd} calls={calls} />}
         {view === 'calls' && <Calls calls={visibleCalls} sales={visibleSales} onDelete={handleDelete} onEdit={handleEdit} role={role} traderNames={traderNames} />}
         {view === 'prices' && <PriceTrends calls={visibleCalls} />}
