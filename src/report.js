@@ -97,6 +97,11 @@ function saleLoggedDate(sale) {
     const d = parseDate(sale.date)
     if (d.getTime() !== 0) return d
   }
+  // Cloud sales carry a created_at timestamp — use it when there's no deal date
+  if (sale.created_at) {
+    const d = new Date(sale.created_at)
+    if (!isNaN(d.getTime())) return d
+  }
   const idNum = Number(sale.id)
   if (!isNaN(idNum) && idNum > 1000000000000) return new Date(idNum)
   return new Date(0)
