@@ -49,7 +49,7 @@ const ANALYSIS_SECTIONS = [
   { key: 'opportunities', label: 'Opportunities & Risks', icon: '◇' },
 ]
 
-export default function Overview({ calls }) {
+export default function Overview({ calls, sales }) {
   const demandMap = buildDemandSummary(calls)
   const clients = Object.keys(demandMap)
   const recentCalls = calls.slice(0, 5)
@@ -95,7 +95,7 @@ export default function Overview({ calls }) {
   const thisWeekLabel = weekLabel()
 
   function handleExport() {
-    const html = generateWeeklyReport(calls, analysis?.signals || [], reportFrom, reportTo, analysis)
+    const html = generateWeeklyReport(calls, analysis?.signals || [], reportFrom, reportTo, analysis, sales)
     const win = window.open('', '_blank')
     win.document.write(html)
     win.document.close()
