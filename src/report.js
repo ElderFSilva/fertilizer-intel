@@ -295,19 +295,21 @@ function parseNum(v) {
   return isNaN(n) ? null : n
 }
 
-// Sales performed in the period — filtered by the date the sale was LOGGED
-function buildSalesPerformance(fromStr, toStr) {
-  const sales = loadStorage(SALES_KEY)
+// Sales performed in the period — filtered by the date the sale was LOGGED.
+// `sales` is passed in (the caller's filtered set); falls back to the
+// localStorage mirror if a caller doesn't provide it.
+function buildSalesPerformance(sales, fromStr, toStr) {
+  const allSales = Array.isArray(sales) ? sales : loadStorage(SALES_KEY)
   const fromD = parseDate(fromStr)
   const toD = parseDate(toStr); toD.setHours(23, 59, 59)
 
-  const periodSales = sales.filter(s => {
+  const periodSales = allSales.filter(s => {
     const d = saleLoggedDate(s)
     return d >= fromD && d <= toD
   })
 
   // soldDemandIds spans ALL sales (not just period) so demand totals stay correct
-  const soldDemandIds = new Set(sales.map(s => s.linkedDemandId).filter(Boolean))
+  const soldDemandIds = new Set(allSales.map(s => s.linkedDemandId).filter(Boolean))
 
   if (!periodSales.length) return { empty: true, soldDemandIds }
 
@@ -341,7 +343,7 @@ const ANALYSIS_SECTIONS = [
 const SIGNAL_COLOR = { warning: '#f0b840', alert: '#e05c4b', opportunity: '#4caf50' }
 
 
-export function generateWeeklyReport(calls, signals, dateFrom, dateTo, analysis) {
+export function generateWeeklyReport(calls, signals, dateFrom, dateTo, analysis, sales) {
   const argusData = loadStorage(ARGUS_KEY)
   const ferteconData = loadStorage(FERTECON_KEY)
 
@@ -356,7 +358,7 @@ export function generateWeeklyReport(calls, signals, dateFrom, dateTo, analysis)
   const chartData = buildChartData(calls, argusData, ferteconData)
   const chartSVG = buildChartSVG(chartData)
 
-  const salesPerf = buildSalesPerformance(fromStr, toStr)
+  const salesPerf = buildSalesPerformance(sales, fromStr, toStr)
   const soldDemandIds = salesPerf.soldDemandIds || new Set()
   const priceBubbles = buildPriceBubbles(calls, fromStr, toStr)
   const demandVolumes = buildDemandVolume(calls, fromStr, toStr, soldDemandIds)
