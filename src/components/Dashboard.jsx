@@ -110,14 +110,16 @@ export default function Dashboard({ onLogout, user, profile, role }) {
   }
 
   // Derive a friendly label for a profile row. Profile columns vary between
-  // projects, so read defensively: prefer an email like "trader1@…" → "Trader 1",
-  // then any name field, then fall back to a short id.
+  // projects, so read defensively. In this project the identifying value lives
+  // in `display_name` (e.g. "trader1@fertintel.com" → "Trader 1"); other field
+  // names are also checked so the app keeps working if the schema changes.
   function labelForProfile(p) {
-    const email = p.email || p.user_email || ''
-    const m = String(email).match(/trader\s*0*(\d+)/i)
+    const src = p.email || p.user_email || p.display_name || p.full_name || p.name || p.username || ''
+    const m = String(src).match(/trader\s*0*(\d+)/i)
     if (m) return `Trader ${m[1]}`
-    if (/admin/i.test(email) || p.role === 'admin') return 'Admin'
-    return p.full_name || p.name || p.username || (email ? String(email).split('@')[0] : `Trader ${String(p.id).slice(0, 4)}`)
+    if (/admin/i.test(src) || p.role === 'admin') return 'Admin'
+    if (src) return String(src).includes('@') ? String(src).split('@')[0] : String(src)
+    return `Trader ${String(p.id).slice(0, 4)}`
   }
 
   // { trader_id: label } for the admin views. Falls back to short id if a
