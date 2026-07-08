@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { buildMarketSignals } from '../data.js'
-import { cloudLoadCalls, cloudAddCall, cloudEditCall, cloudDeleteCall, cloudLoadSales, cloudAddSale, cloudEditSale, cloudDeleteSale, cloudLoadProfiles } from '../cloudData.js'
+import { cloudLoadCalls, cloudAddCall, cloudEditCall, cloudDeleteCall, cloudLoadSales, cloudAddSale, cloudEditSale, cloudDeleteSale, cloudLoadProfiles, runWeeklyBackupIfDue } from '../cloudData.js'
 import Sidebar from './Sidebar.jsx'
 import Overview from './views/Overview.jsx'
 import Calls from './views/Calls.jsx'
@@ -17,6 +17,7 @@ export default function Dashboard({ onLogout, user, profile, role }) {
   const [sales, setSales] = useState([])
   const [profiles, setProfiles] = useState([])
   const [traderFilter, setTraderFilter] = useState('all') // 'all' | trader_id (admin only)
+  const [backupNotice, setBackupNotice] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
@@ -58,6 +59,11 @@ export default function Dashboard({ onLogout, user, profile, role }) {
         const p = await cloudLoadProfiles()
         if (active) setProfiles(p)
       } catch (e) { /* labels will fall back to short ids */ }
+      // Weekly automatic backup (admin only, once per week on/after Friday).
+      try {
+        const did = await runWeeklyBackupIfDue(role)
+        if (active && did) setBackupNotice(`✓ Weekly backup for ${did} saved to Supabase and downloaded to your device.`)
+      } catch (e) { /* a backup failure must never block the app */ }
       if (active) setLoading(false)
     })()
     return () => { active = false }
@@ -171,6 +177,12 @@ export default function Dashboard({ onLogout, user, profile, role }) {
     <div className={styles.layout}>
       <Sidebar view={view} setView={setView} onLogout={onLogout} signals={signals} role={role} />
       <main className={styles.main}>
+        {backupNotice && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16, padding: '10px 14px', background: 'var(--accent-dim, #c8f06022)', border: '1px solid var(--accent, #c8f060)', color: 'var(--text, #eaeadf)', borderRadius: 8, fontSize: 13, fontFamily: 'DM Mono, monospace' }}>
+            <span>{backupNotice}</span>
+            <button onClick={() => setBackupNotice('')} style={{ marginLeft: 'auto', background: 'transparent', border: 'none', color: 'var(--text3, #888)', cursor: 'pointer', fontSize: 14 }}>✕</button>
+          </div>
+        )}
         {isAdmin && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 16, padding: '10px 12px', background: 'var(--bg2, #16180f)', border: '1px solid var(--border, #2a2d20)', borderRadius: 10 }}>
             <span style={{ fontSize: 11, fontFamily: 'DM Mono, monospace', color: 'var(--text3, #888)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Viewing</span>
