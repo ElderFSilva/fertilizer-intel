@@ -220,6 +220,17 @@ export async function cloudDeletePublication(source, date) {
   await cloudLoadPublications()
 }
 
+// ── Profiles (for admin trader-name mapping) ──
+// Returns all profile rows the current user is allowed to read. For admin,
+// RLS should return every profile; for a trader it may return only their own.
+// Selects '*' because the exact profile columns can vary between projects —
+// the caller derives a friendly label defensively from whatever is present.
+export async function cloudLoadProfiles() {
+  const { data, error } = await supabase.from('profiles').select('*')
+  if (error) throw error
+  return data || []
+}
+
 // Bulk import publications from a backup's argus/fertecon arrays (admin only)
 export async function cloudBulkInsertPublications(argusArr, ferteconArr) {
   const rows = []
