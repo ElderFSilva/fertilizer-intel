@@ -54,7 +54,7 @@ function emptyPrices() {
   return Object.fromEntries(PRODUCTS.map(p => [p, { value: '', trend: 'none', grade: DEFAULT_GRADE[p] || '' }]))
 }
 
-export default function Calls({ calls, onDelete, onEdit, role, traderNames = {} }) {
+export default function Calls({ calls, sales = [], onDelete, onEdit, role, traderNames = {} }) {
   const isAdmin = role === 'admin'
   const [search, setSearch] = useState('')
   const [filterProduct, setFilterProduct] = useState('')
@@ -178,7 +178,7 @@ export default function Calls({ calls, onDelete, onEdit, role, traderNames = {} 
   return (
     <div className={styles.wrap}>
       {intelClient && (
-        <ClientIntel client={intelClient} calls={calls} onClose={() => setIntelClient(null)} />
+        <ClientIntel client={intelClient} calls={calls} sales={sales} onClose={() => setIntelClient(null)} />
       )}
       <header className={styles.header}>
         <div className={styles.headerLeft}>
