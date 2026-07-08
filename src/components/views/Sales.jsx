@@ -31,7 +31,8 @@ function emptyForm() {
   }
 }
 
-export default function Sales({ calls, sales = [], onAddSale, onDeleteSale }) {
+export default function Sales({ calls, sales = [], onAddSale, onDeleteSale, role, traderNames = {} }) {
+  const isAdmin = role === 'admin'
   const [form, setForm] = useState(emptyForm())
   const [error, setError] = useState('')
   const [saved, setSaved] = useState(false)
@@ -105,7 +106,8 @@ export default function Sales({ calls, sales = [], onAddSale, onDeleteSale }) {
         </div>
       </header>
 
-      {/* Quick-add form */}
+      {/* Quick-add form — traders only (admin environment is read-only) */}
+      {!isAdmin && (
       <section className={styles.section}>
         <h2 className={styles.sectionTitle}>⊕ Log a Sale</h2>
         <div className={styles.quickAdd}>
@@ -177,6 +179,7 @@ export default function Sales({ calls, sales = [], onAddSale, onDeleteSale }) {
           <button className={styles.saveBtn} onClick={handleSave} disabled={busy}>{busy ? 'Saving…' : '◈ Log Sale'}</button>
         </div>
       </section>
+      )}
 
       {/* Stats */}
       {stats && (
@@ -224,6 +227,7 @@ export default function Sales({ calls, sales = [], onAddSale, onDeleteSale }) {
                 <tr>
                   <th className={styles.th}>Laycan</th>
                   <th className={styles.th}>Client</th>
+                  {isAdmin && <th className={styles.th}>Trader</th>}
                   <th className={styles.th}>Product</th>
                   <th className={styles.th}>Volume</th>
                   <th className={styles.th}>Vessel</th>
@@ -231,7 +235,7 @@ export default function Sales({ calls, sales = [], onAddSale, onDeleteSale }) {
                   <th className={styles.th}>Offer</th>
                   <th className={styles.th}>Bid</th>
                   <th className={styles.th} style={{ color: 'var(--accent)' }}>Done</th>
-                  <th className={styles.th}></th>
+                  {!isAdmin && <th className={styles.th}></th>}
                 </tr>
               </thead>
               <tbody>
@@ -239,6 +243,13 @@ export default function Sales({ calls, sales = [], onAddSale, onDeleteSale }) {
                   <tr key={s.id} className={styles.tr}>
                     <td className={styles.td}>{s.laycan || '—'}</td>
                     <td className={styles.td} style={{ fontWeight: 700 }}>{s.client}</td>
+                    {isAdmin && (
+                      <td className={styles.td}>
+                        <span style={{ fontSize: 10, fontFamily: 'DM Mono, monospace', color: 'var(--accent, #c8f060)', border: '1px solid var(--accent, #c8f060)', borderRadius: 4, padding: '1px 6px', whiteSpace: 'nowrap' }}>
+                          {traderNames[s.trader_id] || 'Trader'}
+                        </span>
+                      </td>
+                    )}
                     <td className={styles.td}>{s.product}</td>
                     <td className={styles.td}>{formatVolume(s.volume)} T</td>
                     <td className={styles.td}>{s.vessel || '—'}</td>
@@ -246,9 +257,11 @@ export default function Sales({ calls, sales = [], onAddSale, onDeleteSale }) {
                     <td className={styles.td} style={{ color: 'var(--text3)' }}>{s.offerPrice || '—'}</td>
                     <td className={styles.td} style={{ color: 'var(--text3)' }}>{s.bidPrice || '—'}</td>
                     <td className={styles.td} style={{ color: 'var(--accent)', fontWeight: 700 }}>{s.donePrice || '—'}</td>
-                    <td className={styles.td}>
-                      <button className={styles.deleteBtn} onClick={() => handleDelete(s.id)}>⊗</button>
-                    </td>
+                    {!isAdmin && (
+                      <td className={styles.td}>
+                        <button className={styles.deleteBtn} onClick={() => handleDelete(s.id)}>⊗</button>
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>
