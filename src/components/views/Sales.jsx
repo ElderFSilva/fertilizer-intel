@@ -23,8 +23,19 @@ function parseDate(dateStr) {
   return new Date(0)
 }
 
+// Today's date as YYYY-MM-DD using LOCAL components (never toISOString, which
+// shifts the day for Brazil/UTC-3 and would mis-file the deal's week).
+function todayYMD() {
+  const d = new Date()
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
 function emptyForm() {
   return {
+    date: todayYMD(),
     client: '', product: 'Amsul GR', volume: '', donePrice: '',
     laycan: '', vessel: '', port: '',
     offerPrice: '', bidPrice: '', linkedDemandId: ''
@@ -64,9 +75,18 @@ export default function Sales({ calls, sales = [], onAddSale, onDeleteSale, role
 
   const stats = buildSalesStats(sales)
 
+  // Show newest deal first by deal date; fall back to created_at for any
+  // legacy sale that predates the date field.
+  const sortedSales = [...sales].sort((a, b) => {
+    const da = a.date ? parseDate(a.date).getTime() : (a.created_at ? new Date(a.created_at).getTime() : 0)
+    const db = b.date ? parseDate(b.date).getTime() : (b.created_at ? new Date(b.created_at).getTime() : 0)
+    return db - da
+  })
+
   function set(field, val) { setForm(f => ({ ...f, [field]: val })) }
 
   async function handleSave() {
+    if (!form.date) { setError('Deal date is required.'); return }
     if (!form.client.trim()) { setError('Client is required.'); return }
     if (!form.product) { setError('Product is required.'); return }
     if (!form.volume) { setError('Volume is required.'); return }
@@ -113,6 +133,10 @@ export default function Sales({ calls, sales = [], onAddSale, onDeleteSale, role
         <div className={styles.quickAdd}>
           {/* Required fields */}
           <div className={styles.coreGrid}>
+            <div className={styles.field}>
+              <label className={styles.label}>Deal Date *</label>
+              <input type="date" className={styles.input} value={form.date} max={todayYMD()} onChange={e => set('date', e.target.value)} />
+            </div>
             <div className={styles.field}>
               <label className={styles.label}>Client *</label>
               <input className={styles.input} list="client-names" placeholder="Client" value={form.client} onChange={e => set('client', e.target.value)} />
@@ -225,6 +249,7 @@ export default function Sales({ calls, sales = [], onAddSale, onDeleteSale, role
             <table className={styles.table}>
               <thead>
                 <tr>
+                  <th className={styles.th}>Date</th>
                   <th className={styles.th}>Laycan</th>
                   <th className={styles.th}>Client</th>
                   {isAdmin && <th className={styles.th}>Trader</th>}
@@ -239,8 +264,9 @@ export default function Sales({ calls, sales = [], onAddSale, onDeleteSale, role
                 </tr>
               </thead>
               <tbody>
-                {sales.map(s => (
+                {sortedSales.map(s => (
                   <tr key={s.id} className={styles.tr}>
+                    <td className={styles.td}>{formatDate(s.date)}</td>
                     <td className={styles.td}>{s.laycan || '—'}</td>
                     <td className={styles.td} style={{ fontWeight: 700 }}>{s.client}</td>
                     {isAdmin && (
