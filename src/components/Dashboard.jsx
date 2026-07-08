@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { buildMarketSignals } from '../data.js'
-import { cloudLoadCalls, cloudAddCall, cloudEditCall, cloudDeleteCall, cloudLoadSales, cloudAddSale, cloudEditSale, cloudDeleteSale } from '../cloudData.js'
+import { cloudLoadCalls, cloudAddCall, cloudEditCall, cloudDeleteCall, cloudLoadSales, cloudAddSale, cloudEditSale, cloudDeleteSale, cloudLoadProfiles } from '../cloudData.js'
 import Sidebar from './Sidebar.jsx'
 import Overview from './views/Overview.jsx'
 import Calls from './views/Calls.jsx'
@@ -15,10 +15,13 @@ export default function Dashboard({ onLogout, user, profile, role }) {
   const [view, setView] = useState('overview')
   const [calls, setCalls] = useState([])
   const [sales, setSales] = useState([])
+  const [profiles, setProfiles] = useState([])
+  const [traderFilter, setTraderFilter] = useState('all') // 'all' | trader_id (admin only)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
   const traderId = user?.id
+  const isAdmin = role === 'admin'
 
   async function reloadCalls() {
     try {
@@ -49,6 +52,12 @@ export default function Dashboard({ onLogout, user, profile, role }) {
       } catch (e) {
         if (active) setError('Could not load data from the cloud.')
       }
+      // Profiles are only needed to label traders in the admin views. Load
+      // them separately so a profiles-permission issue never blocks calls/sales.
+      try {
+        const p = await cloudLoadProfiles()
+        if (active) setProfiles(p)
+      } catch (e) { /* labels will fall back to short ids */ }
       if (active) setLoading(false)
     })()
     return () => { active = false }
@@ -100,7 +109,53 @@ export default function Dashboard({ onLogout, user, profile, role }) {
     return saved
   }
 
-  const signals = buildMarketSignals(calls)
+  // Derive a friendly label for a profile row. Profile columns vary between
+  // projects, so read defensively: prefer an email like "trader1@…" → "Trader 1",
+  // then any name field, then fall back to a short id.
+  function labelForProfile(p) {
+    const email = p.email || p.user_email || ''
+    const m = String(email).match(/trader\s*0*(\d+)/i)
+    if (m) return `Trader ${m[1]}`
+    if (/admin/i.test(email) || p.role === 'admin') return 'Admin'
+    return p.full_name || p.name || p.username || (email ? String(email).split('@')[0] : `Trader ${String(p.id).slice(0, 4)}`)
+  }
+
+  // { trader_id: label } for the admin views. Falls back to short id if a
+  // profile isn't readable (e.g. RLS returned only the admin's own row).
+  const traderNames = useMemo(() => {
+    const map = {}
+    profiles.forEach(p => { if (p?.id) map[p.id] = labelForProfile(p) })
+    const shortId = id => `Trader ${String(id).slice(0, 4)}`
+    ;[...calls, ...sales].forEach(r => {
+      if (r.trader_id && !map[r.trader_id]) map[r.trader_id] = shortId(r.trader_id)
+    })
+    return map
+  }, [profiles, calls, sales])
+
+  // Roles by id, so the toggle can exclude the admin's own account.
+  const rolesById = useMemo(() => {
+    const m = {}
+    profiles.forEach(p => { if (p?.id) m[p.id] = p.role })
+    return m
+  }, [profiles])
+
+  // Toggle options: every non-admin trader that has a profile or any data.
+  const traderOptions = useMemo(() => {
+    const ids = new Set()
+    profiles.forEach(p => { if (p?.id && p.role !== 'admin') ids.add(p.id) })
+    ;[...calls, ...sales].forEach(r => { if (r.trader_id) ids.add(r.trader_id) })
+    return [...ids]
+      .filter(id => rolesById[id] !== 'admin' && id !== traderId)
+      .map(id => ({ id, label: traderNames[id] || `Trader ${String(id).slice(0, 4)}` }))
+      .sort((a, b) => a.label.localeCompare(b.label))
+  }, [profiles, calls, sales, traderNames, rolesById, traderId])
+
+  // Apply the admin trader filter. Traders always see exactly their own data.
+  const filtering = isAdmin && traderFilter !== 'all'
+  const visibleCalls = filtering ? calls.filter(c => c.trader_id === traderFilter) : calls
+  const visibleSales = filtering ? sales.filter(s => s.trader_id === traderFilter) : sales
+
+  const signals = buildMarketSignals(visibleCalls)
 
   if (loading) {
     return (
@@ -112,19 +167,46 @@ export default function Dashboard({ onLogout, user, profile, role }) {
 
   return (
     <div className={styles.layout}>
-      <Sidebar view={view} setView={setView} onLogout={onLogout} signals={signals} />
+      <Sidebar view={view} setView={setView} onLogout={onLogout} signals={signals} role={role} />
       <main className={styles.main}>
+        {isAdmin && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 16, padding: '10px 12px', background: 'var(--bg2, #16180f)', border: '1px solid var(--border, #2a2d20)', borderRadius: 10 }}>
+            <span style={{ fontSize: 11, fontFamily: 'DM Mono, monospace', color: 'var(--text3, #888)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Viewing</span>
+            {[{ id: 'all', label: `All traders${traderOptions.length ? ` (${traderOptions.length})` : ''}` }, ...traderOptions].map(opt => {
+              const active = traderFilter === opt.id
+              return (
+                <button
+                  key={opt.id}
+                  onClick={() => setTraderFilter(opt.id)}
+                  style={{
+                    fontSize: 12, fontFamily: 'DM Mono, monospace', cursor: 'pointer',
+                    padding: '5px 12px', borderRadius: 7,
+                    border: `1px solid ${active ? 'var(--accent, #c8f060)' : 'var(--border2, #33362a)'}`,
+                    background: active ? 'var(--accent, #c8f060)' : 'transparent',
+                    color: active ? '#0e0f0c' : 'var(--text2, #bbb)',
+                    fontWeight: active ? 700 : 400,
+                  }}
+                >
+                  {opt.label}
+                </button>
+              )
+            })}
+            <span style={{ marginLeft: 'auto', fontSize: 11, fontFamily: 'DM Mono, monospace', color: 'var(--text3, #888)' }}>
+              read-only · {visibleCalls.length} call{visibleCalls.length !== 1 ? 's' : ''}
+            </span>
+          </div>
+        )}
         {error && (
           <div style={{ background: 'var(--red-dim, #ff6b5b22)', border: '1px solid var(--red, #ff6b5b)', color: 'var(--red, #ff6b5b)', borderRadius: 8, padding: '10px 14px', marginBottom: 16, fontSize: 13, fontFamily: 'DM Mono, monospace' }}>
             {error}
           </div>
         )}
-        {view === 'overview' && <Overview calls={calls} sales={sales} signals={signals} />}
-        {view === 'upload' && <Upload onAdd={handleAdd} calls={calls} />}
-        {view === 'calls' && <Calls calls={calls} sales={sales} onDelete={handleDelete} onEdit={handleEdit} />}
-        {view === 'prices' && <PriceTrends calls={calls} />}
-        {view === 'argus' && <Publication calls={calls} role={role} />}
-        {view === 'sales' && <Sales calls={calls} sales={sales} onAddSale={handleAddSale} onDeleteSale={handleDeleteSale} onEditSale={handleEditSale} />}
+        {view === 'overview' && <Overview calls={visibleCalls} sales={visibleSales} signals={signals} />}
+        {view === 'upload' && !isAdmin && <Upload onAdd={handleAdd} calls={calls} />}
+        {view === 'calls' && <Calls calls={visibleCalls} sales={visibleSales} onDelete={handleDelete} onEdit={handleEdit} role={role} traderNames={traderNames} />}
+        {view === 'prices' && <PriceTrends calls={visibleCalls} />}
+        {view === 'argus' && <Publication calls={visibleCalls} role={role} />}
+        {view === 'sales' && <Sales calls={visibleCalls} sales={visibleSales} onAddSale={handleAddSale} onDeleteSale={handleDeleteSale} onEditSale={handleEditSale} role={role} traderNames={traderNames} />}
         {view === 'backup' && <DataBackup traderId={traderId} role={role} onImport={reloadAll} />}
       </main>
     </div>
