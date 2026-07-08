@@ -197,9 +197,9 @@ export default function ClientIntel({ client, calls, sales: salesProp, onClose }
           <div className={styles.section}>
             <h3 className={styles.sectionTitle}>✓ Closed Deals</h3>
             <div className={styles.demandList}>
-              {sales.slice().sort((a, b) => parseDate(b.laycan || b.date) - parseDate(a.laycan || a.date)).map((s, i) => (
+              {sales.slice().sort((a, b) => parseDate(b.date) - parseDate(a.date)).map((s, i) => (
                 <div key={i} className={styles.saleRow}>
-                  <span className={styles.demandDate}>{formatDate(s.laycan || s.date)}</span>
+                  <span className={styles.demandDate}>{formatDate(s.date || s.laycan)}</span>
                   <span className={styles.demandProduct}>{s.product || '—'}</span>
                   <span className={styles.demandVol}>{formatVol(s.volume)} T</span>
                   <span className={styles.demandPort}>{s.port || '—'}</span>
