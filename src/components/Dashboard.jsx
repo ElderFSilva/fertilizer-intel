@@ -226,7 +226,7 @@ export default function Dashboard({ onLogout, user, profile, role }) {
         {view === 'upload' && !isAdmin && <Upload onAdd={handleAdd} calls={calls} />}
         {view === 'calls' && <Calls calls={visibleCalls} sales={visibleSales} onDelete={handleDelete} onEdit={handleEdit} role={role} traderNames={traderNames} />}
         {view === 'prices' && <PriceTrends calls={visibleCalls} />}
-        {view === 'argus' && <Publication calls={visibleCalls} role={role} />}
+        {view === 'argus' && <Publication calls={visibleCalls} sales={visibleSales} role={role} />}
         {view === 'sales' && <Sales calls={visibleCalls} sales={visibleSales} onAddSale={handleAddSale} onDeleteSale={handleDeleteSale} onEditSale={handleEditSale} role={role} traderNames={traderNames} />}
         {view === 'backup' && <DataBackup traderId={traderId} role={role} onImport={reloadAll} />}
       </main>
