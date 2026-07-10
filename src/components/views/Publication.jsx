@@ -68,7 +68,7 @@ function emptyForm() {
   return { date: getLastThursday(), argusLow: '', argusHigh: '', ferteconLow: '', ferteconHigh: '' }
 }
 
-function buildChartData(calls, argusData, ferteconData) {
+function buildChartData(calls, sales, argusData, ferteconData) {
   const weekMap = {}
 
   argusData.forEach(a => {
@@ -108,6 +108,27 @@ function buildChartData(calls, argusData, ferteconData) {
     weekMap[thursday].highestPrice = Math.max(...prices)
   })
 
+  // Sales performed: weekly average of DONE prices for Amsul GR, bucketed by
+  // the deal date (falls back to created_at for legacy sales without one) so
+  // it lines up with the same Thursday-keyed weeks as calls and publications.
+  const salesByWeek = {}
+  ;(sales || []).forEach(s => {
+    if ((s.product || '') !== 'Amsul GR') return
+    const when = s.date || (s.created_at ? String(s.created_at).slice(0, 10) : null)
+    if (!when) return
+    const thursday = getWeekThursday(when)
+    if (!thursday) return
+    const price = parsePrice(s.donePrice)
+    if (!price) return
+    if (!salesByWeek[thursday]) salesByWeek[thursday] = []
+    salesByWeek[thursday].push(price)
+  })
+
+  Object.entries(salesByWeek).forEach(([thursday, prices]) => {
+    if (!weekMap[thursday]) weekMap[thursday] = {}
+    weekMap[thursday].salesAvg = Math.round(prices.reduce((a, b) => a + b, 0) / prices.length)
+  })
+
   return Object.entries(weekMap)
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([date, data]) => ({
@@ -116,6 +137,7 @@ function buildChartData(calls, argusData, ferteconData) {
       argusAvg: data.argusAvg ?? null,
       ferteconAvg: data.ferteconAvg ?? null,
       callAvg: data.callAvg ?? null,
+      salesAvg: data.salesAvg ?? null,
       lowestPrice: data.lowestPrice ?? null,
       highestPrice: data.highestPrice ?? null,
     }))
@@ -135,7 +157,7 @@ const CustomTooltip = ({ active, payload, label }) => {
   )
 }
 
-export default function ArgusView({ calls, role }) {
+export default function ArgusView({ calls, sales = [], role }) {
   const isAdmin = role === 'admin'
   const [argusData, setArgusData] = useState([])
   const [ferteconData, setFerteconData] = useState([])
@@ -159,7 +181,7 @@ export default function ArgusView({ calls, role }) {
     return () => { active = false }
   }, [])
 
-  const chartData = buildChartData(calls, argusData, ferteconData)
+  const chartData = buildChartData(calls, sales, argusData, ferteconData)
 
   const allDates = [...new Set([...argusData.map(a => a.date), ...ferteconData.map(f => f.date)])]
     .sort((a, b) => b.localeCompare(a))
@@ -314,6 +336,7 @@ export default function ArgusView({ calls, role }) {
                 <Line type="monotone" dataKey="lowestPrice" stroke="transparent" strokeWidth={0} dot={false} legendType="none" name="Lowest Price" connectNulls />
                 <Line type="monotone" dataKey="highestPrice" stroke="transparent" strokeWidth={0} dot={false} legendType="none" name="Highest Price" connectNulls />
                 <Line type="monotone" dataKey="callAvg" stroke="#c8f060" strokeWidth={2.5} dot={{ r: 5, fill: '#c8f060' }} name="Call Average" connectNulls />
+                <Line type="monotone" dataKey="salesAvg" stroke="#ffd60a" strokeWidth={2.5} dot={{ r: 5, fill: '#ffd60a' }} name="Sales Avg (done)" connectNulls />
               </ComposedChart>
             </ResponsiveContainer>
           </div>
