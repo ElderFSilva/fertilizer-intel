@@ -42,9 +42,10 @@ function emptyForm() {
   }
 }
 
-export default function Sales({ calls, sales = [], onAddSale, onDeleteSale, role, traderNames = {} }) {
+export default function Sales({ calls, sales = [], onAddSale, onDeleteSale, onEditSale, role, traderNames = {} }) {
   const isAdmin = role === 'admin'
   const [form, setForm] = useState(emptyForm())
+  const [editingId, setEditingId] = useState(null)
   const [error, setError] = useState('')
   const [saved, setSaved] = useState(false)
   const [showOptional, setShowOptional] = useState(false)
@@ -52,8 +53,11 @@ export default function Sales({ calls, sales = [], onAddSale, onDeleteSale, role
 
   const clientNames = [...new Set(calls.map(c => c.client).filter(Boolean))].sort()
 
-  // Build demand options for the selected client (to optionally link)
-  const linkedDemandIds = new Set(sales.map(s => s.linkedDemandId).filter(Boolean))
+  // Build demand options for the selected client (to optionally link).
+  // When editing, the sale's own linked demand must remain selectable.
+  const linkedDemandIds = new Set(
+    sales.filter(s => s.id !== editingId).map(s => s.linkedDemandId).filter(Boolean)
+  )
   const clientDemands = []
   if (form.client) {
     calls
@@ -85,6 +89,33 @@ export default function Sales({ calls, sales = [], onAddSale, onDeleteSale, role
 
   function set(field, val) { setForm(f => ({ ...f, [field]: val })) }
 
+  function startEdit(s) {
+    setEditingId(s.id)
+    setForm({
+      date: s.date || (s.created_at ? String(s.created_at).slice(0, 10) : todayYMD()),
+      client: s.client || '',
+      product: s.product || 'Amsul GR',
+      volume: s.volume ?? '',
+      donePrice: s.donePrice ?? '',
+      laycan: s.laycan || '',
+      vessel: s.vessel || '',
+      port: s.port || '',
+      offerPrice: s.offerPrice ?? '',
+      bidPrice: s.bidPrice ?? '',
+      linkedDemandId: s.linkedDemandId || '',
+    })
+    setShowOptional(Boolean(s.offerPrice || s.bidPrice || s.linkedDemandId))
+    setError('')
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  function cancelEdit() {
+    setEditingId(null)
+    setForm(emptyForm())
+    setShowOptional(false)
+    setError('')
+  }
+
   async function handleSave() {
     if (!form.date) { setError('Deal date is required.'); return }
     if (!form.client.trim()) { setError('Client is required.'); return }
@@ -97,14 +128,19 @@ export default function Sales({ calls, sales = [], onAddSale, onDeleteSale, role
 
     setBusy(true)
     try {
-      await onAddSale(form)
+      if (editingId) {
+        await onEditSale(editingId, form)
+      } else {
+        await onAddSale(form)
+      }
+      setEditingId(null)
       setForm(emptyForm())
       setShowOptional(false)
       setError('')
       setSaved(true)
       setTimeout(() => setSaved(false), 2500)
     } catch (e) {
-      setError('Could not save the sale to the cloud.')
+      setError(editingId ? 'Could not update the sale in the cloud.' : 'Could not save the sale to the cloud.')
     }
     setBusy(false)
   }
@@ -112,6 +148,7 @@ export default function Sales({ calls, sales = [], onAddSale, onDeleteSale, role
   async function handleDelete(id) {
     try {
       await onDeleteSale(id)
+      if (id === editingId) cancelEdit()
     } catch (e) {
       setError('Could not delete the sale.')
     }
@@ -129,7 +166,7 @@ export default function Sales({ calls, sales = [], onAddSale, onDeleteSale, role
       {/* Quick-add form — traders only (admin environment is read-only) */}
       {!isAdmin && (
       <section className={styles.section}>
-        <h2 className={styles.sectionTitle}>⊕ Log a Sale</h2>
+        <h2 className={styles.sectionTitle}>{editingId ? '✎ Edit Sale' : '⊕ Log a Sale'}</h2>
         <div className={styles.quickAdd}>
           {/* Required fields */}
           <div className={styles.coreGrid}>
@@ -198,9 +235,23 @@ export default function Sales({ calls, sales = [], onAddSale, onDeleteSale, role
           )}
 
           {error && <p className={styles.error}>{error}</p>}
-          {saved && <p className={styles.success}>✓ Sale logged!</p>}
+          {saved && <p className={styles.success}>✓ Sale saved!</p>}
 
-          <button className={styles.saveBtn} onClick={handleSave} disabled={busy}>{busy ? 'Saving…' : '◈ Log Sale'}</button>
+          <div style={{ display: 'flex', gap: 10 }}>
+            <button className={styles.saveBtn} onClick={handleSave} disabled={busy} style={{ flex: 1 }}>
+              {busy ? 'Saving…' : editingId ? '✓ Update Sale' : '◈ Log Sale'}
+            </button>
+            {editingId && (
+              <button
+                type="button"
+                onClick={cancelEdit}
+                disabled={busy}
+                style={{ fontFamily: 'DM Mono, monospace', fontSize: 13, cursor: 'pointer', padding: '0 18px', borderRadius: 8, border: '1px solid var(--border2, #33362a)', background: 'transparent', color: 'var(--text2, #bbb)' }}
+              >
+                ✕ Cancel
+              </button>
+            )}
+          </div>
         </div>
       </section>
       )}
@@ -285,7 +336,16 @@ export default function Sales({ calls, sales = [], onAddSale, onDeleteSale, role
                     <td className={styles.td} style={{ color: 'var(--accent)', fontWeight: 700 }}>{s.donePrice || '—'}</td>
                     {!isAdmin && (
                       <td className={styles.td}>
-                        <button className={styles.deleteBtn} onClick={() => handleDelete(s.id)}>⊗</button>
+                        <div style={{ display: 'flex', gap: 6 }}>
+                          <button
+                            onClick={() => startEdit(s)}
+                            title="Edit sale"
+                            style={{ fontFamily: 'DM Mono, monospace', fontSize: 13, cursor: 'pointer', padding: '2px 8px', borderRadius: 6, border: '1px solid var(--border2, #33362a)', background: editingId === s.id ? 'var(--accent, #c8f060)' : 'transparent', color: editingId === s.id ? '#0e0f0c' : 'var(--text2, #bbb)' }}
+                          >
+                            ✎
+                          </button>
+                          <button className={styles.deleteBtn} onClick={() => handleDelete(s.id)}>⊗</button>
+                        </div>
                       </td>
                     )}
                   </tr>
