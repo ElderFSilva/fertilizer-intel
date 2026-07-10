@@ -360,6 +360,7 @@ export default function ArgusView({ calls, sales = [], role }) {
                 <th className={styles.th} style={{ color: '#b860f0' }}>Fertecon High</th>
                 <th className={styles.th} style={{ color: '#b860f0' }}>Fertecon Avg</th>
                 <th className={styles.th} style={{ color: 'var(--accent)' }}>Call Avg</th>
+                <th className={styles.th} style={{ color: '#ffd60a' }}>Sales Avg</th>
                 <th className={styles.th} style={{ color: 'var(--amber)' }}>Lowest</th>
                 <th className={styles.th} style={{ color: 'var(--red)' }}>Highest</th>
                 {isAdmin && <th className={styles.th}></th>}
@@ -380,6 +381,7 @@ export default function ArgusView({ calls, sales = [], role }) {
                     <td className={styles.td} style={{ color: '#b860f0' }}>{fertecon?.high ?? '—'}</td>
                     <td className={styles.td} style={{ color: '#b860f0' }}>{fertecon ? Math.round((fertecon.low + fertecon.high) / 2) : '—'}</td>
                     <td className={styles.td} style={{ color: 'var(--accent)' }}>{stats?.callAvg ?? '—'}</td>
+                    <td className={styles.td} style={{ color: '#ffd60a' }}>{stats?.salesAvg ?? '—'}</td>
                     <td className={styles.td} style={{ color: 'var(--amber)' }}>{stats?.lowestPrice ?? '—'}</td>
                     <td className={styles.td} style={{ color: 'var(--red)' }}>{stats?.highestPrice ?? '—'}</td>
                     {isAdmin && (
