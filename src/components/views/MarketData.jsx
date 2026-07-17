@@ -120,7 +120,7 @@ const TABS = [
       { key: 'product', label: 'Product', type: 'select', required: true, def: 'amsul', options: [
         { v: 'amsul', l: 'Amsul' }, { v: 'urea', l: 'Urea' } ] },
       { key: 'period', label: 'Cutoff Month (Jan\u2192this month)', type: 'month', required: true },
-      { key: 'volume_kt', label: 'Cumulative (kt)', type: 'number', required: true, ph: 'e.g. 3199' },
+      { key: 'volume_kt', label: 'Cumulative (k tons)', type: 'number', required: true, ph: 'e.g. 3199' },
       { key: 'source', label: 'Source', type: 'select', def: 'agrinvest', options: [
         { v: 'agrinvest', l: 'Agrinvest' }, { v: 'other', l: 'Other' } ] },
     ],
@@ -128,7 +128,7 @@ const TABS = [
       { key: 'report_date', label: 'Report', fmt: fmtDate },
       { key: 'product', label: 'Product', fmt: nice },
       { key: 'period', label: 'Window (Jan\u2192)', fmt: fmtMonth },
-      { key: 'volume_kt', label: 'Cumulative (kt)' },
+      { key: 'volume_kt', label: 'Cumulative', fmt: v => v != null ? `${Number(v).toLocaleString('en-US')}k Tons` : '—' },
       { key: 'source', label: 'Source', fmt: nice },
     ],
     filter: r => r.series === 'ytd_pace',
@@ -170,7 +170,7 @@ const TABS = [
       { key: 'product', label: 'Product', type: 'select', required: true, def: 'amsul', options: [
         { v: 'amsul', l: 'Amsul' }, { v: 'urea', l: 'Urea' } ] },
       { key: 'period', label: 'Arrival Month', type: 'month', required: true },
-      { key: 'volume_kt', label: 'Total Volume (kt)', type: 'number', required: true, ph: 'e.g. 215' },
+      { key: 'volume_kt', label: 'Total Volume (k tons)', type: 'number', required: true, ph: 'e.g. 259' },
       { key: 'source', label: 'Source', type: 'select', def: 'argus', options: [
         { v: 'argus', l: 'Argus' }, { v: 'agrinvest', l: 'Agrinvest' }, { v: 'other', l: 'Other' } ] },
     ],
@@ -178,7 +178,7 @@ const TABS = [
       { key: 'report_date', label: 'Report', fmt: fmtDate },
       { key: 'product', label: 'Product', fmt: nice },
       { key: 'period', label: 'Arrival Month', fmt: fmtMonth },
-      { key: 'volume_kt', label: 'Total (kt)' },
+      { key: 'volume_kt', label: 'Total Volume', fmt: v => v != null ? `${Number(v).toLocaleString('en-US')}k Tons` : '—' },
       { key: 'source', label: 'Source', fmt: nice },
     ],
     filter: r => r.series === 'lineup',
