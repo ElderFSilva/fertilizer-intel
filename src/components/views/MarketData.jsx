@@ -130,6 +130,8 @@ const TABS = [
       { key: 'key', label: 'Key', fmt: nice },
       { key: 'volume_kt', label: 'Volume (kt)' },
     ],
+    // Syndicate actuals only — forward line-up lives in its own tab
+    filter: r => r.dimension !== 'lineup',
   },
   {
     id: 'barter',
@@ -158,33 +160,27 @@ const TABS = [
     ],
   },
   {
-    id: 'vessels',
-    label: 'Vessels',
-    table: 'vessel_lineups',
-    hint: 'Brazil import line-up (Argus) — forward supply arriving at the ports.',
+    id: 'lineup',
+    label: 'Line-up',
+    table: 'import_volumes',
+    hint: 'Forward line-up — TOTAL volume expected to arrive per month (kt). One row per month; edit the row when the report updates the number.',
+    fixed: { dimension: 'lineup', period_type: 'month' },
     fields: [
-      { key: 'report_date', label: 'Report Date', type: 'date', required: true, def: todayYMD },
-      { key: 'product', label: 'Product', type: 'select', required: true, def: 'amsul', options: [
+      { key: 'period', label: 'Arrival Month', type: 'month', required: true },
+      { key: 'key', label: 'Product', type: 'select', required: true, def: 'amsul', options: [
         { v: 'amsul', l: 'Amsul' }, { v: 'urea', l: 'Urea' } ] },
-      { key: 'vessel', label: 'Vessel', type: 'text', required: true, ph: 'e.g. Ionic Patris' },
-      { key: 'tonnage_kt', label: 'Tonnage (kt)', type: 'number', required: true, ph: 'e.g. 82' },
-      { key: 'origin', label: 'Origin', type: 'text', ph: 'china' },
-      { key: 'disport', label: 'Disport', type: 'text', ph: 'santos' },
-      { key: 'eta', label: 'ETA', type: 'date' },
-      { key: 'status', label: 'Status', type: 'select', def: 'expected', options: [
-        { v: 'expected', l: 'Expected' }, { v: 'at_roads', l: 'At roads' },
-        { v: 'berthed', l: 'Berthed' }, { v: 'sailed', l: 'Sailed' } ] },
+      { key: 'volume_kt', label: 'Total Volume (kt)', type: 'number', required: true, ph: 'e.g. 215' },
+      { key: 'source', label: 'Source', type: 'select', def: 'argus', options: [
+        { v: 'argus', l: 'Argus' }, { v: 'agrinvest', l: 'Agrinvest' }, { v: 'other', l: 'Other' } ] },
     ],
     columns: [
-      { key: 'eta', label: 'ETA', fmt: fmtDate },
-      { key: 'product', label: 'Product', fmt: nice },
-      { key: 'vessel', label: 'Vessel' },
-      { key: 'tonnage_kt', label: 'kt' },
-      { key: 'origin', label: 'Origin', fmt: nice },
-      { key: 'disport', label: 'Disport', fmt: nice },
-      { key: 'status', label: 'Status', fmt: nice },
-      { key: 'report_date', label: 'Report', fmt: fmtDate },
+      { key: 'period', label: 'Arrival Month', fmt: fmtMonth },
+      { key: 'key', label: 'Product', fmt: nice },
+      { key: 'volume_kt', label: 'Total (kt)' },
+      { key: 'source', label: 'Source', fmt: nice },
     ],
+    // Only show line-up rows in this tab (the Imports tab shows the rest)
+    filter: r => r.dimension === 'lineup',
   },
   {
     id: 'fx',
@@ -238,7 +234,7 @@ function emptyFormFor(tab) {
 
 // month input gives 'YYYY-MM' — the DB wants a full date (first of month)
 function toRowValues(tab, form) {
-  const row = {}
+  const row = { ...(tab.fixed || {}) }
   tab.fields.forEach(fl => {
     let v = form[fl.key]
     if (v === '' || v == null) { row[fl.key] = null; return }
@@ -277,7 +273,8 @@ export default function MarketData({ role }) {
   async function reload(t = tab) {
     setLoading(true)
     try {
-      const r = await loadMarketRows(t.table)
+      let r = await loadMarketRows(t.table)
+      if (t.filter) r = r.filter(t.filter)
       setRows(r)
       setError('')
     } catch {
