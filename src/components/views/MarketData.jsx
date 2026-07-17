@@ -110,32 +110,28 @@ const TABS = [
     ],
   },
   {
-    id: 'imports',
-    label: 'Imports',
-    table: 'import_volumes',
-    hint: 'Import volumes (kt). Siacesp = realized single months. Agrinvest = YTD program pace (includes declared line-up — never sum with the others).',
+    id: 'pace',
+    label: 'Import Pace',
+    table: 'supply_snapshots',
+    hint: 'Agrinvest cumulative program (arrived + declared line-up). Each week, add TWO rows: this year\u2019s Jan\u2013now total AND last year\u2019s same-window total. Never edit old weeks \u2014 revisions are history.',
+    fixed: { series: 'ytd_pace' },
     fields: [
-      { key: 'period', label: 'Month', type: 'month', required: true },
-      { key: 'period_type', label: 'Period', type: 'select', def: 'month', options: [
-        { v: 'month', l: 'Single month (realized)' }, { v: 'ytd', l: 'Year-to-date (program)' } ] },
-      { key: 'source', label: 'Source', type: 'select', required: true, def: 'siacesp', options: [
-        { v: 'siacesp', l: 'Siacesp (realized)' }, { v: 'agrinvest', l: 'Agrinvest (YTD incl. line-up)' },
-        { v: 'other', l: 'Other' } ] },
-      { key: 'dimension', label: 'Dimension', type: 'select', required: true, def: 'product', options: [
-        { v: 'product', l: 'By product' }, { v: 'port', l: 'By port' }, { v: 'nutrient', l: 'By nutrient' } ] },
-      { key: 'key', label: 'Key', type: 'text', required: true, ph: 'amsul / paranagua / N…' },
-      { key: 'volume_kt', label: 'Volume (kt)', type: 'number', required: true, ph: 'e.g. 3199' },
+      { key: 'report_date', label: 'Report Date', type: 'date', required: true, def: todayYMD },
+      { key: 'product', label: 'Product', type: 'select', required: true, def: 'amsul', options: [
+        { v: 'amsul', l: 'Amsul' }, { v: 'urea', l: 'Urea' } ] },
+      { key: 'period', label: 'Cutoff Month (Jan\u2192this month)', type: 'month', required: true },
+      { key: 'volume_kt', label: 'Cumulative (kt)', type: 'number', required: true, ph: 'e.g. 3199' },
+      { key: 'source', label: 'Source', type: 'select', def: 'agrinvest', options: [
+        { v: 'agrinvest', l: 'Agrinvest' }, { v: 'other', l: 'Other' } ] },
     ],
     columns: [
-      { key: 'period', label: 'Period', fmt: fmtMonth },
-      { key: 'period_type', label: 'Type', fmt: nice },
+      { key: 'report_date', label: 'Report', fmt: fmtDate },
+      { key: 'product', label: 'Product', fmt: nice },
+      { key: 'period', label: 'Window (Jan\u2192)', fmt: fmtMonth },
+      { key: 'volume_kt', label: 'Cumulative (kt)' },
       { key: 'source', label: 'Source', fmt: nice },
-      { key: 'dimension', label: 'Dimension', fmt: nice },
-      { key: 'key', label: 'Key', fmt: nice },
-      { key: 'volume_kt', label: 'Volume (kt)' },
     ],
-    // Syndicate actuals only — forward line-up lives in its own tab
-    filter: r => r.dimension !== 'lineup',
+    filter: r => r.series === 'ytd_pace',
   },
   {
     id: 'barter',
@@ -166,25 +162,26 @@ const TABS = [
   {
     id: 'lineup',
     label: 'Line-up',
-    table: 'import_volumes',
-    hint: 'Forward line-up — TOTAL volume expected to arrive per month (kt). One row per month; edit the row when the report updates the number.',
-    fixed: { dimension: 'lineup', period_type: 'month' },
+    table: 'supply_snapshots',
+    hint: 'Argus forward line-up — total kt per arrival month. Each week, ADD new rows with that report\u2019s date (don\u2019t edit old weeks): the revision history is itself a signal.',
+    fixed: { series: 'lineup' },
     fields: [
-      { key: 'period', label: 'Arrival Month', type: 'month', required: true },
-      { key: 'key', label: 'Product', type: 'select', required: true, def: 'amsul', options: [
+      { key: 'report_date', label: 'Report Date', type: 'date', required: true, def: todayYMD },
+      { key: 'product', label: 'Product', type: 'select', required: true, def: 'amsul', options: [
         { v: 'amsul', l: 'Amsul' }, { v: 'urea', l: 'Urea' } ] },
+      { key: 'period', label: 'Arrival Month', type: 'month', required: true },
       { key: 'volume_kt', label: 'Total Volume (kt)', type: 'number', required: true, ph: 'e.g. 215' },
       { key: 'source', label: 'Source', type: 'select', def: 'argus', options: [
         { v: 'argus', l: 'Argus' }, { v: 'agrinvest', l: 'Agrinvest' }, { v: 'other', l: 'Other' } ] },
     ],
     columns: [
+      { key: 'report_date', label: 'Report', fmt: fmtDate },
+      { key: 'product', label: 'Product', fmt: nice },
       { key: 'period', label: 'Arrival Month', fmt: fmtMonth },
-      { key: 'key', label: 'Product', fmt: nice },
       { key: 'volume_kt', label: 'Total (kt)' },
       { key: 'source', label: 'Source', fmt: nice },
     ],
-    // Only show line-up rows in this tab (the Imports tab shows the rest)
-    filter: r => r.dimension === 'lineup',
+    filter: r => r.series === 'lineup',
   },
   {
     id: 'fx',
