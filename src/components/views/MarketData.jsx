@@ -113,11 +113,14 @@ const TABS = [
     id: 'imports',
     label: 'Imports',
     table: 'import_volumes',
-    hint: 'Syndicate monthly volumes — by product, by port, or by nutrient (kt).',
+    hint: 'Import volumes (kt). Siacesp = realized single months. Agrinvest = YTD program pace (includes declared line-up — never sum with the others).',
     fields: [
       { key: 'period', label: 'Month', type: 'month', required: true },
       { key: 'period_type', label: 'Period', type: 'select', def: 'month', options: [
-        { v: 'month', l: 'Single month' }, { v: 'ytd', l: 'Year-to-date' } ] },
+        { v: 'month', l: 'Single month (realized)' }, { v: 'ytd', l: 'Year-to-date (program)' } ] },
+      { key: 'source', label: 'Source', type: 'select', required: true, def: 'siacesp', options: [
+        { v: 'siacesp', l: 'Siacesp (realized)' }, { v: 'agrinvest', l: 'Agrinvest (YTD incl. line-up)' },
+        { v: 'other', l: 'Other' } ] },
       { key: 'dimension', label: 'Dimension', type: 'select', required: true, def: 'product', options: [
         { v: 'product', l: 'By product' }, { v: 'port', l: 'By port' }, { v: 'nutrient', l: 'By nutrient' } ] },
       { key: 'key', label: 'Key', type: 'text', required: true, ph: 'amsul / paranagua / N…' },
@@ -126,6 +129,7 @@ const TABS = [
     columns: [
       { key: 'period', label: 'Period', fmt: fmtMonth },
       { key: 'period_type', label: 'Type', fmt: nice },
+      { key: 'source', label: 'Source', fmt: nice },
       { key: 'dimension', label: 'Dimension', fmt: nice },
       { key: 'key', label: 'Key', fmt: nice },
       { key: 'volume_kt', label: 'Volume (kt)' },
