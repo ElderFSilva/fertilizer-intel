@@ -7,6 +7,7 @@ const NAV = [
   { id: 'sales', icon: '✓', label: 'Sales Log' },
   { id: 'prices', icon: '◎', label: 'Price Trends' },
   { id: 'argus', icon: '📰', label: 'Publication vs Mrkt' },
+  { id: 'market', icon: '⇅', label: 'Market Data' },
   { id: 'backup', icon: '⊞', label: 'Data Backup' },
 ]
 
