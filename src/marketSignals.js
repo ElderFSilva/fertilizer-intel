@@ -26,6 +26,7 @@ const fmt = (n, d = 0) => n == null || isNaN(n) ? 'n/a'
 const pct = (n, d = 1) => n == null || isNaN(n) ? 'n/a' : `${n >= 0 ? '+' : ''}${n.toFixed(d)}%`
 const ymd = v => String(v).slice(0, 10)
 const daysAgo = v => Math.floor((Date.now() - new Date(ymd(v) + 'T00:00:00').getTime()) / 86400000)
+const yearOf = v => Number(ymd(v).slice(0, 4)) // timezone-proof: no Date parsing
 const monthLabel = v => new Date(ymd(v) + 'T00:00:00')
   .toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
 
@@ -172,10 +173,10 @@ function supplyBlock(snaps) {
       const d = new Date(ymd(r.period) + 'T00:00:00')
       return d.getMonth() === lm.getMonth() && d.getFullYear() === lm.getFullYear() - 1
     })
-    const yr = lm.getFullYear()
-    const ytdCur = act.filter(r => new Date(ymd(r.period)).getFullYear() === yr)
+    const yr = yearOf(latest.period)
+    const ytdCur = act.filter(r => yearOf(r.period) === yr)
       .reduce((s, r) => s + Number(r.volume_kt), 0)
-    const monthsCovered = act.filter(r => new Date(ymd(r.period)).getFullYear() === yr).length
+    const monthsCovered = act.filter(r => yearOf(r.period) === yr).length
     const ytdPrev = act.filter(r => {
       const d = new Date(ymd(r.period) + 'T00:00:00')
       return d.getFullYear() === yr - 1 && d.getMonth() <= lm.getMonth()
@@ -191,7 +192,7 @@ function supplyBlock(snaps) {
   const ann = snaps.filter(r => r.series === 'siacesp_annual' && r.product === 'amsul')
     .sort((a, b) => ymd(a.period).localeCompare(ymd(b.period)))
   if (ann.length >= 2) {
-    const seq = ann.map(r => `${new Date(ymd(r.period)).getFullYear()}: ${fmt(r.volume_kt)}k`).join(', ')
+    const seq = ann.map(r => `${yearOf(r.period)}: ${fmt(r.volume_kt)}k`).join(', ')
     const last = ann[ann.length - 1], prev = ann[ann.length - 2]
     out.push(`Structural trend (Siacesp annual Amsul imports): ${seq}. Last full year ${pct(((last.volume_kt - prev.volume_kt) / prev.volume_kt) * 100)} YoY — a multi-year growth market.`)
   }
