@@ -149,6 +149,7 @@ const TABS = [
         { v: 'antecipado', l: 'Antecipado' }, { v: 'a_prazo', l: 'A Prazo' } ] },
       { key: 'region', label: 'Region', type: 'text', def: 'sorriso_mt', ph: 'sorriso_mt' },
       { key: 'ratio', label: 'Ratio (sc/ton)', type: 'number', required: true, ph: 'e.g. 42.8' },
+      { key: 'ref_avg_4y', label: 'RT M\u00e9dia 4 anos', type: 'number', ph: 'e.g. 41.0' },
     ],
     columns: [
       { key: 'ratio_date', label: 'Date', fmt: fmtDate },
@@ -157,6 +158,7 @@ const TABS = [
       { key: 'condition', label: 'Condition', fmt: nice },
       { key: 'region', label: 'Region', fmt: nice },
       { key: 'ratio', label: 'sc/ton' },
+      { key: 'ref_avg_4y', label: '4y Avg', fmt: v => (v != null && v !== '') ? v : '\u2014' },
     ],
   },
   {
