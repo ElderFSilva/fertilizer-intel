@@ -1,4 +1,6 @@
-// AI market intelligence analysis using Opus 4.8
+// AI market intelligence analysis using Claude Fable 5 (Stage 6.3)
+import { buildMarketContext } from './marketSignals.js'
+
 const ARGUS_KEY = 'fertintel_argus_amsul'
 const FERTECON_KEY = 'fertintel_fertecon_amsul'
 const CACHE_KEY = 'fertintel_ai_analysis'
@@ -130,7 +132,8 @@ Analyze the data and respond ONLY with valid JSON (no markdown, no preamble) in 
     "priceTrends": "2-3 sentences on price direction and momentum per product, with specific figures",
     "demand": "2-3 sentences on demand strength, volumes, ports, and notable client targets",
     "competitors": "2-3 sentences on competitor activity, who is offering what at what level",
-    "opportunities": "2-3 sentences on concrete trading opportunities and risks to watch"
+    "opportunities": "2-3 sentences on concrete trading opportunities and risks to watch",
+    "supply": "2-3 sentences on supply outlook (line-up, pace, parity)"
   }
 }
 
@@ -138,17 +141,28 @@ Rules:
 - Generate 3-5 signals maximum, the most important ones. Use "alert" (red) for urgent risks, "warning" (amber) for things to watch, "opportunity" (green) for openings.
 - Be specific: cite actual client names, prices, volumes, ports. Never vague.
 - Focus on what changed and what it means for trading decisions.
-- If data is thin, say so honestly rather than inventing trends.`
+- If data is thin, say so honestly rather than inventing trends.
 
-async function callAnalysis(dataSummary) {
+You will also receive a MARKET CONTEXT section with external data and pre-computed indicators (Argus prices with historical percentile, import parity based on the desk's own Panamax freight, Amsul-vs-urea cost per unit N, supply lenses, barter ratios, farmer purchase progress, FX). Rules for using it:
+- SUPPLY HAS THREE SEPARATE LENSES: Agrinvest pace (arrived+declared), Argus line-up (forward arrivals) and Siacesp actuals (customs-cleared). NEVER sum them or compare one against another; each is only compared within its own source/history. Their divergence may be noted as in-transit pipeline, nothing more.
+- Import parity is computed from the desk's OWN freight contract; do not mix it with published freight benchmarks.
+- Connect internal and external: judge client targets and competitor offers against parity, percentile and the N-unit spread (e.g. an offer above replacement cost is not desperation selling).
+- Trust the pre-computed indicators over re-deriving your own; cite their specific figures.
+- Respect the freshness stamps: if a series is marked STALE or missing, say so and lower confidence accordingly. Never invent data.
+- Sample-size honesty: where the context flags weak evidence (small n), present conclusions as tentative.
+
+In the analysis object, also fill:
+    "supply": "2-3 sentences on the supply outlook: line-up, pace, parity and what they mean for availability and pricing power"`
+
+async function callAnalysis(dataSummary, marketContext = '') {
   const response = await fetch('/api/analyze', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      model: 'claude-opus-4-8',
-      max_tokens: 4000,
+      model: 'claude-fable-5',
+      max_tokens: 5000,
       system: SYSTEM_PROMPT,
-      messages: [{ role: 'user', content: `Analyze this fertilizer market data and provide intelligence:\n\n${dataSummary}` }],
+      messages: [{ role: 'user', content: `Analyze this fertilizer market data and provide intelligence:\n\n${dataSummary}\n\n## MARKET CONTEXT (external data & computed indicators)\n${marketContext || 'Not available.'}` }],
     }),
   })
 
@@ -182,7 +196,8 @@ async function callAnalysis(dataSummary) {
 
 // Legacy all-data analysis (kept for compatibility)
 export async function runAIAnalysis(calls, scope) {
-  const parsed = await callAnalysis(buildDataSummary(calls, false))
+  const market = await buildMarketContext().catch(() => 'Market data unavailable (load error).')
+  const parsed = await callAnalysis(buildDataSummary(calls, false), market)
   const result = {
     signals: parsed.signals || [],
     analysis: parsed.analysis || null,
@@ -196,7 +211,8 @@ export async function runAIAnalysis(calls, scope) {
 // ── Weekly snapshot: Mon–Fri calls + this week's publications, locked & stamped ──
 export async function runWeeklyAnalysis(calls, scope) {
   const week = currentWeekInfo()
-  const parsed = await callAnalysis(buildDataSummary(calls, true))
+  const market = await buildMarketContext().catch(() => 'Market data unavailable (load error).')
+  const parsed = await callAnalysis(buildDataSummary(calls, true), market)
   const result = {
     signals: parsed.signals || [],
     analysis: parsed.analysis || null,
