@@ -210,15 +210,31 @@ function barterBlock(rows) {
   const lines = Object.values(groups).map(g => {
     g.sort((a, b) => ymd(b.ratio_date).localeCompare(ymd(a.ratio_date)))
     const cur = g[0]
-    const hist = g.map(r => Number(r.ratio))
-    const avg = hist.reduce((s, v) => s + v, 0) / hist.length
-    const dev = ((Number(cur.ratio) - avg) / avg) * 100
-    const histNote = g.length < 8
-      ? ` [only ${g.length} data points in history — treat the average as weak evidence]`
-      : ` (n=${g.length})`
-    return `  ${cur.crop} x Amsul, ${cur.condition}, ${cur.region}: ${cur.ratio} sc/ton, ${freshness(cur.ratio_date)}. Vs own history avg ${avg.toFixed(1)}: ${pct(dev)}${histNote}. Higher ratio = worse farmer purchasing power.`
+    const prev = g[1]
+    let line = `  ${cur.crop} x Amsul, ${cur.condition}, ${cur.region}: ${cur.ratio} sc/ton, ${freshness(cur.ratio_date)}.`
+    if (prev) {
+      const d = Number(cur.ratio) - Number(prev.ratio)
+      const dir = d < 0 ? 'IMPROVED for the farmer (fewer bags per ton)'
+        : d > 0 ? 'WORSENED for the farmer (more bags per ton)' : 'UNCHANGED'
+      line += ` Week-on-week vs ${prev.ratio} (${ymd(prev.ratio_date)}): ${dir}, ${d >= 0 ? '+' : ''}${d.toFixed(1)} sc/ton (${pct((d / Number(prev.ratio)) * 100)}). THIS COMPUTED DIRECTION IS AUTHORITATIVE.`
+    } else {
+      line += ` No previous data point; weekly direction not computable.`
+    }
+    const bench = g.find(r => r.ref_avg_4y != null && r.ref_avg_4y !== '')
+    if (bench) {
+      const dev = ((Number(cur.ratio) - Number(bench.ref_avg_4y)) / Number(bench.ref_avg_4y)) * 100
+      line += ` Level vs Agrinvest 4-year average (${Number(bench.ref_avg_4y).toFixed(1)}): ${pct(dev)} (${dev > 0 ? 'MORE EXPENSIVE than the historical norm' : 'CHEAPER than the historical norm'}). Level and weekly direction are independent facts - both can be true at once.`
+    } else if (g.length >= 8) {
+      const hist = g.slice(1).map(r => Number(r.ratio))
+      const avg = hist.reduce((sum, v) => sum + v, 0) / hist.length
+      const dev = ((Number(cur.ratio) - avg) / avg) * 100
+      line += ` Level vs own ${hist.length}-point history (${avg.toFixed(1)}): ${pct(dev)}.`
+    } else {
+      line += ` [no 4-year benchmark entered and own history n=${g.length} is too thin - cite the weekly direction only]`
+    }
+    return line
   })
-  return `### BARTER RATIOS (farmer purchasing power)\n${lines.join('\n')}`
+  return `### BARTER RATIOS (farmer purchasing power - LOWER ratio is BETTER for the farmer)\n${lines.join('\n')}`
 }
 
 function progressBlock(rows) {
