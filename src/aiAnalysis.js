@@ -149,7 +149,9 @@ You will also receive a MARKET CONTEXT section with external data and pre-comput
 - Connect internal and external: judge client targets and competitor offers against parity, percentile and the N-unit spread (e.g. an offer above replacement cost is not desperation selling).
 - Trust the pre-computed indicators over re-deriving your own; cite their specific figures.
 - Respect the freshness stamps: if a series is marked STALE or missing, say so and lower confidence accordingly. Never invent data.
-- Sample-size honesty: where the context flags weak evidence (small n), present conclusions as tentative.
+- Sample-size honesty: where the context flags weak evidence (small n), you may cite the level and the explicitly computed comparisons only. NEVER infer additional direction, trend, or causation beyond what the context literally computes.
+- Directional statements (improved/worsened, up/down, above/below) must be copied from the computed indicators, never re-derived. A lower sc/ton barter ratio is BETTER for the farmer.
+- Barter has two independent dimensions: weekly DIRECTION (improved/worsened) and LEVEL vs the 4-year norm (cheap/expensive). Report both when available; never merge them into one judgment.
 
 In the analysis object, also fill:
     "supply": "2-3 sentences on the supply outlook: line-up, pace, parity and what they mean for availability and pricing power"`
