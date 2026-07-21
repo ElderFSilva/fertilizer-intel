@@ -45,6 +45,7 @@ const SIGNAL_STYLE = {
 const ANALYSIS_SECTIONS = [
   { key: 'priceTrends', label: 'Price Trends', icon: '◎' },
   { key: 'demand', label: 'Demand', icon: '◈' },
+  { key: 'supply', label: 'Supply & Parity', icon: '⊚' },
   { key: 'competitors', label: 'Competitor Activity', icon: '⊟' },
   { key: 'opportunities', label: 'Opportunities & Risks', icon: '◇' },
 ]
