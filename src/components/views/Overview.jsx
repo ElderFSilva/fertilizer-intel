@@ -374,6 +374,32 @@ export default function Overview({ calls, sales, scope, scopeLabel }) {
             })}
           </div>
         )}
+
+        {analysis?.positioning?.bias && (
+          <div className={styles.signal} style={{
+            borderColor: (analysis.positioning.bias === 'LONG' ? 'var(--accent)'
+              : analysis.positioning.bias === 'SHORT' ? 'var(--red)' : '#d4a72c') + '66',
+            marginTop: 10,
+          }}>
+            <div className={styles.signalRow}>
+              <span style={{
+                color: analysis.positioning.bias === 'LONG' ? 'var(--accent)'
+                  : analysis.positioning.bias === 'SHORT' ? 'var(--red)' : '#d4a72c',
+                fontSize: 13, fontFamily: "'DM Mono', monospace", fontWeight: 700, whiteSpace: 'nowrap',
+              }}>
+                ◆ {analysis.positioning.bias} · {String(analysis.positioning.confidence || '').toUpperCase()}
+              </span>
+              <div style={{ flex: 1 }}>
+                <p style={{ color: 'var(--text)' }}>{analysis.positioning.rationale}</p>
+                {analysis.positioning.trigger && (
+                  <p style={{ color: 'var(--text3)', fontSize: 12, marginTop: 4 }}>
+                    Would change on: {analysis.positioning.trigger}
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
       </section>
 
       {/* AI Deep Analysis */}
