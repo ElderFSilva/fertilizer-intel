@@ -1,5 +1,6 @@
 // AI market intelligence analysis using Claude Fable 5 (Stage 6.3)
 import { buildMarketContext } from './marketSignals.js'
+import { supabase } from './supabaseClient.js'
 
 const ARGUS_KEY = 'fertintel_argus_amsul'
 const FERTECON_KEY = 'fertintel_fertecon_amsul'
@@ -134,6 +135,12 @@ Analyze the data and respond ONLY with valid JSON (no markdown, no preamble) in 
     "competitors": "2-3 sentences on competitor activity, who is offering what at what level",
     "opportunities": "2-3 sentences on concrete trading opportunities and risks to watch",
     "supply": "2-3 sentences on supply outlook (line-up, pace, parity)"
+  },
+  "positioning": {
+    "bias": "LONG|NEUTRAL|SHORT",
+    "confidence": "low|moderate|high",
+    "rationale": "one or two sentences citing the specific computed indicators driving the bias",
+    "trigger": "one concrete, falsifiable condition that would change this view"
   }
 }
 
@@ -154,7 +161,14 @@ You will also receive a MARKET CONTEXT section with external data and pre-comput
 - Barter has two independent dimensions: weekly DIRECTION (improved/worsened) and LEVEL vs the 4-year norm (cheap/expensive). Report both when available; never merge them into one judgment.
 
 In the analysis object, also fill:
-    "supply": "2-3 sentences on the supply outlook: line-up, pace, parity and what they mean for availability and pricing power"`
+    "supply": "2-3 sentences on the supply outlook: line-up, pace, parity and what they mean for availability and pricing power"
+
+POSITIONING rules (this is the desk's book stance for physical Amsul in Brazil, not a futures trade):
+- LONG = hold cargoes / delay sales / offer firm. SHORT = sell forward aggressively / lighten inventory. NEUTRAL = no edge either way.
+- The bias must follow from the computed indicators (parity spread, percentile, N-unit spread, line-up, pace, barter, remaining demand) and the week's internal data. Cite them in the rationale.
+- Confidence must be honest: with thin history or stale/missing series, cap confidence at low or moderate. High confidence requires multiple fresh, agreeing signals.
+- The trigger must be concrete and falsifiable (a number or observable event), never vague.
+- If the data genuinely supports no view, say NEUTRAL with low confidence - that is a valid, honest answer.`
 
 async function callAnalysis(dataSummary, marketContext = '') {
   const response = await fetch('/api/analyze', {
@@ -196,6 +210,22 @@ async function callAnalysis(dataSummary, marketContext = '') {
   return parsed
 }
 
+
+// Append the stance to the immutable positioning log (best-effort, never blocks the analysis)
+async function logPositioning(positioning, scope, weekThursday) {
+  if (!positioning || !positioning.bias) return
+  try {
+    await supabase.from('positioning_log').insert({
+      scope: scope || 'default',
+      week_thursday: weekThursday || null,
+      bias: positioning.bias,
+      confidence: positioning.confidence || 'low',
+      rationale: positioning.rationale || null,
+      trigger_condition: positioning.trigger || null,
+    })
+  } catch { /* logging must never break the analysis */ }
+}
+
 // Legacy all-data analysis (kept for compatibility)
 export async function runAIAnalysis(calls, scope) {
   const market = await buildMarketContext().catch(() => 'Market data unavailable (load error).')
@@ -203,9 +233,11 @@ export async function runAIAnalysis(calls, scope) {
   const result = {
     signals: parsed.signals || [],
     analysis: parsed.analysis || null,
+    positioning: parsed.positioning || null,
     generatedAt: new Date().toISOString(),
     callCount: calls.length,
   }
+  await logPositioning(parsed.positioning, scope, null)
   localStorage.setItem(cacheKey(scope), JSON.stringify(result))
   return result
 }
@@ -218,11 +250,13 @@ export async function runWeeklyAnalysis(calls, scope) {
   const result = {
     signals: parsed.signals || [],
     analysis: parsed.analysis || null,
+    positioning: parsed.positioning || null,
     generatedAt: new Date().toISOString(),
     callCount: calls.length,
     weekThursday: week.thursdayStr,   // identifies which week this snapshot is for
     weekLabel: weekLabel(week),       // human label, e.g. "Jun 23–27, 2026"
   }
+  await logPositioning(parsed.positioning, scope, week.thursdayStr)
   localStorage.setItem(cacheKey(scope), JSON.stringify(result))
   return result
 }
