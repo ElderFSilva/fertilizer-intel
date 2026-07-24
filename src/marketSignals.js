@@ -113,21 +113,37 @@ function nUnitBlock(pubs) {
   const am = priceSeries(pubs, 'amsul', 'cfr_brazil', 'compacted')
   const ur = priceSeries(pubs, 'urea', 'cfr_brazil')
   if (!am.length || !ur.length) return null
-  const aN = mid(am[0]) / N_CONTENT.amsul
-  const uN = mid(ur[0]) / N_CONTENT.urea
-  const prem = ((aN - uN) / uN) * 100
-  // 52-week context of the spread
-  const weeks = Math.min(am.length, ur.length, 52)
-  const hist = []
-  for (let i = 0; i < weeks; i++) {
-    if (ymd(am[i].pub_date) === ymd(ur[i].pub_date)) {
-      hist.push(((mid(am[i]) / N_CONTENT.amsul) - (mid(ur[i]) / N_CONTENT.urea)) / (mid(ur[i]) / N_CONTENT.urea) * 100)
-    }
-  }
-  const avg = hist.length ? hist.reduce((s, v) => s + v, 0) / hist.length : null
-  return `### NITROGEN SUBSTITUTION (Amsul vs Urea, cost per unit N)
-Amsul: ${aN.toFixed(2)} USD/unit N | Urea: ${uN.toFixed(2)} USD/unit N -> Amsul trades at ${pct(prem)} vs urea per unit N (sulphur value not included).
-52-week average of this premium: ${avg != null ? pct(avg) : 'n/a'}. When Amsul is unusually cheap per unit N vs its own average, substitution demand tends to favor Amsul, and vice versa.`
+  // Align the two series by publication date (full history, 2020-present)
+  const urByDate = {}
+  ur.forEach(r => { urByDate[ymd(r.pub_date)] = mid(r) })
+  const series = [] // newest first: { date, prem }
+  am.forEach(r => {
+    const u = urByDate[ymd(r.pub_date)]
+    if (u != null) series.push({ date: ymd(r.pub_date), prem: ((mid(r) / N_CONTENT.amsul) / (u / N_CONTENT.urea) - 1) * 100 })
+  })
+  if (series.length < 2) return null
+  series.sort((a, b) => b.date.localeCompare(a.date))
+  const cur = series[0]
+  const prev = series[1]
+  const wow = cur.prem - prev.prem
+  const w8 = series[Math.min(8, series.length - 1)]
+  const trendDelta = cur.prem - w8.prem
+  const trend = Math.abs(trendDelta) < 1 ? 'STABLE' : trendDelta > 0 ? 'WIDENING' : 'NARROWING'
+  // Empirical distribution over the full aligned history
+  const all = series.map(x => x.prem).sort((a, b) => a - b)
+  const q = f => all[Math.min(all.length - 1, Math.floor(f * all.length))]
+  const median = q(0.5), p75 = q(0.75), p90 = q(0.9)
+  const pctile = Math.round(all.filter(v => v <= cur.prem).length / all.length * 100)
+  const sharePos = Math.round(all.filter(v => v > 0).length / all.length * 100)
+  const level = pctile >= 90 ? 'TOP DECILE of history - historically expensive'
+    : pctile >= 50 ? 'above the historical median but within the normal band'
+    : 'BELOW the historical median - historically cheap for Amsul'
+  return `### NITROGEN SUBSTITUTION (Amsul vs Urea, nominal cost per unit N - empirical framework)
+Current nominal premium: ${cur.prem >= 0 ? '+' : ''}${cur.prem.toFixed(1)}% (${cur.date}). Week-on-week ${wow >= 0 ? '+' : ''}${wow.toFixed(1)}pp; 8-week trend: ${trend} (${trendDelta >= 0 ? '+' : ''}${trendDelta.toFixed(1)}pp). THESE COMPUTED VALUES ARE AUTHORITATIVE.
+Empirical distribution (${series.length} aligned weeks, 2020-present, recomputed live): Amsul traded at a nominal premium in ${sharePos}% of all weeks; median ${median >= 0 ? '+' : ''}${median.toFixed(1)}%, P75 ${p75 >= 0 ? '+' : ''}${p75.toFixed(1)}%, P90 ${p90 >= 0 ? '+' : ''}${p90.toFixed(1)}%.
+Current position: ${pctile}th percentile -> ${level}.
+Structural reason (context): Amsul carries ~24% sulphur not fully priced in, and urea loses N to volatilization in tropical conditions - which is why the market has sustained these premiums historically while Amsul import demand grew every year.
+INTERPRETATION RULE: substitution caution is warranted ONLY if the premium is at/above its 90th percentile AND the trend is WIDENING, or if internal calls explicitly report clients switching to urea/blends. Below the median, the premium argues FOR Amsul, not against it.`
 }
 
 function supplyBlock(snaps) {
