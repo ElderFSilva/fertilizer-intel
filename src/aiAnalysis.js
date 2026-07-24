@@ -159,6 +159,7 @@ You will also receive a MARKET CONTEXT section with external data and pre-comput
 - Sample-size honesty: where the context flags weak evidence (small n), you may cite the level and the explicitly computed comparisons only. NEVER infer additional direction, trend, or causation beyond what the context literally computes.
 - Directional statements (improved/worsened, up/down, above/below) must be copied from the computed indicators, never re-derived. A lower sc/ton barter ratio is BETTER for the farmer.
 - Barter has two independent dimensions: weekly DIRECTION (improved/worsened) and LEVEL vs the 4-year norm (cheap/expensive). Report both when available; never merge them into one judgment.
+- The Amsul-vs-urea N-unit premium arrives with its full empirical distribution (computed live from 2020-present data). Reason from the PERCENTILE and computed TREND, never the raw number: below the historical median = historically cheap for Amsul (a point in favor of Amsul demand, never a risk). Substitution caution is justified ONLY when the context shows percentile >= 90 AND trend WIDENING, or when internal calls explicitly report clients switching to urea/blends. NEVER cap positioning confidence on the nominal premium level alone.
 
 In the analysis object, also fill:
     "supply": "2-3 sentences on the supply outlook: line-up, pace, parity and what they mean for availability and pricing power"
