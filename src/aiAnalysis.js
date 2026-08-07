@@ -1,6 +1,7 @@
 // AI market intelligence analysis using Claude Fable 5 (Stage 6.3)
 import { buildMarketContext } from './marketSignals.js'
 import { buildDeskContext } from './deskSignals.js'
+import { buildTrackRecord, trackRecordText, buildLessonsText } from './learningLoop.js'
 import { supabase } from './supabaseClient.js'
 
 const ARGUS_KEY = 'fertintel_argus_amsul'
@@ -168,6 +169,10 @@ You will also receive a MARKET CONTEXT section with external data and pre-comput
 In the analysis object, also fill:
     "supply": "2-3 sentences on the supply outlook: line-up, pace, parity and what they mean for availability and pricing power"
 
+LEARNING rules:
+- YOUR TRACK RECORD is your own graded history - computed, authoritative. Calibrate confidence with it: if your record at a given confidence level is weak, state lower confidence now; if a bias type keeps failing, be humbler about that bias. With few scored stances, do not over-adjust - say the record is thin.
+- DESK LESSONS are established desk knowledge taught by the admin. Apply them as facts about this market unless the current computed data directly contradicts one - in that case, flag the tension explicitly instead of silently ignoring either.
+
 POSITIONING rules (this is the desk's book stance for physical Amsul in Brazil, not a futures trade):
 - LONG = hold cargoes / delay sales / offer firm. SHORT = sell forward aggressively / lighten inventory. NEUTRAL = no edge either way.
 - The bias must follow from the computed indicators (parity spread, percentile, N-unit spread, line-up, pace, barter, remaining demand) and the week's internal data. Cite them in the rationale.
@@ -175,7 +180,7 @@ POSITIONING rules (this is the desk's book stance for physical Amsul in Brazil, 
 - The trigger must be concrete and falsifiable (a number or observable event), never vague.
 - If the data genuinely supports no view, say NEUTRAL with low confidence - that is a valid, honest answer.`
 
-async function callAnalysis(dataSummary, marketContext = '', deskContext = '') {
+async function callAnalysis(dataSummary, marketContext = '', deskContext = '', learningContext = '') {
   const response = await fetch('/api/analyze', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -183,7 +188,7 @@ async function callAnalysis(dataSummary, marketContext = '', deskContext = '') {
       model: 'claude-fable-5',
       max_tokens: 5000,
       system: SYSTEM_PROMPT,
-      messages: [{ role: 'user', content: `Analyze this fertilizer market data and provide intelligence:\n\n${dataSummary}\n\n## MARKET CONTEXT (external data & computed indicators)\n${marketContext || 'Not available.'}\n\n## DESK HISTORY (computed from the full call & sales record)\n${deskContext || 'Not available.'}` }],
+      messages: [{ role: 'user', content: `Analyze this fertilizer market data and provide intelligence:\n\n${dataSummary}\n\n## MARKET CONTEXT (external data & computed indicators)\n${marketContext || 'Not available.'}\n\n## DESK HISTORY (computed from the full call & sales record)\n${deskContext || 'Not available.'}\n\n## YOUR TRACK RECORD & DESK LESSONS\n${learningContext || 'Not available.'}` }],
     }),
   })
 
@@ -216,6 +221,20 @@ async function callAnalysis(dataSummary, marketContext = '', deskContext = '') {
 }
 
 
+
+// Assemble the learning context: the scorecard + admin-taught lessons
+async function buildLearningContext(scope) {
+  const [record, lessons] = await Promise.all([
+    buildTrackRecord(scope).catch(() => null),
+    buildLessonsText().catch(() => ''),
+  ])
+  const parts = []
+  parts.push('### YOUR PAST STANCES, GRADED (computed, authoritative)')
+  parts.push(trackRecordText(record))
+  if (lessons) parts.push('### DESK LESSONS (taught by the admin - treat as established desk knowledge)\n' + lessons)
+  return parts.join('\n')
+}
+
 // Append the stance to the immutable positioning log (best-effort, never blocks the analysis)
 async function logPositioning(positioning, scope, weekThursday) {
   if (!positioning || !positioning.bias) return
@@ -235,11 +254,13 @@ async function logPositioning(positioning, scope, weekThursday) {
 export async function runAIAnalysis(calls, scope, sales = []) {
   const market = await buildMarketContext().catch(() => 'Market data unavailable (load error).')
   const desk = await buildDeskContext(calls, sales).catch(() => 'Desk history unavailable (load error).')
-  const parsed = await callAnalysis(buildDataSummary(calls, false), market, desk)
+  const learning = await buildLearningContext(scope).catch(() => '')
+  const parsed = await callAnalysis(buildDataSummary(calls, false), market, desk, learning)
   const result = {
     signals: parsed.signals || [],
     analysis: parsed.analysis || null,
     positioning: parsed.positioning || null,
+    trackRecord: (await buildTrackRecord(scope).catch(() => null))?.summary || null,
     generatedAt: new Date().toISOString(),
     callCount: calls.length,
   }
@@ -253,11 +274,13 @@ export async function runWeeklyAnalysis(calls, scope, sales = []) {
   const week = currentWeekInfo()
   const market = await buildMarketContext().catch(() => 'Market data unavailable (load error).')
   const desk = await buildDeskContext(calls, sales).catch(() => 'Desk history unavailable (load error).')
-  const parsed = await callAnalysis(buildDataSummary(calls, true), market, desk)
+  const learning = await buildLearningContext(scope).catch(() => '')
+  const parsed = await callAnalysis(buildDataSummary(calls, true), market, desk, learning)
   const result = {
     signals: parsed.signals || [],
     analysis: parsed.analysis || null,
     positioning: parsed.positioning || null,
+    trackRecord: (await buildTrackRecord(scope).catch(() => null))?.summary || null,
     generatedAt: new Date().toISOString(),
     callCount: calls.length,
     weekThursday: week.thursdayStr,   // identifies which week this snapshot is for
