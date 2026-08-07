@@ -216,7 +216,7 @@ function supplyBlock(snaps) {
     if (rows.length >= 2) {
       const curY = rows[0], prvY = rows[1]
       const yoy = ((curY.volume_kt - prvY.volume_kt) / prvY.volume_kt) * 100
-      out.push(`Agrinvest program pace (report ${latestRep}): Jan-${monthLabel(curY.period)} ${fmt(curY.volume_kt)}k tons vs same window last year ${fmt(prvY.volume_kt)}k -> ${pct(yoy)} YoY. (Arrived + declared; compare only against Agrinvest itself.)`)
+      out.push(`Agrinvest program pace (report ${latestRep}): Jan-${monthLabel(curY.period)} ${fmt(curY.volume_kt)}k tons vs ${fmt(prvY.volume_kt)}k in Jan-${monthLabel(prvY.period)} -> ${pct(yoy)} vs the same window of ${yearOf(prvY.period)}. (Arrived + declared; compare only against Agrinvest itself.)`)
     } else if (rows.length === 1) {
       out.push(`Agrinvest program pace (report ${latestRep}): ${fmt(rows[0].volume_kt)}k tons Jan-${monthLabel(rows[0].period)} — prior-year figure not entered, YoY not computable.`)
     }
@@ -241,8 +241,11 @@ function supplyBlock(snaps) {
       return d.getFullYear() === yr - 1 && d.getMonth() <= lm.getMonth()
     }).reduce((s, r) => s + Number(r.volume_kt), 0)
     let line = `Siacesp customs-cleared actuals: ${monthLabel(latest.period)} = ${fmt(latest.volume_kt)}k tons`
-    if (samePrev) line += ` vs ${fmt(samePrev.volume_kt)}k same month last year (${pct(((latest.volume_kt - samePrev.volume_kt) / samePrev.volume_kt) * 100)})`
-    if (ytdPrev > 0) line += `. YTD ${monthsCovered} months: ${fmt(ytdCur)}k vs ${fmt(ytdPrev)}k last year (${pct(((ytdCur - ytdPrev) / ytdPrev) * 100)})`
+    if (samePrev) {
+      const prevLabel = monthLabel(samePrev.period)
+      line += ` vs ${fmt(samePrev.volume_kt)}k in ${prevLabel} (${pct(((latest.volume_kt - samePrev.volume_kt) / samePrev.volume_kt) * 100)} vs ${prevLabel})`
+    }
+    if (ytdPrev > 0) line += `. Jan-${monthLabel(latest.period).split(' ')[0]} total: ${fmt(ytdCur)}k in ${yr} vs ${fmt(ytdPrev)}k in ${yr - 1} (${pct(((ytdCur - ytdPrev) / ytdPrev) * 100)} vs same months of ${yr - 1})`
     line += `. (Realized customs data; compare only against Siacesp itself.)`
     out.push(line)
   }
