@@ -220,8 +220,8 @@ export default function PriceTrends({ calls, sales = [] }) {
                 <Legend wrapperStyle={{ fontSize: 12 }} />
                 <Line type="monotone" dataKey="price" stroke="var(--accent)" strokeWidth={2}
                   dot={{ fill: 'var(--accent)', r: 4 }} name={`${tab.label} — call prices`} connectNulls />
-                <Line type="monotone" dataKey="salePrice" stroke={SALES_COLOR} strokeWidth={2}
-                  dot={{ fill: SALES_COLOR, r: 4 }} name={`Sales executed — ${tab.label}`} connectNulls />
+                <Line dataKey="salePrice" stroke="none" strokeWidth={0} legendType="circle"
+                  dot={{ fill: SALES_COLOR, stroke: SALES_COLOR, r: 5 }} name={`Sales executed — ${tab.label}`} isAnimationActive={false} />
               </LineChart>
             </ResponsiveContainer>
           </div>
