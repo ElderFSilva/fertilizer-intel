@@ -86,8 +86,10 @@ function clientBlock(calls, soldDemandIds) {
 
 // ── Execution performance: our realized Amsul prices vs the Argus weekly mid ──
 function executionBlock(sales, pubs) {
+  // Grade discipline: only Amsul GR deals are scored against the compacted CFR
+  // benchmark - STD is a different product at a different price.
   const amsulSales = sales.filter(s =>
-    (s.product || '').toLowerCase().includes('amsul') && num(s.donePrice) != null && saleDate(s))
+    (s.product || '').trim().toLowerCase() === 'amsul gr' && num(s.donePrice) != null && saleDate(s))
   if (!amsulSales.length) return null
 
   // Argus Amsul CFR Brazil compacted weekly mids, newest first
@@ -114,7 +116,7 @@ function executionBlock(sales, pubs) {
 
   const lines = []
   const totVol = last12w.reduce((s, x) => s + x.vol, 0)
-  lines.push(`Realized Amsul sales, last 12 weeks: ${last12w.length} deals, ~${Math.round(totVol)}t total.`)
+  lines.push(`Realized Amsul GR sales, last 12 weeks: ${last12w.length} deals, ~${Math.round(totVol)}t total.`)
   if (scored.length) {
     const avgCapture = scored.reduce((s, x) => s + x.capture, 0) / scored.length
     const wVol = scored.reduce((s, x) => s + x.vol, 0)
@@ -126,7 +128,7 @@ function executionBlock(sales, pubs) {
   } else {
     lines.push('No deals could be scored against the benchmark (missing overlapping Argus data).')
   }
-  return `### EXECUTION (our realized prices vs the published market)\n${lines.join('\n')}`
+  return `### EXECUTION (our realized Amsul GR prices vs the published compacted market)\n${lines.join('\n')}`
 }
 
 // ── Main entry ──
