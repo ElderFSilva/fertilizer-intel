@@ -1,5 +1,6 @@
 // AI market intelligence analysis using Claude Fable 5 (Stage 6.3)
 import { buildMarketContext } from './marketSignals.js'
+import { buildDeskContext } from './deskSignals.js'
 import { supabase } from './supabaseClient.js'
 
 const ARGUS_KEY = 'fertintel_argus_amsul'
@@ -158,6 +159,7 @@ You will also receive a MARKET CONTEXT section with external data and pre-comput
 - Respect the freshness stamps: if a series is marked STALE or missing, say so and lower confidence accordingly. Never invent data.
 - Sample-size honesty: where the context flags weak evidence (small n), you may cite the level and the explicitly computed comparisons only. NEVER infer additional direction, trend, or causation beyond what the context literally computes.
 - Directional statements (improved/worsened, up/down, above/below) must be copied from the computed indicators, never re-derived. A lower sc/ton barter ratio is BETTER for the farmer.
+- The DESK HISTORY section is computed from the desk's own full call and sales record. Client breadth, open demand, quiet clients and execution capture are AUTHORITATIVE computed facts - cite them. Use open demand and breadth to judge demand quality; use execution capture (our realized prices vs the published mid) to judge our real pricing power; use quiet regulars as concrete re-engagement opportunities.
 - Barter has two independent dimensions: weekly DIRECTION (improved/worsened) and LEVEL vs the 4-year norm (cheap/expensive). Report both when available; never merge them into one judgment.
 - The Amsul-vs-urea N-unit premium arrives with its full empirical distribution (computed live from 2020-present data). Reason from the PERCENTILE and computed TREND, never the raw number: below the historical median = historically cheap for Amsul (a point in favor of Amsul demand, never a risk). Substitution caution is justified ONLY when the context shows percentile >= 90 AND trend WIDENING, or when internal calls explicitly report clients switching to urea/blends. NEVER cap positioning confidence on the nominal premium level alone.
 
@@ -171,7 +173,7 @@ POSITIONING rules (this is the desk's book stance for physical Amsul in Brazil, 
 - The trigger must be concrete and falsifiable (a number or observable event), never vague.
 - If the data genuinely supports no view, say NEUTRAL with low confidence - that is a valid, honest answer.`
 
-async function callAnalysis(dataSummary, marketContext = '') {
+async function callAnalysis(dataSummary, marketContext = '', deskContext = '') {
   const response = await fetch('/api/analyze', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -179,7 +181,7 @@ async function callAnalysis(dataSummary, marketContext = '') {
       model: 'claude-fable-5',
       max_tokens: 5000,
       system: SYSTEM_PROMPT,
-      messages: [{ role: 'user', content: `Analyze this fertilizer market data and provide intelligence:\n\n${dataSummary}\n\n## MARKET CONTEXT (external data & computed indicators)\n${marketContext || 'Not available.'}` }],
+      messages: [{ role: 'user', content: `Analyze this fertilizer market data and provide intelligence:\n\n${dataSummary}\n\n## MARKET CONTEXT (external data & computed indicators)\n${marketContext || 'Not available.'}\n\n## DESK HISTORY (computed from the full call & sales record)\n${deskContext || 'Not available.'}` }],
     }),
   })
 
@@ -228,9 +230,10 @@ async function logPositioning(positioning, scope, weekThursday) {
 }
 
 // Legacy all-data analysis (kept for compatibility)
-export async function runAIAnalysis(calls, scope) {
+export async function runAIAnalysis(calls, scope, sales = []) {
   const market = await buildMarketContext().catch(() => 'Market data unavailable (load error).')
-  const parsed = await callAnalysis(buildDataSummary(calls, false), market)
+  const desk = await buildDeskContext(calls, sales).catch(() => 'Desk history unavailable (load error).')
+  const parsed = await callAnalysis(buildDataSummary(calls, false), market, desk)
   const result = {
     signals: parsed.signals || [],
     analysis: parsed.analysis || null,
@@ -244,10 +247,11 @@ export async function runAIAnalysis(calls, scope) {
 }
 
 // ── Weekly snapshot: Mon–Fri calls + this week's publications, locked & stamped ──
-export async function runWeeklyAnalysis(calls, scope) {
+export async function runWeeklyAnalysis(calls, scope, sales = []) {
   const week = currentWeekInfo()
   const market = await buildMarketContext().catch(() => 'Market data unavailable (load error).')
-  const parsed = await callAnalysis(buildDataSummary(calls, true), market)
+  const desk = await buildDeskContext(calls, sales).catch(() => 'Desk history unavailable (load error).')
+  const parsed = await callAnalysis(buildDataSummary(calls, true), market, desk)
   const result = {
     signals: parsed.signals || [],
     analysis: parsed.analysis || null,
