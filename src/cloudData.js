@@ -222,6 +222,65 @@ export async function cloudLoadPublications() {
   return { argus, fertecon }
 }
 
+// ── Benchmark loader (single source of truth: Market Data -> Intl Prices) ──
+// Reads Amsul CFR Brazil COMPACTED weekly rows (argus + fertecon) from
+// intl_publications, normalizes each date to its week's Thursday, and merges
+// legacy rows from the old `publications` table for weeks not yet covered.
+// Mirrors to the localStorage keys the report chart & AI weekly filter read.
+function weekThursdayOf(dateStr) {
+  const d = new Date(String(dateStr).slice(0, 10) + 'T00:00:00')
+  if (isNaN(d.getTime())) return null
+  const day = d.getDay()
+  const monday = new Date(d)
+  monday.setDate(d.getDate() - (day === 0 ? 6 : day - 1))
+  monday.setDate(monday.getDate() + 3)
+  const y = monday.getFullYear()
+  const m = String(monday.getMonth() + 1).padStart(2, '0')
+  const dd = String(monday.getDate()).padStart(2, '0')
+  return `${y}-${m}-${dd}`
+}
+
+export async function cloudLoadBenchmarkFromIntl() {
+  const bySrc = { argus: {}, fertecon: {} }
+  // Primary: intl_publications (Market Data -> Intl Prices)
+  const { data: intl, error: e1 } = await supabase
+    .from('intl_publications')
+    .select('source, pub_date, price_low, price_high')
+    .eq('product', 'amsul')
+    .eq('price_point', 'cfr_brazil')
+    .eq('grade', 'compacted')
+    .eq('frequency', 'weekly')
+    .in('source', ['argus', 'fertecon'])
+    .order('pub_date', { ascending: true })
+  if (e1) throw e1
+  ;(intl || []).forEach(r => {
+    const th = weekThursdayOf(r.pub_date)
+    if (!th) return
+    bySrc[r.source][th] = { date: th, low: Number(r.price_low), high: Number(r.price_high != null ? r.price_high : r.price_low) }
+  })
+  // Legacy fallback: old `publications` table, only for weeks intl doesn't cover
+  try {
+    const { data: legacy } = await supabase
+      .from('publications')
+      .select('source, pub_date, low, high')
+      .order('pub_date', { ascending: true })
+    ;(legacy || []).forEach(r => {
+      if (!bySrc[r.source]) return
+      const th = weekThursdayOf(r.pub_date)
+      if (!th || bySrc[r.source][th]) return
+      bySrc[r.source][th] = { date: th, low: Number(r.low), high: Number(r.high) }
+    })
+  } catch {}
+  const sortAsc = o => Object.values(o).sort((a, b) => a.date.localeCompare(b.date))
+  const argus = sortAsc(bySrc.argus)
+  const fertecon = sortAsc(bySrc.fertecon)
+  try {
+    safeMirrorWrite('fertintel_argus_amsul', argus)
+    safeMirrorWrite('fertintel_fertecon_amsul', fertecon)
+  } catch {}
+  return { argus, fertecon }
+}
+
 // Upsert a publication (admin only — RLS enforces). source: 'argus'|'fertecon'
 export async function cloudUpsertPublication(source, date, low, high) {
   const { error } = await supabase
