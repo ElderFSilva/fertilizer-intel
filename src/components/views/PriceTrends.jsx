@@ -100,7 +100,7 @@ const CustomTooltip = ({ active, payload, label }) => {
       <p style={{ color: 'var(--text3)', fontSize: 11, fontFamily: 'DM Mono', marginBottom: 4 }}>{label}</p>
       {d?.client && <p style={{ color: 'var(--text)', fontWeight: 700 }}>{d.client}</p>}
       {payload.map((p, i) => (
-        <p key={i} style={{ color: p.stroke, marginTop: 2 }}>{p.name}: <strong>{p.value}</strong></p>
+        <p key={i} style={{ color: p.stroke && p.stroke !== 'none' ? p.stroke : SALES_COLOR, marginTop: 2 }}>{p.name}: <strong>{p.value}</strong></p>
       ))}
     </div>
   )
@@ -156,6 +156,7 @@ export default function PriceTrends({ calls, sales = [] }) {
         .map(c => c.client)
     ).size
 
+    const avgPrice = prices.reduce((sum, v) => sum + v, 0) / prices.length
     const periodLow = Math.min(...prices)
     const periodHigh = Math.max(...prices)
     const weekLow = weekPrices.length ? Math.min(...weekPrices) : null
@@ -167,7 +168,7 @@ export default function PriceTrends({ calls, sales = [] }) {
     const weekChange = weekFirst ? latest.price - weekFirst.price : null
 
     snapshot = {
-      latest, periodLow, periodHigh, weekLow, weekHigh,
+      latest, avgPrice, periodLow, periodHigh, weekLow, weekHigh,
       periodChange, periodPct, weekChange, activeClients,
     }
   }
@@ -217,7 +218,10 @@ export default function PriceTrends({ calls, sales = [] }) {
                 <XAxis dataKey="date" tick={{ fill: 'var(--text3)', fontSize: 11 }} />
                 <YAxis tick={{ fill: 'var(--text3)', fontSize: 11 }} domain={['auto', 'auto']} />
                 <Tooltip content={<CustomTooltip />} />
-                <Legend wrapperStyle={{ fontSize: 12 }} />
+                <Legend wrapperStyle={{ fontSize: 12 }}
+                  formatter={(value, entry) => (
+                    <span style={{ color: entry?.color && entry.color !== 'none' ? entry.color : SALES_COLOR }}>{value}</span>
+                  )} />
                 <Line type="monotone" dataKey="price" stroke="var(--accent)" strokeWidth={2}
                   dot={{ fill: 'var(--accent)', r: 4 }} name={`${tab.label} — call prices`} connectNulls />
                 <Line dataKey="salePrice" stroke="none" strokeWidth={0} legendType="circle"
@@ -235,16 +239,9 @@ export default function PriceTrends({ calls, sales = [] }) {
         ) : (
           <div className={styles.snapGrid}>
             <div className={styles.snapCard}>
-              <div className={styles.snapLabel}>Latest</div>
-              <div className={styles.snapValue}>
-                {snapshot.latest.price}
-                {snapshot.latest.trend && snapshot.latest.trend !== 'none' && (
-                  <span style={{ color: TREND_COLOR[snapshot.latest.trend], fontSize: 18, marginLeft: 6 }}>
-                    {TREND_ICON[snapshot.latest.trend]}
-                  </span>
-                )}
-              </div>
-              <div className={styles.snapSub}>{formatDate(snapshot.latest.date)}</div>
+              <div className={styles.snapLabel}>Avg Price</div>
+              <div className={styles.snapValue}>{snapshot.avgPrice.toFixed(0)}</div>
+              <div className={styles.snapSub}>{period.days ? `last ${period.label} average` : 'all-data average'}</div>
             </div>
 
             <div className={styles.snapCard}>
