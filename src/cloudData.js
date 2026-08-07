@@ -199,27 +199,15 @@ export async function cloudBulkInsertSales(saleObjects, traderId) {
 
 // ── Cloud data layer for PUBLICATIONS (shared, admin-managed) ──
 
-// Load all publications, split into argus/fertecon arrays shaped like the
-// legacy localStorage format: [{ date, low, high }]. Also mirrors to
-// localStorage so the report chart (which reads those keys) keeps working.
-export async function cloudLoadPublications() {
-  const { data, error } = await supabase
-    .from('publications')
-    .select('source, pub_date, low, high')
-    .order('pub_date', { ascending: true })
+// ── Profiles (for admin trader-name mapping) ──
+// Returns all profile rows the current user is allowed to read. For admin,
+// RLS should return every profile; for a trader it may return only their own.
+// Selects '*' because the exact profile columns can vary between projects —
+// the caller derives a friendly label defensively from whatever is present.
+export async function cloudLoadProfiles() {
+  const { data, error } = await supabase.from('profiles').select('*')
   if (error) throw error
-  const argus = []
-  const fertecon = []
-  ;(data || []).forEach(r => {
-    const entry = { date: r.pub_date, low: Number(r.low), high: Number(r.high) }
-    if (r.source === 'argus') argus.push(entry)
-    else if (r.source === 'fertecon') fertecon.push(entry)
-  })
-  try {
-    safeMirrorWrite('fertintel_argus_amsul', argus)
-    safeMirrorWrite('fertintel_fertecon_amsul', fertecon)
-  } catch {}
-  return { argus, fertecon }
+  return data || []
 }
 
 // ── Benchmark loader (single source of truth: Market Data -> Intl Prices) ──
@@ -242,7 +230,6 @@ function weekThursdayOf(dateStr) {
 
 export async function cloudLoadBenchmarkFromIntl() {
   const bySrc = { argus: {}, fertecon: {} }
-  // Primary: intl_publications (Market Data -> Intl Prices)
   const { data: intl, error: e1 } = await supabase
     .from('intl_publications')
     .select('source, pub_date, price_low, price_high')
@@ -258,7 +245,6 @@ export async function cloudLoadBenchmarkFromIntl() {
     if (!th) return
     bySrc[r.source][th] = { date: th, low: Number(r.price_low), high: Number(r.price_high != null ? r.price_high : r.price_low) }
   })
-  // Legacy fallback: old `publications` table, only for weeks intl doesn't cover
   try {
     const { data: legacy } = await supabase
       .from('publications')
@@ -281,36 +267,6 @@ export async function cloudLoadBenchmarkFromIntl() {
   return { argus, fertecon }
 }
 
-// Upsert a publication (admin only — RLS enforces). source: 'argus'|'fertecon'
-export async function cloudUpsertPublication(source, date, low, high) {
-  const { error } = await supabase
-    .from('publications')
-    .upsert({ source, pub_date: date, low, high }, { onConflict: 'source,pub_date' })
-  if (error) throw error
-  await cloudLoadPublications() // refresh mirror
-}
-
-export async function cloudDeletePublication(source, date) {
-  const { error } = await supabase
-    .from('publications')
-    .delete()
-    .eq('source', source)
-    .eq('pub_date', date)
-  if (error) throw error
-  await cloudLoadPublications()
-}
-
-// ── Profiles (for admin trader-name mapping) ──
-// Returns all profile rows the current user is allowed to read. For admin,
-// RLS should return every profile; for a trader it may return only their own.
-// Selects '*' because the exact profile columns can vary between projects —
-// the caller derives a friendly label defensively from whatever is present.
-export async function cloudLoadProfiles() {
-  const { data, error } = await supabase.from('profiles').select('*')
-  if (error) throw error
-  return data || []
-}
-
 // Bulk import publications from a backup's argus/fertecon arrays (admin only)
 export async function cloudBulkInsertPublications(argusArr, ferteconArr) {
   const rows = []
@@ -327,7 +283,7 @@ export async function cloudBulkInsertPublications(argusArr, ferteconArr) {
     .from('publications')
     .upsert(rows, { onConflict: 'source,pub_date' })
   if (error) throw error
-  await cloudLoadPublications()
+  await cloudLoadBenchmarkFromIntl()
   return rows.length
 }
 
