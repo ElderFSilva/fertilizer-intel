@@ -396,6 +396,12 @@ export default function Overview({ calls, sales, scope, scopeLabel }) {
                     Would change on: {analysis.positioning.trigger}
                   </p>
                 )}
+                {analysis.trackRecord && analysis.trackRecord.overall.total > 0 && (
+                  <p style={{ color: 'var(--text3)', fontSize: 12, marginTop: 4, fontFamily: "'DM Mono', monospace" }}>
+                    Track record: {analysis.trackRecord.overall.correct}/{analysis.trackRecord.overall.total} correct
+                    {analysis.trackRecord.pending > 0 ? ` · ${analysis.trackRecord.pending} pending` : ''} — full history in the Track Record view
+                  </p>
+                )}
               </div>
             </div>
           </div>
