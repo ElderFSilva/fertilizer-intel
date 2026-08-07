@@ -225,6 +225,20 @@ const TABS = [
       { key: 'pct', label: '%', fmt: v => v != null ? `${v}%` : '—' },
     ],
   },
+  {
+    id: 'lessons',
+    label: 'Lessons',
+    table: 'desk_lessons',
+    hint: 'Desk knowledge, taught once, remembered forever - every saved lesson is injected into every future AI analysis.',
+    fields: [
+      { key: 'lesson_date', label: 'Date', type: 'date', required: true, def: todayYMD },
+      { key: 'lesson', label: 'Lesson', type: 'text', required: true, ph: 'e.g. Farmers accept Amsul N-premiums up to ~35% (validated vs 2020-26 data)' },
+    ],
+    columns: [
+      { key: 'lesson_date', label: 'Date', fmt: fmtDate },
+      { key: 'lesson', label: 'Lesson' },
+    ],
+  },
 ]
 
 function emptyFormFor(tab) {
