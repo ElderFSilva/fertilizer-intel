@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
+import { LineChart, Line, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 import styles from './PriceTrends.module.css'
 
 function formatDate(dateStr) {
@@ -20,10 +20,14 @@ function parseDate(dateStr) {
   return new Date(0)
 }
 
+function toLocalYMD(d) {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const dd = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${dd}`
+}
+
 // ── Grade tabs ──
-// Each tab maps to a base product + (optional) required grade.
-// Urea & MAP have no grade. Defaults: old data with no grade is treated as the
-// product's default grade so it still shows under that tab.
 const GRADE_TABS = [
   { label: 'Amsul GR', product: 'Amsul', grade: 'Amsul GR', isDefault: true },
   { label: 'Amsul STD', product: 'Amsul', grade: 'Amsul STD' },
@@ -39,19 +43,26 @@ const GRADE_TABS = [
   { label: 'NP 08-40+5S', product: 'NP', grade: 'NP 08-40+5S' },
 ]
 
-// Does this call's price entry match the selected grade tab?
+// ── Period filter (default: last 8 weeks) ──
+const PERIODS = [
+  { label: '8W', days: 56 },
+  { label: '26W', days: 182 },
+  { label: '52W', days: 364 },
+  { label: 'All', days: null },
+]
+
 function matchesGrade(priceEntry, tab) {
   if (!priceEntry?.value) return false
-  if (!tab.grade) return true // Urea / MAP — no grade filtering
+  if (!tab.grade) return true
   const g = priceEntry.grade
   if (g) return g === tab.grade
-  // No grade stored (legacy data) → counts as the product's default grade
   return !!tab.isDefault
 }
 
-function buildGradeSeries(calls, tab) {
+function buildGradeSeries(calls, tab, cutoff) {
   return calls
     .filter(c => matchesGrade(c.prices?.[tab.product], tab))
+    .filter(c => !cutoff || String(c.date) >= cutoff)
     .sort((a, b) => parseDate(a.date) - parseDate(b.date))
     .map(c => ({
       date: c.date,
@@ -62,28 +73,57 @@ function buildGradeSeries(calls, tab) {
     .filter(d => !isNaN(d.price))
 }
 
+const saleDate = s => String(s.dealDate || s.deal_date || s.date || s.created_at || '').slice(0, 10)
+
+function buildSalesSeries(sales, tab, cutoff) {
+  return (sales || [])
+    .filter(s => (s.product || '').toLowerCase() === tab.product.toLowerCase())
+    .map(s => ({ date: saleDate(s), client: s.client || s.clientName || '', salePrice: parseFloat(s.donePrice) }))
+    .filter(d => d.date && !isNaN(d.salePrice))
+    .filter(d => !cutoff || d.date >= cutoff)
+    .sort((a, b) => a.date.localeCompare(b.date))
+}
+
 const CustomTooltip = ({ active, payload, label }) => {
   if (!active || !payload?.length) return null
   const d = payload[0]?.payload
   return (
     <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 8, padding: '10px 14px', fontSize: 13 }}>
       <p style={{ color: 'var(--text3)', fontSize: 11, fontFamily: 'DM Mono', marginBottom: 4 }}>{label}</p>
-      <p style={{ color: 'var(--text)', fontWeight: 700 }}>{d?.client}</p>
-      <p style={{ color: 'var(--accent)', marginTop: 2 }}>{payload[0]?.name}: <strong>{payload[0]?.value}</strong></p>
+      {d?.client && <p style={{ color: 'var(--text)', fontWeight: 700 }}>{d.client}</p>}
+      {payload.map((p, i) => (
+        <p key={i} style={{ color: p.stroke, marginTop: 2 }}>{p.name}: <strong>{p.value}</strong></p>
+      ))}
     </div>
   )
 }
 
 const TREND_ICON = { up: '↑', stable: '↔', down: '↓', none: '—' }
 const TREND_COLOR = { up: 'var(--accent)', stable: 'var(--blue)', down: 'var(--red)', none: 'var(--text3)' }
+const SALES_COLOR = '#ff9500'
 
-export default function PriceTrends({ calls }) {
+export default function PriceTrends({ calls, sales = [] }) {
   const [selectedLabel, setSelectedLabel] = useState('Amsul GR')
+  const [periodLabel, setPeriodLabel] = useState('8W')
   const tab = GRADE_TABS.find(t => t.label === selectedLabel) || GRADE_TABS[0]
+  const period = PERIODS.find(p => p.label === periodLabel) || PERIODS[0]
 
-  const series = buildGradeSeries(calls, tab)
+  const cutoff = period.days == null ? null : (() => {
+    const d = new Date()
+    d.setDate(d.getDate() - period.days)
+    return toLocalYMD(d)
+  })()
 
-  // ── Price snapshot stats for the selected grade ──
+  const series = buildGradeSeries(calls, tab, cutoff)
+  const salesSeries = buildSalesSeries(sales, tab, cutoff)
+
+  // Merged chart data: call points and sale points on one date axis
+  const chartData = [
+    ...series.map(p => ({ date: p.date, client: p.client, price: p.price })),
+    ...salesSeries.map(p => ({ date: p.date, client: p.client, salePrice: p.salePrice })),
+  ].sort((a, b) => String(a.date).localeCompare(String(b.date)))
+
+  // ── Price snapshot stats for the selected grade (within the selected period) ──
   function currentWeekMonday() {
     const now = new Date()
     const day = now.getDay()
@@ -99,11 +139,9 @@ export default function PriceTrends({ calls }) {
     const latest = series[series.length - 1]
     const first = series[0]
 
-    // Last-7-days window
     const weekAgo = new Date(); weekAgo.setDate(weekAgo.getDate() - 7)
     const weekPrices = series.filter(s => parseDate(s.date) >= weekAgo).map(s => s.price)
 
-    // Active clients this week (Mon-based current week)
     const wkMon = currentWeekMonday()
     const activeClients = new Set(
       calls.filter(c => matchesGrade(c.prices?.[tab.product], tab) && parseDate(c.date) >= wkMon)
@@ -115,7 +153,6 @@ export default function PriceTrends({ calls }) {
     const weekLow = weekPrices.length ? Math.min(...weekPrices) : null
     const weekHigh = weekPrices.length ? Math.max(...weekPrices) : null
 
-    // Direction: latest vs first (period), and latest vs week-ago first
     const periodChange = latest.price - first.price
     const periodPct = first.price ? (periodChange / first.price) * 100 : 0
     const weekFirst = series.find(s => parseDate(s.date) >= weekAgo)
@@ -147,19 +184,36 @@ export default function PriceTrends({ calls }) {
           ))}
         </div>
 
-        {series.length < 2 ? (
+        <div className={styles.tabs} style={{ marginTop: 4 }}>
+          {PERIODS.map(p => (
+            <button
+              key={p.label}
+              className={`${styles.tab} ${periodLabel === p.label ? styles.tabActive : ''}`}
+              onClick={() => setPeriodLabel(p.label)}
+              title={p.days ? `Last ${p.label}` : 'Full history'}
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
+
+        {chartData.length < 2 ? (
           <div className={styles.noData}>
-            <p>Not enough data for {tab.label} yet.</p>
-            <p className={styles.noDataSub}>Log at least 2 calls with {tab.label} prices to see a trend chart.</p>
+            <p>Not enough data for {tab.label} in the last {period.days ? period.label : 'full history'}.</p>
+            <p className={styles.noDataSub}>Try a longer period, or log calls/sales with {tab.label} prices.</p>
           </div>
         ) : (
           <div className={styles.chartWrap}>
-            <ResponsiveContainer width="100%" height={260}>
-              <LineChart data={series}>
+            <ResponsiveContainer width="100%" height={280}>
+              <LineChart data={chartData}>
                 <XAxis dataKey="date" tick={{ fill: 'var(--text3)', fontSize: 11 }} />
                 <YAxis tick={{ fill: 'var(--text3)', fontSize: 11 }} domain={['auto', 'auto']} />
                 <Tooltip content={<CustomTooltip />} />
-                <Line type="monotone" dataKey="price" stroke="var(--accent)" strokeWidth={2} dot={{ fill: 'var(--accent)', r: 4 }} name={tab.label} />
+                <Legend wrapperStyle={{ fontSize: 12 }} />
+                <Line type="monotone" dataKey="price" stroke="var(--accent)" strokeWidth={2}
+                  dot={{ fill: 'var(--accent)', r: 4 }} name={`${tab.label} — call prices`} connectNulls />
+                <Line type="monotone" dataKey="salePrice" stroke={SALES_COLOR} strokeWidth={2}
+                  dot={{ fill: SALES_COLOR, r: 4 }} name={`Sales executed (${tab.product}${tab.grade ? ', all grades' : ''})`} connectNulls />
               </LineChart>
             </ResponsiveContainer>
           </div>
@@ -169,7 +223,7 @@ export default function PriceTrends({ calls }) {
       <section className={styles.section}>
         <h2 className={styles.sectionTitle}>◈ {tab.label} Snapshot</h2>
         {!snapshot ? (
-          <p className={styles.none}>No {tab.label} price data yet.</p>
+          <p className={styles.none}>No {tab.label} price data in this period.</p>
         ) : (
           <div className={styles.snapGrid}>
             <div className={styles.snapCard}>
@@ -196,7 +250,7 @@ export default function PriceTrends({ calls }) {
             <div className={styles.snapCard}>
               <div className={styles.snapLabel}>Period Range</div>
               <div className={styles.snapValue}>{snapshot.periodLow}–{snapshot.periodHigh}</div>
-              <div className={styles.snapSub}>all logged data</div>
+              <div className={styles.snapSub}>{period.days ? `last ${period.label}` : 'all logged data'}</div>
             </div>
 
             <div className={styles.snapCard}>
@@ -206,7 +260,7 @@ export default function PriceTrends({ calls }) {
                 <span style={{ fontSize: 13, marginLeft: 4 }}>({snapshot.periodPct > 0 ? '+' : ''}{snapshot.periodPct.toFixed(1)}%)</span>
               </div>
               <div className={styles.snapSub}>
-                {snapshot.weekChange != null ? `${snapshot.weekChange > 0 ? '+' : ''}${snapshot.weekChange.toFixed(0)} past week` : 'over period'}
+                {snapshot.weekChange != null ? `${snapshot.weekChange > 0 ? '+' : ''}${snapshot.weekChange.toFixed(0)} past week` : `over ${period.days ? period.label : 'period'}`}
               </div>
             </div>
 
