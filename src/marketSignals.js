@@ -13,6 +13,7 @@
 //   stated as missing, never invented.
 
 import { loadMarketRows } from './cloudMarketData.js'
+import { supabase } from './supabaseClient.js'
 
 const N_CONTENT = { amsul: 21, urea: 46 } // % nitrogen
 
@@ -55,27 +56,66 @@ function percentileOf(value, values) {
 
 // ── Individual blocks (each returns a text section or null) ──
 
-function pricesBlock(pubs) {
-  const cfr = priceSeries(pubs, 'amsul', 'cfr_brazil', 'compacted')
-  if (!cfr.length) return null
-  const [now, prev, , , w4] = [cfr[0], cfr[1], cfr[2], cfr[3], cfr[4]]
-  const m0 = mid(now)
-  const wow = prev ? ((m0 - mid(prev)) / mid(prev)) * 100 : null
-  const m4 = w4 ? ((m0 - mid(w4)) / mid(w4)) * 100 : null
-  const allMids = cfr.map(mid)
-  const pctile = percentileOf(m0, allMids)
-  const yr = cfr.filter(r => daysAgo(r.pub_date) <= 365).map(mid)
-  const lines = [
-    `Amsul CFR Brazil (compacted): ${now.price_low}-${now.price_high} USD/t (mid ${fmt(m0)}), ${freshness(now.pub_date)}.`,
-    `  Momentum: ${pct(wow)} week-on-week, ${pct(m4)} over 4 weeks. 52-week range of mids: ${fmt(Math.min(...yr))}-${fmt(Math.max(...yr))}.`,
-    `  Historical position: current mid is in the ${pctile}th percentile of the full ${cfr.length}-week Argus history (2020-present).`,
-  ]
-  const fob = priceSeries(pubs, 'amsul', 'fob_china', 'compacted')
-  const fobUse = fob.length ? fob : priceSeries(pubs, 'amsul', 'fob_china', 'standard')
-  if (fobUse.length) {
-    const f = fobUse[0]
-    lines.push(`Amsul FOB China (${f.grade}): ${f.price_low}-${f.price_high} USD/t (mid ${fmt(mid(f))}), ${freshness(f.pub_date)}.`)
+// Latest fresh assessment per source for a series (dedup by source, <=21d old)
+function latestPerSource(pubs, benchRows, product, pricePoint, grade) {
+  const out = {}
+  pubs
+    .filter(r => r.product === product && r.price_point === pricePoint && r.grade === grade
+      && r.frequency === 'weekly' && daysAgo(r.pub_date) <= 21)
+    .sort((a, b) => ymd(b.pub_date).localeCompare(ymd(a.pub_date)))
+    .forEach(r => { if (!out[r.source]) out[r.source] = { src: r.source, mid: mid(r), low: r.price_low, high: r.price_high, date: ymd(r.pub_date) } })
+  // Legacy benchmark table (Publication view): Amsul GR CFR Brazil = compacted equivalent
+  if (product === 'amsul' && pricePoint === 'cfr_brazil' && grade === 'compacted' && benchRows) {
+    benchRows
+      .filter(r => daysAgo(r.pub_date) <= 21)
+      .sort((a, b) => ymd(b.pub_date).localeCompare(ymd(a.pub_date)))
+      .forEach(r => {
+        if (!out[r.source]) out[r.source] = { src: r.source, mid: (Number(r.low) + Number(r.high)) / 2, low: r.low, high: r.high, date: ymd(r.pub_date) }
+      })
   }
+  return Object.values(out)
+}
+
+function compositeOf(entries) {
+  if (!entries.length) return null
+  return entries.reduce((s, e) => s + e.mid, 0) / entries.length
+}
+
+function sourceList(entries) {
+  return entries.map(e => `${e.src} ${fmt(e.mid)} (${e.date})`).join(', ')
+}
+
+function pricesBlock(pubs, benchRows) {
+  const cfrArgus = priceSeries(pubs, 'amsul', 'cfr_brazil', 'compacted')
+  const cfrSources = latestPerSource(pubs, benchRows, 'amsul', 'cfr_brazil', 'compacted')
+  if (!cfrSources.length && !cfrArgus.length) return null
+  const comp = compositeOf(cfrSources)
+  const lines = []
+  if (cfrSources.length) {
+    const div = cfrSources.length > 1 ? Math.max(...cfrSources.map(e => e.mid)) - Math.min(...cfrSources.map(e => e.mid)) : 0
+    lines.push(`Amsul CFR Brazil COMPACTED - composite reference ${fmt(comp)} USD/t from ${cfrSources.length} source(s): ${sourceList(cfrSources)}.${div > 5 ? ` Sources diverge by ${fmt(div)} USD/t - that disagreement is itself information (note it).` : ''}`)
+  }
+  // Momentum + percentile computed on the Argus series (only series with 2020-present depth)
+  if (cfrArgus.length) {
+    const m0 = mid(cfrArgus[0])
+    const prev = cfrArgus[1]
+    const w4 = cfrArgus[4]
+    const wow = prev ? ((m0 - mid(prev)) / mid(prev)) * 100 : null
+    const m4 = w4 ? ((m0 - mid(w4)) / mid(w4)) * 100 : null
+    const pctile = percentileOf(m0, cfrArgus.map(mid))
+    lines.push(`Momentum & history (Argus series, the only one with 2020-present depth): ${pct(wow)} week-on-week, ${pct(m4)} over 4 weeks; current Argus mid ${fmt(m0)} sits in the ${pctile}th percentile of ${cfrArgus.length} weeks.`)
+  }
+  // Standard grade, if entered - ALWAYS labeled, never mixed with compacted
+  const stdSources = latestPerSource(pubs, null, 'amsul', 'cfr_brazil', 'standard')
+  if (stdSources.length) {
+    const stdComp = compositeOf(stdSources)
+    lines.push(`Amsul CFR Brazil STANDARD (different product - never compare to compacted): composite ${fmt(stdComp)} USD/t [${sourceList(stdSources)}]. Compacted-over-standard spread: ${comp != null ? fmt(comp - stdComp) + ' USD/t' : 'n/a'}.`)
+  }
+  // FOB China - composite per grade
+  const fobC = latestPerSource(pubs, null, 'amsul', 'fob_china', 'compacted')
+  const fobS = latestPerSource(pubs, null, 'amsul', 'fob_china', 'standard')
+  if (fobC.length) lines.push(`Amsul FOB China COMPACTED: composite ${fmt(compositeOf(fobC))} USD/t [${sourceList(fobC)}].`)
+  if (fobS.length) lines.push(`Amsul FOB China STANDARD: composite ${fmt(compositeOf(fobS))} USD/t [${sourceList(fobS)}].`)
   const urea = priceSeries(pubs, 'urea', 'cfr_brazil')
   if (urea.length) {
     const u = urea[0]
@@ -83,15 +123,16 @@ function pricesBlock(pubs) {
     const uWow = uPrev ? ((mid(u) - mid(uPrev)) / mid(uPrev)) * 100 : null
     lines.push(`Urea CFR Brazil (granular): ${u.price_low}-${u.price_high} USD/t (mid ${fmt(mid(u))}), ${pct(uWow)} WoW, ${freshness(u.pub_date)}.`)
   }
-  return `### PRICES (Argus weekly)\n${lines.join('\n')}`
+  return `### PRICES (multi-source, grade-separated)\n${lines.join('\n')}`
 }
 
-function parityBlock(pubs, freights) {
-  const fobAll = priceSeries(pubs, 'amsul', 'fob_china', 'compacted')
-  const fob = fobAll.length ? fobAll : priceSeries(pubs, 'amsul', 'fob_china', 'standard')
-  const cfr = priceSeries(pubs, 'amsul', 'cfr_brazil', 'compacted')
-  if (!fob.length || !cfr.length) return null
-  // OWN freight only: contract > closed > quote, newest of the best available type
+function parityBlock(pubs, freights, benchRows) {
+  const fobC = latestPerSource(pubs, null, 'amsul', 'fob_china', 'compacted')
+  const fobS = latestPerSource(pubs, null, 'amsul', 'fob_china', 'standard')
+  const fobEntries = fobC.length ? fobC : fobS
+  const fobGrade = fobC.length ? 'COMPACTED' : 'STANDARD'
+  const cfrEntries = latestPerSource(pubs, benchRows, 'amsul', 'cfr_brazil', 'compacted')
+  if (!fobEntries.length || !cfrEntries.length) return null
   const own = freights
     .filter(f => f.source === 'own' && f.route === 'china_brazil')
     .sort((a, b) => ymd(b.rate_date).localeCompare(ymd(a.rate_date)))
@@ -101,12 +142,14 @@ function parityBlock(pubs, freights) {
   if (!pick) return `### IMPORT PARITY\nNot computable: no own China->Brazil freight entered (contract/fixture/quote).`
   const frt = pick.rate_high != null
     ? (Number(pick.rate_low) + Number(pick.rate_high)) / 2 : Number(pick.rate_low)
-  const parity = mid(fob[0]) + frt
-  const spread = mid(cfr[0]) - parity
-  return `### IMPORT PARITY (own Panamax economics — never compare with published freight)
-FOB China mid ${fmt(mid(fob[0]))} + own ${pick.rate_type} freight ${fmt(frt)} USD/t (${ymd(pick.rate_date)}) = replacement cost ~${fmt(parity)} USD/t CFR.
-Market CFR Brazil mid ${fmt(mid(cfr[0]))} is ${spread >= 0 ? fmt(spread) + ' USD/t ABOVE' : fmt(-spread) + ' USD/t BELOW'} replacement cost.
-Interpretation: positive spread = market pricing above our import parity (room to place cargoes); negative = market below replacement (margin pressure on new imports).`
+  const fob = compositeOf(fobEntries)
+  const cfr = compositeOf(cfrEntries)
+  const parity = fob + frt
+  const spread = cfr - parity
+  return `### IMPORT PARITY (composite benchmarks + own Panamax freight - never published freight)
+FOB China ${fobGrade} composite ${fmt(fob)} [${sourceList(fobEntries)}] + own ${pick.rate_type} freight ${fmt(frt)} USD/t (${ymd(pick.rate_date)}) = replacement cost ~${fmt(parity)} USD/t CFR (${fobGrade}-basis).
+CFR Brazil COMPACTED composite ${fmt(cfr)} [${sourceList(cfrEntries)}] is ${spread >= 0 ? fmt(spread) + ' USD/t ABOVE' : fmt(-spread) + ' USD/t BELOW'} replacement cost.${fobGrade === 'STANDARD' ? '\nGRADE CAVEAT: replacement is computed on STANDARD FOB (no compacted FOB entered) vs COMPACTED CFR - the true compacted replacement is higher by the compaction margin; treat the spread as an upper bound.' : ''}
+Interpretation: positive spread = market pricing above our import parity; negative = new imports underwater.`
 }
 
 function nUnitBlock(pubs) {
@@ -274,18 +317,28 @@ function fxBlock(rows) {
 
 // ── Main entry: build the full market context text for the AI prompt ──
 export async function buildMarketContext() {
-  const [pubs, freights, snaps, barter, progress, fx] = await Promise.all([
+  const loadBench = async () => {
+    const { data, error } = await supabase
+      .from('publications')
+      .select('source, pub_date, low, high')
+      .order('pub_date', { ascending: false })
+      .limit(60)
+    if (error) return []
+    return data || []
+  }
+  const [pubs, freights, snaps, barter, progress, fx, benchRows] = await Promise.all([
     loadMarketRows('intl_publications', 2000).catch(() => []),
     loadMarketRows('freight_rates', 200).catch(() => []),
     loadMarketRows('supply_snapshots', 1000).catch(() => []),
     loadMarketRows('barter_ratios', 500).catch(() => []),
     loadMarketRows('purchase_progress', 300).catch(() => []),
     loadMarketRows('fx_rates', 200).catch(() => []),
+    loadBench().catch(() => []),
   ])
 
   const blocks = [
-    pricesBlock(pubs),
-    parityBlock(pubs, freights),
+    pricesBlock(pubs, benchRows),
+    parityBlock(pubs, freights, benchRows),
     nUnitBlock(pubs),
     supplyBlock(snaps),
     barterBlock(barter),
