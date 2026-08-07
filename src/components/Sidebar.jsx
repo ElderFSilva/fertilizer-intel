@@ -8,6 +8,7 @@ const NAV = [
   { id: 'prices', icon: '◎', label: 'Price Trends' },
   { id: 'argus', icon: '📰', label: 'Publication vs Mrkt' },
   { id: 'market', icon: '⇅', label: 'Market Data' },
+  { id: 'record', icon: '◆', label: 'Track Record' },
   { id: 'backup', icon: '⊞', label: 'Data Backup' },
 ]
 
