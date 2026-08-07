@@ -92,7 +92,7 @@ export default function Overview({ calls, sales, scope, scopeLabel }) {
     setAiLoading(true)
     setAiError('')
     try {
-      const result = await runWeeklyAnalysis(calls, scope)
+      const result = await runWeeklyAnalysis(calls, scope, sales)
       setAnalysis(result)
     } catch (e) {
       setAiError('Could not generate analysis. Please try again.')
