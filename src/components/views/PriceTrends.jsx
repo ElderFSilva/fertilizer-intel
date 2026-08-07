@@ -162,9 +162,18 @@ export default function PriceTrends({ calls, sales = [] }) {
     const weekLow = weekPrices.length ? Math.min(...weekPrices) : null
     const weekHigh = weekPrices.length ? Math.max(...weekPrices) : null
 
-    const periodChange = latest.price - first.price
-    const periodPct = first.price ? (periodChange / first.price) * 100 : 0
-    const weekFirst = series.find(s => parseDate(s.date) >= weekAgo)
+    // Direction: avg of the first 7 days in the window vs avg of the last 7 days
+    // (outlier-resistant, unlike single first/last calls)
+    const firstDay = parseDate(first.date)
+    const firstWeekEnd = new Date(firstDay); firstWeekEnd.setDate(firstWeekEnd.getDate() + 7)
+    const lastDay = parseDate(latest.date)
+    const lastWeekStart = new Date(lastDay); lastWeekStart.setDate(lastWeekStart.getDate() - 7)
+    const avgOf = arr => arr.length ? arr.reduce((sum, v) => sum + v, 0) / arr.length : null
+    const firstWeekAvg = avgOf(series.filter(x => parseDate(x.date) < firstWeekEnd).map(x => x.price))
+    const lastWeekAvg = avgOf(series.filter(x => parseDate(x.date) >= lastWeekStart).map(x => x.price))
+    const periodChange = (firstWeekAvg != null && lastWeekAvg != null) ? lastWeekAvg - firstWeekAvg : 0
+    const periodPct = firstWeekAvg ? (periodChange / firstWeekAvg) * 100 : 0
+    const weekFirst = series.find(x => parseDate(x.date) >= weekAgo)
     const weekChange = weekFirst ? latest.price - weekFirst.price : null
 
     snapshot = {
@@ -265,7 +274,7 @@ export default function PriceTrends({ calls, sales = [] }) {
                 <span style={{ fontSize: 13, marginLeft: 4 }}>({snapshot.periodPct > 0 ? '+' : ''}{snapshot.periodPct.toFixed(1)}%)</span>
               </div>
               <div className={styles.snapSub}>
-                {snapshot.weekChange != null ? `${snapshot.weekChange > 0 ? '+' : ''}${snapshot.weekChange.toFixed(0)} past week` : `over ${period.days ? period.label : 'period'}`}
+                first-week avg vs last-week avg{snapshot.weekChange != null ? ` · ${snapshot.weekChange > 0 ? '+' : ''}${snapshot.weekChange.toFixed(0)} past week` : ''}
               </div>
             </div>
 
