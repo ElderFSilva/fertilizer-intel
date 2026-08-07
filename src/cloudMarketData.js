@@ -18,6 +18,7 @@ const ORDER_BY = {
   fx_rates: 'rate_date',
   purchase_progress: 'report_date',
   supply_snapshots: 'report_date',
+  desk_lessons: 'lesson_date',
 }
 
 const VALID_TABLES = new Set(Object.keys(ORDER_BY))
