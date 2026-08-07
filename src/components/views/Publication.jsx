@@ -176,9 +176,17 @@ export default function ArgusView({ calls, sales = [] }) {
     return () => { active = false }
   }, [])
 
-  const chartData = buildChartData(calls, sales, argusData, ferteconData)
+  const fullChartData = buildChartData(calls, sales, argusData, ferteconData)
+  // Rolling window: last 8 weeks only (full history lives in Market Data -> Intl Prices)
+  const cutoff = (() => {
+    const d = new Date()
+    d.setDate(d.getDate() - 8 * 7)
+    return toLocalYMD(d)
+  })()
+  const chartData = fullChartData.filter(r => r.date >= cutoff)
 
   const allDates = [...new Set([...argusData.map(a => a.date), ...ferteconData.map(f => f.date)])]
+    .filter(d => d >= cutoff)
     .sort((a, b) => b.localeCompare(a))
 
 
