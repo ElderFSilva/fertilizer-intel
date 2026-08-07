@@ -12,9 +12,7 @@ import { supabase } from './supabaseClient.js'
 const ORDER_BY = {
   intl_publications: 'pub_date',
   freight_rates: 'rate_date',
-  import_volumes: 'period',
   barter_ratios: 'ratio_date',
-  vessel_lineups: 'report_date',
   fx_rates: 'rate_date',
   purchase_progress: 'report_date',
   supply_snapshots: 'report_date',
