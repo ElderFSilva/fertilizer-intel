@@ -151,6 +151,9 @@ export default function PriceTrends({ calls, sales = [] }) {
     const weekPrices = series.filter(s => parseDate(s.date) >= weekAgo).map(s => s.price)
 
     const wkMon = currentWeekMonday()
+    const currentWeekPrices = series.filter(x => parseDate(x.date) >= wkMon).map(x => x.price)
+    const currentWeekAvg = currentWeekPrices.length
+      ? currentWeekPrices.reduce((sum, v) => sum + v, 0) / currentWeekPrices.length : null
     const activeClients = new Set(
       calls.filter(c => matchesGrade(c.prices?.[tab.product], tab) && parseDate(c.date) >= wkMon)
         .map(c => c.client)
@@ -177,7 +180,7 @@ export default function PriceTrends({ calls, sales = [] }) {
     const weekChange = weekFirst ? latest.price - weekFirst.price : null
 
     snapshot = {
-      latest, avgPrice, periodLow, periodHigh, weekLow, weekHigh,
+      latest, avgPrice, currentWeekAvg, periodLow, periodHigh, weekLow, weekHigh,
       periodChange, periodPct, weekChange, activeClients,
     }
   }
@@ -248,9 +251,9 @@ export default function PriceTrends({ calls, sales = [] }) {
         ) : (
           <div className={styles.snapGrid}>
             <div className={styles.snapCard}>
-              <div className={styles.snapLabel}>Avg Price</div>
-              <div className={styles.snapValue}>{snapshot.avgPrice.toFixed(0)}</div>
-              <div className={styles.snapSub}>{period.days ? `last ${period.label} average` : 'all-data average'}</div>
+              <div className={styles.snapLabel}>Avg Calls Price — This Week</div>
+              <div className={styles.snapValue}>{snapshot.currentWeekAvg != null ? snapshot.currentWeekAvg.toFixed(0) : '—'}</div>
+              <div className={styles.snapSub}>current week (Mon–today)</div>
             </div>
 
             <div className={styles.snapCard}>
@@ -268,6 +271,12 @@ export default function PriceTrends({ calls, sales = [] }) {
             </div>
 
             <div className={styles.snapCard}>
+              <div className={styles.snapLabel}>Avg Calls Price — Period</div>
+              <div className={styles.snapValue}>{snapshot.avgPrice.toFixed(0)}</div>
+              <div className={styles.snapSub}>{period.days ? `last ${period.label} average` : 'all-data average'}</div>
+            </div>
+
+            <div className={styles.snapCard}>
               <div className={styles.snapLabel}>Direction</div>
               <div className={styles.snapValue} style={{ color: snapshot.periodChange < 0 ? 'var(--red)' : snapshot.periodChange > 0 ? 'var(--accent)' : 'var(--text)' }}>
                 {snapshot.periodChange > 0 ? '+' : ''}{snapshot.periodChange.toFixed(0)}
@@ -276,12 +285,6 @@ export default function PriceTrends({ calls, sales = [] }) {
               <div className={styles.snapSub}>
                 first-week avg vs last-week avg{snapshot.weekChange != null ? ` · ${snapshot.weekChange > 0 ? '+' : ''}${snapshot.weekChange.toFixed(0)} past week` : ''}
               </div>
-            </div>
-
-            <div className={styles.snapCard}>
-              <div className={styles.snapLabel}>Active Clients</div>
-              <div className={styles.snapValue}>{snapshot.activeClients}</div>
-              <div className={styles.snapSub}>quoted this week</div>
             </div>
           </div>
         )}
