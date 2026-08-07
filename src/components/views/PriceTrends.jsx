@@ -75,9 +75,17 @@ function buildGradeSeries(calls, tab, cutoff) {
 
 const saleDate = s => String(s.dealDate || s.deal_date || s.date || s.created_at || '').slice(0, 10)
 
+// Sales store the full grade label as product (e.g. 'Amsul GR'), matching tab labels.
+function saleMatchesTab(s, tab) {
+  const sp = (s.product || '').trim().toLowerCase()
+  if (!sp) return false
+  if (tab.grade) return sp === tab.label.trim().toLowerCase()
+  return sp === tab.product.trim().toLowerCase() || sp.startsWith(tab.product.trim().toLowerCase())
+}
+
 function buildSalesSeries(sales, tab, cutoff) {
   return (sales || [])
-    .filter(s => (s.product || '').toLowerCase() === tab.product.toLowerCase())
+    .filter(s => saleMatchesTab(s, tab))
     .map(s => ({ date: saleDate(s), client: s.client || s.clientName || '', salePrice: parseFloat(s.donePrice) }))
     .filter(d => d.date && !isNaN(d.salePrice))
     .filter(d => !cutoff || d.date >= cutoff)
@@ -213,7 +221,7 @@ export default function PriceTrends({ calls, sales = [] }) {
                 <Line type="monotone" dataKey="price" stroke="var(--accent)" strokeWidth={2}
                   dot={{ fill: 'var(--accent)', r: 4 }} name={`${tab.label} — call prices`} connectNulls />
                 <Line type="monotone" dataKey="salePrice" stroke={SALES_COLOR} strokeWidth={2}
-                  dot={{ fill: SALES_COLOR, r: 4 }} name={`Sales executed (${tab.product}${tab.grade ? ', all grades' : ''})`} connectNulls />
+                  dot={{ fill: SALES_COLOR, r: 4 }} name={`Sales executed — ${tab.label}`} connectNulls />
               </LineChart>
             </ResponsiveContainer>
           </div>
