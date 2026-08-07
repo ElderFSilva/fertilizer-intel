@@ -6,15 +6,6 @@ import {
 import styles from './Publication.module.css'
 import { cloudLoadBenchmarkFromIntl } from '../../cloudData.js'
 
-function getLastThursday() {
-  const d = new Date()
-  const day = d.getDay()
-  const diff = day >= 4 ? day - 4 : day + 3
-  const thursday = new Date(d)
-  thursday.setDate(d.getDate() - diff)
-  return toLocalYMD(thursday)
-}
-
 function formatDateLabel(dateStr) {
   if (!dateStr) return ''
   const d = new Date(dateStr + 'T00:00:00')
@@ -62,10 +53,6 @@ function parsePrice(val) {
   }
   const p = parseFloat(raw)
   return isNaN(p) ? null : p
-}
-
-function emptyForm() {
-  return { date: getLastThursday(), argusLow: '', argusHigh: '', ferteconLow: '', ferteconHigh: '' }
 }
 
 function buildChartData(calls, sales, argusData, ferteconData) {
