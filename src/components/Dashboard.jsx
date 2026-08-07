@@ -11,6 +11,7 @@ import Publication from './views/Publication.jsx'
 import styles from './Dashboard.module.css'
 import DataBackup from './views/DataBackup.jsx'
 import MarketData from './views/MarketData.jsx'
+import TrackRecord from './views/TrackRecord.jsx'
 
 export default function Dashboard({ onLogout, user, profile, role }) {
   const [view, setView] = useState('overview')
@@ -230,6 +231,7 @@ export default function Dashboard({ onLogout, user, profile, role }) {
         {view === 'argus' && <Publication calls={visibleCalls} sales={visibleSales} role={role} />}
         {view === 'sales' && <Sales calls={visibleCalls} sales={visibleSales} onAddSale={handleAddSale} onDeleteSale={handleDeleteSale} onEditSale={handleEditSale} role={role} traderNames={traderNames} />}
         {view === 'market' && <MarketData role={role} />}
+        {view === 'record' && <TrackRecord scope={aiScope} />}
         {view === 'backup' && <DataBackup traderId={traderId} role={role} onImport={reloadAll} />}
       </main>
     </div>
