@@ -31,7 +31,7 @@ const yearOf = v => Number(ymd(v).slice(0, 4)) // timezone-proof: no Date parsin
 const monthLabel = v => new Date(ymd(v) + 'T00:00:00')
   .toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
 
-function freshness(dateVal, staleAfterDays = 14) {
+function freshness(dateVal, staleAfterDays = 10) {
   if (!dateVal) return 'no data'
   const d = daysAgo(dateVal)
   const tag = d > staleAfterDays ? ' — STALE, treat with caution' : ''
@@ -56,7 +56,24 @@ function percentileOf(value, values) {
 
 // ── Individual blocks (each returns a text section or null) ──
 
-// Latest fresh assessment per source for a series (dedup by source, <=21d old)
+// Latest fresh assessment per source for a series (dedup by source, <=21d old).
+// SAME-WEEK RULE: the composite only blends sources whose latest entry falls in
+// the most recent week that has any data. Sources still on an older week are
+// returned as `stale` - shown as lagging context, never blended or compared
+// against current-week sources as "divergence".
+function weekKeyOf(dateStr) {
+  const d = new Date(ymd(dateStr) + 'T00:00:00')
+  if (isNaN(d.getTime())) return null
+  const day = d.getDay()
+  const monday = new Date(d)
+  monday.setDate(d.getDate() - (day === 0 ? 6 : day - 1))
+  monday.setDate(monday.getDate() + 3)
+  const y = monday.getFullYear()
+  const m = String(monday.getMonth() + 1).padStart(2, '0')
+  const dd = String(monday.getDate()).padStart(2, '0')
+  return `${y}-${m}-${dd}`
+}
+
 function latestPerSource(pubs, benchRows, product, pricePoint, grade) {
   const out = {}
   pubs
@@ -64,7 +81,6 @@ function latestPerSource(pubs, benchRows, product, pricePoint, grade) {
       && r.frequency === 'weekly' && daysAgo(r.pub_date) <= 21)
     .sort((a, b) => ymd(b.pub_date).localeCompare(ymd(a.pub_date)))
     .forEach(r => { if (!out[r.source]) out[r.source] = { src: r.source, mid: mid(r), low: r.price_low, high: r.price_high, date: ymd(r.pub_date) } })
-  // Legacy benchmark table (Publication view): Amsul GR CFR Brazil = compacted equivalent
   if (product === 'amsul' && pricePoint === 'cfr_brazil' && grade === 'compacted' && benchRows) {
     benchRows
       .filter(r => daysAgo(r.pub_date) <= 21)
@@ -73,7 +89,48 @@ function latestPerSource(pubs, benchRows, product, pricePoint, grade) {
         if (!out[r.source]) out[r.source] = { src: r.source, mid: (Number(r.low) + Number(r.high)) / 2, low: r.low, high: r.high, date: ymd(r.pub_date) }
       })
   }
-  return Object.values(out)
+  const all = Object.values(out)
+  if (!all.length) return { current: [], stale: [] }
+  const anchorWeek = all.map(e => weekKeyOf(e.date)).sort().reverse()[0]
+  return {
+    anchorWeek,
+    current: all.filter(e => weekKeyOf(e.date) === anchorWeek),
+    stale: all.filter(e => weekKeyOf(e.date) !== anchorWeek),
+  }
+}
+
+// ── Publication calendar (desk facts) ──
+// Prices: argus & fertecon publish THURSDAY; agrinvest publishes FRIDAY.
+// Weekly datasets (pace, barter, line-up, FX, purchase %) are dated FRIDAY
+// and entered on MONDAY. ENTRY_GRACE_DAYS covers the Monday entry routine.
+const PUB_DAY = { argus: 4, fertecon: 4, agrinvest: 5, profercy: 4 } // 4=Thu, 5=Fri
+const ENTRY_GRACE_DAYS = 3
+
+// Classify a source absent from the anchor week: PENDING (its publication +
+// entry window hasn't closed yet) vs MISSING (past grace - a genuine gap).
+function classifyAbsent(src, anchorWeekThu) {
+  const pubDay = PUB_DAY[src] ?? 4
+  const pubDate = new Date(ymd(anchorWeekThu) + 'T00:00:00')
+  pubDate.setDate(pubDate.getDate() + (pubDay - 4)) // Thu-anchored week key
+  const deadline = new Date(pubDate)
+  deadline.setDate(deadline.getDate() + ENTRY_GRACE_DAYS)
+  const dayName = pubDay === 5 ? 'Friday' : 'Thursday'
+  if (Date.now() <= deadline.getTime()) return { status: 'pending', note: `publishes ${dayName}, entered by Monday - pending, not comparable` }
+  return { status: 'missing', note: `publishes ${dayName} - past entry window, genuinely missing this week` }
+}
+
+function staleNote(stale, anchorWeekThu) {
+  if (!stale.length) return ''
+  const parts = stale.map(e => {
+    const c = classifyAbsent(e.src, anchorWeekThu)
+    return `${e.src} prior week ${fmt(e.mid)} (${e.date}); this week's ${c.note}`
+  })
+  return ` Sources not yet in this week's composite: ${parts.join(' | ')}.`
+}
+
+function _staleNote_unused(stale) {
+  if (!stale.length) return ''
+  return ` Lagging sources (older week, NOT in composite, not comparable): ${stale.map(e => `${e.src} ${fmt(e.mid)} (${e.date})`).join(', ')}.`
 }
 
 function compositeOf(entries) {
@@ -87,13 +144,14 @@ function sourceList(entries) {
 
 function pricesBlock(pubs, benchRows) {
   const cfrArgus = priceSeries(pubs, 'amsul', 'cfr_brazil', 'compacted')
-  const cfrSources = latestPerSource(pubs, benchRows, 'amsul', 'cfr_brazil', 'compacted')
+  const cfrLps = latestPerSource(pubs, benchRows, 'amsul', 'cfr_brazil', 'compacted')
+  const cfrSources = cfrLps.current
   if (!cfrSources.length && !cfrArgus.length) return null
   const comp = compositeOf(cfrSources)
   const lines = []
   if (cfrSources.length) {
     const div = cfrSources.length > 1 ? Math.max(...cfrSources.map(e => e.mid)) - Math.min(...cfrSources.map(e => e.mid)) : 0
-    lines.push(`Amsul CFR Brazil COMPACTED - composite reference ${fmt(comp)} USD/t from ${cfrSources.length} source(s): ${sourceList(cfrSources)}.${div > 5 ? ` Sources diverge by ${fmt(div)} USD/t - that disagreement is itself information (note it).` : ''}`)
+    lines.push(`Amsul CFR Brazil COMPACTED - composite reference ${fmt(comp)} USD/t from ${cfrSources.length} SAME-WEEK source(s): ${sourceList(cfrSources)}.${div > 5 ? ` Same-week sources diverge by ${fmt(div)} USD/t - that disagreement is itself information (note it).` : ''}${staleNote(cfrLps.stale, cfrLps.anchorWeek)}`)
   }
   // Momentum + percentile computed on the Argus series (only series with 2020-present depth)
   if (cfrArgus.length) {
@@ -106,14 +164,14 @@ function pricesBlock(pubs, benchRows) {
     lines.push(`Momentum & history (Argus series, the only one with 2020-present depth): ${pct(wow)} week-on-week, ${pct(m4)} over 4 weeks; current Argus mid ${fmt(m0)} sits in the ${pctile}th percentile of ${cfrArgus.length} weeks.`)
   }
   // Standard grade, if entered - ALWAYS labeled, never mixed with compacted
-  const stdSources = latestPerSource(pubs, null, 'amsul', 'cfr_brazil', 'standard')
+  const stdSources = latestPerSource(pubs, null, 'amsul', 'cfr_brazil', 'standard').current
   if (stdSources.length) {
     const stdComp = compositeOf(stdSources)
     lines.push(`Amsul CFR Brazil STANDARD (different product - never compare to compacted): composite ${fmt(stdComp)} USD/t [${sourceList(stdSources)}]. Compacted-over-standard spread: ${comp != null ? fmt(comp - stdComp) + ' USD/t' : 'n/a'}.`)
   }
   // FOB China - composite per grade
-  const fobC = latestPerSource(pubs, null, 'amsul', 'fob_china', 'compacted')
-  const fobS = latestPerSource(pubs, null, 'amsul', 'fob_china', 'standard')
+  const fobC = latestPerSource(pubs, null, 'amsul', 'fob_china', 'compacted').current
+  const fobS = latestPerSource(pubs, null, 'amsul', 'fob_china', 'standard').current
   if (fobC.length) lines.push(`Amsul FOB China COMPACTED: composite ${fmt(compositeOf(fobC))} USD/t [${sourceList(fobC)}].`)
   if (fobS.length) lines.push(`Amsul FOB China STANDARD: composite ${fmt(compositeOf(fobS))} USD/t [${sourceList(fobS)}].`)
   const urea = priceSeries(pubs, 'urea', 'cfr_brazil')
@@ -127,11 +185,11 @@ function pricesBlock(pubs, benchRows) {
 }
 
 function parityBlock(pubs, freights, benchRows) {
-  const fobC = latestPerSource(pubs, null, 'amsul', 'fob_china', 'compacted')
-  const fobS = latestPerSource(pubs, null, 'amsul', 'fob_china', 'standard')
+  const fobC = latestPerSource(pubs, null, 'amsul', 'fob_china', 'compacted').current
+  const fobS = latestPerSource(pubs, null, 'amsul', 'fob_china', 'standard').current
   const fobEntries = fobC.length ? fobC : fobS
   const fobGrade = fobC.length ? 'COMPACTED' : 'STANDARD'
-  const cfrEntries = latestPerSource(pubs, benchRows, 'amsul', 'cfr_brazil', 'compacted')
+  const cfrEntries = latestPerSource(pubs, benchRows, 'amsul', 'cfr_brazil', 'compacted').current
   if (!fobEntries.length || !cfrEntries.length) return null
   const own = freights
     .filter(f => f.source === 'own' && f.route === 'china_brazil')
@@ -350,5 +408,8 @@ export async function buildMarketContext() {
   ].filter(Boolean)
 
   if (!blocks.length) return 'No external market data available yet.'
-  return blocks.join('\n\n')
+  const calendarNote = `### PUBLICATION CALENDAR (dating convention - treat as fact)
+Prices: Argus & Fertecon publish Thursday; Agrinvest publishes Friday (entered by Monday).
+Supply pace, line-up, barter, FX and purchase % are dated FRIDAY and entered MONDAY - they belong to the SAME market week as that week's Thursday/Friday prices. A Friday-dated figure is NOT older than Thursday's prices, and Monday entry lag is NOT staleness. Sources marked "pending" are on normal calendar schedule - never call them lagging, stale or divergent.`
+  return [calendarNote, ...blocks].join('\n\n')
 }
