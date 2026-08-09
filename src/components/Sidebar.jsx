@@ -9,6 +9,7 @@ const NAV = [
   { id: 'argus', icon: '📰', label: 'Publication vs Mrkt' },
   { id: 'market', icon: '⇅', label: 'Market Data' },
   { id: 'record', icon: '◆', label: 'Track Record' },
+  { id: 'advisor', icon: '❯', label: 'Ask the Desk', adminOnly: true },
   { id: 'backup', icon: '⊞', label: 'Data Backup' },
 ]
 
@@ -16,7 +17,7 @@ export default function Sidebar({ view, setView, onLogout, signals, role }) {
   const isAdmin = role === 'admin'
   // Admin runs a read-only aggregate environment — hide call entry (admin
   // cannot write calls; RLS would block it anyway).
-  const nav = NAV.filter(n => !(isAdmin && n.id === 'upload'))
+  const nav = NAV.filter(n => !(isAdmin && n.id === 'upload') && !(n.adminOnly && !isAdmin))
 
   return (
     <aside className={styles.sidebar}>
