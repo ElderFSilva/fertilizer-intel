@@ -249,21 +249,32 @@ INTERPRETATION RULE: substitution caution is warranted ONLY if the premium is at
 
 function supplyBlock(snaps) {
   const out = []
-  // 1) Argus line-up: latest report vs previous report (revision signal)
+  // 1) Forward line-up: revisions are computed WITHIN each source only.
+  // Different providers (Argus assessed line-up vs port-agency counts) are
+  // different measuring sticks - a change of source is never a "revision".
   const lineup = snaps.filter(r => r.series === 'lineup' && r.product === 'amsul')
   if (lineup.length) {
-    const reports = [...new Set(lineup.map(r => ymd(r.report_date)))].sort().reverse()
-    const cur = lineup.filter(r => ymd(r.report_date) === reports[0])
-    const prevR = reports[1] ? lineup.filter(r => ymd(r.report_date) === reports[1]) : []
-    const months = cur.sort((a, b) => ymd(a.period).localeCompare(ymd(b.period)))
-      .map(r => {
-        const p = prevR.find(x => ymd(x.period) === ymd(r.period))
-        const delta = p ? ` (prev report ${fmt(p.volume_kt)}k, ${Number(r.volume_kt) >= Number(p.volume_kt) ? 'revised UP' : 'revised DOWN'} ${fmt(Math.abs(r.volume_kt - p.volume_kt))}k)` : ''
-        return `  ${monthLabel(r.period)}: ${fmt(r.volume_kt)}k tons${delta}`
-      })
-    const total = cur.reduce((s, r) => s + Number(r.volume_kt), 0)
-    out.push(`Argus forward line-up (report ${reports[0]}, ${freshness(reports[0], 10)}) — total visible ${fmt(total)}k tons:\n${months.join('\n')}`)
-  } else out.push('Argus line-up: no data entered.')
+    const bySource = {}
+    lineup.forEach(r => { (bySource[r.source] = bySource[r.source] || []).push(r) })
+    // Headline lens = the source with the most recent report; others = separate lenses
+    const sources = Object.entries(bySource).map(([src, rows]) => {
+      const reports = [...new Set(rows.map(r => ymd(r.report_date)))].sort().reverse()
+      return { src, rows, reports, latest: reports[0] }
+    }).sort((a, b) => b.latest.localeCompare(a.latest))
+    sources.forEach((S, idx) => {
+      const cur = S.rows.filter(r => ymd(r.report_date) === S.reports[0])
+      const prevR = S.reports[1] ? S.rows.filter(r => ymd(r.report_date) === S.reports[1]) : []
+      const months = cur.sort((a, b) => ymd(a.period).localeCompare(ymd(b.period)))
+        .map(r => {
+          const p = prevR.find(x => ymd(x.period) === ymd(r.period))
+          const delta = p ? ` (prev ${S.src} report ${fmt(p.volume_kt)}k, ${Number(r.volume_kt) >= Number(p.volume_kt) ? 'revised UP' : 'revised DOWN'} ${fmt(Math.abs(r.volume_kt - p.volume_kt))}k)` : ''
+          return `  ${monthLabel(r.period)}: ${fmt(r.volume_kt)}k tons${delta}`
+        })
+      const total = cur.reduce((sum, r) => sum + Number(r.volume_kt), 0)
+      const label = idx === 0 ? 'PRIMARY line-up lens' : 'secondary line-up lens (different provider - never compare volumes against the primary)'
+      out.push(`${label} [source: ${S.src}] (report ${S.reports[0]}, ${freshness(S.reports[0], 10)}) - total visible ${fmt(total)}k tons:\n${months.join('\n')}`)
+    })
+  } else out.push('Line-up: no data entered.')
 
   // 2) Agrinvest pace YoY (within-source only)
   const pace = snaps.filter(r => r.series === 'ytd_pace' && r.product === 'amsul')
