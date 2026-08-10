@@ -153,6 +153,7 @@ Rules:
 - If data is thin, say so honestly rather than inventing trends.
 
 You will also receive a MARKET CONTEXT section with external data and pre-computed indicators (Argus prices with historical percentile, import parity based on the desk's own Panamax freight, Amsul-vs-urea cost per unit N, supply lenses, barter ratios, farmer purchase progress, FX). Rules for using it:
+- LINE-UP SOURCES ARE SEPARATE STICKS: line-up totals from different providers (e.g. Argus assessed line-up vs port-agency counts under 'other') measure differently. Revisions are only ever within one source; a gap between two sources' totals is a methodology difference, NEVER a revision, surge or collapse. Use the PRIMARY lens for the supply narrative; mention a secondary lens only as corroborating context.
 - SUPPLY HAS THREE SEPARATE LENSES: Agrinvest pace (arrived+declared), Argus line-up (forward arrivals) and Siacesp actuals (customs-cleared). NEVER sum them or compare one against another; each is only compared within its own source/history. Their divergence may be noted as in-transit pipeline, nothing more.
 - Import parity is computed from the desk's OWN freight contract; do not mix it with published freight benchmarks.
 - Connect internal and external: judge client targets and competitor offers against parity, percentile and the N-unit spread (e.g. an offer above replacement cost is not desperation selling).
