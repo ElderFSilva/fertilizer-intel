@@ -134,6 +134,26 @@ const TABS = [
     filter: r => r.series === 'ytd_pace',
   },
   {
+    id: 'siacesp',
+    label: 'Siacesp',
+    table: 'supply_snapshots',
+    hint: 'Siacesp customs-cleared monthly actuals (realized volumes, k tons). One row per month, entered when the monthly report arrives. The report also prints the same month of LAST year - enter that too if missing.',
+    fixed: { series: 'siacesp_actual', source: 'siacesp' },
+    reportDateFromPeriod: true,
+    fields: [
+      { key: 'period', label: 'Month', type: 'month', required: true },
+      { key: 'product', label: 'Product', type: 'select', required: true, def: 'amsul', options: [
+        { v: 'amsul', l: 'Amsul' }, { v: 'urea', l: 'Urea' } ] },
+      { key: 'volume_kt', label: 'Volume (k tons)', type: 'number', required: true, ph: 'e.g. 331' },
+    ],
+    columns: [
+      { key: 'period', label: 'Month', fmt: fmtMonth },
+      { key: 'product', label: 'Product', fmt: nice },
+      { key: 'volume_kt', label: 'Volume', fmt: v => v != null ? `${Number(v).toLocaleString('en-US')}k Tons` : '\u2014' },
+    ],
+    filter: r => r.series === 'siacesp_actual',
+  },
+  {
     id: 'barter',
     label: 'Barter',
     table: 'barter_ratios',
@@ -259,6 +279,7 @@ function toRowValues(tab, form) {
     if (fl.type === 'number') v = Number(v)
     row[fl.key] = v
   })
+  if (tab.reportDateFromPeriod && row.period) row.report_date = row.period
   return row
 }
 
