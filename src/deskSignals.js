@@ -50,18 +50,26 @@ function clientBlock(calls, soldDemandIds) {
     new Set(valid.filter(c => inWindow(c, (w + 1) * 7, w * 7)).map(c => c.client)).size)
   const avgPrior = prior4w.reduce((s, v) => s + v, 0) / 4
 
-  // Open (unsold) demand across history
+  // Open (unsold) demand - ACTIVE window only (last 45 days). Demand lines
+  // older than that are stale interest, not the live book; they are counted
+  // separately so the AI never presents dead lines as actionable demand.
+  const ACTIVE_DAYS = 45
   const openDemand = []
   valid.forEach(c => {
     ;(c.demandRows || []).forEach(r => {
       if ((r.product || r.volume) && !(r.id && soldDemandIds.has(r.id))) {
-        openDemand.push({ client: c.client, date: callDate(c), product: r.product || '?', volume: num(r.volume), target: priceNum(r.priceTarget) })
+        openDemand.push({ client: c.client, date: callDate(c), product: r.product || '?', port: r.port || '', volume: num(r.volume), target: priceNum(r.priceTarget) })
       }
     })
   })
   openDemand.sort((a, b) => b.date.localeCompare(a.date))
-  const openAmsul = openDemand.filter(d => (d.product || '').toLowerCase().includes('amsul'))
-  const openVol = openAmsul.reduce((s, d) => s + (d.volume || 0), 0)
+  const isGR = d => { const pr = (d.product || '').toLowerCase(); return pr === 'amsul gr' || pr === 'amsul' }
+  const isSTD = d => (d.product || '').toLowerCase() === 'amsul std'
+  const active = openDemand.filter(d => daysAgo(d.date) <= ACTIVE_DAYS)
+  const activeGR = active.filter(isGR)
+  const activeSTD = active.filter(isSTD)
+  const staleAmsul = openDemand.filter(d => daysAgo(d.date) > ACTIVE_DAYS && (isGR(d) || isSTD(d)))
+  const volOf = arr => arr.reduce((sum, d) => sum + (d.volume || 0), 0)
 
   // Gone quiet: historically active clients (>=3 calls) silent for 21+ days
   const quiet = Object.entries(byClient)
@@ -73,12 +81,17 @@ function clientBlock(calls, soldDemandIds) {
     `Full call history: ${valid.length} calls across ${Object.keys(byClient).length} clients.`,
     `Client breadth: ${activeNow} distinct clients active in the last 7 days vs a prior 4-week average of ${avgPrior.toFixed(1)}/week (${avgPrior > 0 ? pct(((activeNow - avgPrior) / avgPrior) * 100) : 'n/a'}). Rising breadth = broadening demand; THIS COMPUTED COMPARISON IS AUTHORITATIVE.`,
   ]
-  if (openAmsul.length) {
-    const recent = openAmsul.slice(0, 6).map(d =>
-      `${d.client} ${d.volume ? d.volume + 't' : '?t'}${d.target ? ' target ' + d.target : ''} (${d.date})`).join('; ')
-    lines.push(`Open Amsul demand on the book (logged, not yet converted to sales): ~${Math.round(openVol)}t across ${openAmsul.length} demand lines. Most recent: ${recent}.`)
+  const fmtLine = d => `${d.client} ${d.volume ? d.volume + 't' : '?t'}${d.port ? ' ' + d.port : ''}${d.target ? ' target ' + d.target : ''} (${d.date})`
+  if (activeGR.length) {
+    lines.push(`ACTIVE open Amsul GR/compacted demand (logged within ${ACTIVE_DAYS}d, not yet converted): ~${Math.round(volOf(activeGR))}t across ${activeGR.length} lines. Most recent: ${activeGR.slice(0, 6).map(fmtLine).join('; ')}.`)
   } else {
-    lines.push('No open Amsul demand lines on the book.')
+    lines.push('No active open Amsul GR demand lines (last 45d).')
+  }
+  if (activeSTD.length) {
+    lines.push(`ACTIVE open Amsul STD demand (DIFFERENT PRODUCT - never judge against compacted benchmarks): ~${Math.round(volOf(activeSTD))}t across ${activeSTD.length} lines: ${activeSTD.slice(0, 4).map(fmtLine).join('; ')}.`)
+  }
+  if (staleAmsul.length) {
+    lines.push(`Stale unconverted Amsul demand older than ${ACTIVE_DAYS}d: ~${Math.round(volOf(staleAmsul))}t across ${staleAmsul.length} lines - historical interest only, NOT the live book; use for re-engagement ideas, never as current demand.`)
   }
   if (quiet.length) lines.push(`Gone quiet (regulars with no contact 21+ days - re-engagement candidates): ${quiet.join('; ')}.`)
   return `### CLIENT INTELLIGENCE (computed from the full call history)\n${lines.join('\n')}`
