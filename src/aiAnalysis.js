@@ -2,6 +2,7 @@
 import { buildMarketContext } from './marketSignals.js'
 import { buildDeskContext } from './deskSignals.js'
 import { buildTrackRecord, trackRecordText, buildLessonsText } from './learningLoop.js'
+import { saveAnalysisSnapshot } from './cloudAnalysis.js'
 import { supabase } from './supabaseClient.js'
 
 const ARGUS_KEY = 'fertintel_argus_amsul'
@@ -292,6 +293,10 @@ export async function runWeeklyAnalysis(calls, scope, sales = []) {
     weekLabel: weekLabel(week),       // human label, e.g. "Jun 23–27, 2026"
   }
   await logPositioning(parsed.positioning, scope, week.thursdayStr)
+  if (scope === 'global') {
+    // Shared desk analysis: publish to the cloud for every user
+    await saveAnalysisSnapshot(result).catch(() => {})
+  }
   localStorage.setItem(cacheKey(scope), JSON.stringify(result))
   return result
 }
