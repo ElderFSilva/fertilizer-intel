@@ -106,7 +106,7 @@ export default function Overview({ calls, sales, allCalls, allSales, role, scope
       const result = await runWeeklyAnalysis(deskCalls, 'global', deskSales)
       setAnalysis(result)
     } catch (e) {
-      setAiError('Could not generate analysis. Please try again.')
+      setAiError(`Could not generate analysis — ${e?.message || 'unknown error'}`)
     }
     setAiLoading(false)
   }
