@@ -186,8 +186,30 @@ POSITIONING rules (this is the desk's book stance for physical Amsul in Brazil, 
 - The trigger must be concrete and falsifiable (a number or observable event), never vague.
 - If the data genuinely supports no view, say NEUTRAL with low confidence - that is a valid, honest answer.`
 
+
+// Retry transient API failures (overloaded/rate-limited) before giving up:
+// up to 2 retries with 20s/30s waits — most 529s clear on the next attempt.
+async function fetchWithRetry(url, options, retries = 2) {
+  const delays = [20000, 30000]
+  for (let attempt = 0; ; attempt++) {
+    let response
+    try {
+      response = await fetch(url, options)
+    } catch (e) {
+      if (attempt >= retries) throw e
+      await new Promise(r => setTimeout(r, delays[Math.min(attempt, delays.length - 1)]))
+      continue
+    }
+    if ((response.status === 529 || response.status === 429) && attempt < retries) {
+      await new Promise(r => setTimeout(r, delays[Math.min(attempt, delays.length - 1)]))
+      continue
+    }
+    return response
+  }
+}
+
 async function callAnalysis(dataSummary, marketContext = '', deskContext = '', learningContext = '') {
-  const response = await fetch('/api/analyze', {
+  const response = await fetchWithRetry('/api/analyze', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
