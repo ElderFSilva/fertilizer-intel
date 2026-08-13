@@ -225,15 +225,15 @@ export default function Dashboard({ onLogout, user, profile, role }) {
             {error}
           </div>
         )}
-        {view === 'overview' && <Overview calls={visibleCalls} sales={visibleSales} scope={aiScope} scopeLabel={aiScopeLabel} />}
+        {view === 'overview' && <Overview calls={visibleCalls} sales={visibleSales} allCalls={calls} allSales={sales} role={role} scope={aiScope} scopeLabel={aiScopeLabel} />}
         {view === 'upload' && !isAdmin && <Upload onAdd={handleAdd} calls={calls} />}
         {view === 'calls' && <Calls calls={visibleCalls} sales={visibleSales} onDelete={handleDelete} onEdit={handleEdit} role={role} traderNames={traderNames} />}
         {view === 'prices' && <PriceTrends calls={visibleCalls} sales={visibleSales} />}
         {view === 'argus' && <Publication calls={visibleCalls} sales={visibleSales} role={role} />}
         {view === 'sales' && <Sales calls={visibleCalls} sales={visibleSales} onAddSale={handleAddSale} onDeleteSale={handleDeleteSale} onEditSale={handleEditSale} role={role} traderNames={traderNames} />}
         {view === 'market' && <MarketData role={role} />}
-        {view === 'record' && <TrackRecord scope={aiScope} />}
-        {view === 'advisor' && <Advisor role={role} calls={visibleCalls} sales={visibleSales} scope={aiScope} />}
+        {view === 'record' && <TrackRecord scope={'global'} />}
+        {view === 'advisor' && <Advisor role={role} calls={calls} sales={sales} scope={'global'} />}
         {view === 'backup' && <DataBackup traderId={traderId} role={role} onImport={reloadAll} />}
       </main>
     </div>
