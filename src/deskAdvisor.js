@@ -73,6 +73,28 @@ async function buildAdvisorContext(calls, sales, scope) {
   return parts.join('\n\n')
 }
 
+
+// Retry transient API failures (overloaded/rate-limited) before giving up:
+// up to 2 retries with 20s/30s waits — most 529s clear on the next attempt.
+async function fetchWithRetry(url, options, retries = 2) {
+  const delays = [20000, 30000]
+  for (let attempt = 0; ; attempt++) {
+    let response
+    try {
+      response = await fetch(url, options)
+    } catch (e) {
+      if (attempt >= retries) throw e
+      await new Promise(r => setTimeout(r, delays[Math.min(attempt, delays.length - 1)]))
+      continue
+    }
+    if ((response.status === 529 || response.status === 429) && attempt < retries) {
+      await new Promise(r => setTimeout(r, delays[Math.min(attempt, delays.length - 1)]))
+      continue
+    }
+    return response
+  }
+}
+
 // Ask a question. history = [{ role: 'user'|'assistant', content }] from this session.
 export async function askAdvisor(question, history, calls, sales, scope) {
   const context = await buildAdvisorContext(calls, sales, scope)
@@ -80,7 +102,7 @@ export async function askAdvisor(question, history, calls, sales, scope) {
     ...(history || []).slice(-10).map(m => ({ role: m.role, content: m.content })),
     { role: 'user', content: question },
   ]
-  const response = await fetch('/api/analyze', {
+  const response = await fetchWithRetry('/api/analyze', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
