@@ -192,7 +192,7 @@ async function callAnalysis(dataSummary, marketContext = '', deskContext = '', l
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       model: 'claude-fable-5',
-      max_tokens: 5000,
+      max_tokens: 9000,
       system: SYSTEM_PROMPT,
       messages: [{ role: 'user', content: `Analyze this fertilizer market data and provide intelligence:\n\n${dataSummary}\n\n## MARKET CONTEXT (external data & computed indicators)\n${marketContext || 'Not available.'}\n\n## DESK HISTORY (computed from the full call & sales record)\n${deskContext || 'Not available.'}\n\n## YOUR TRACK RECORD & DESK LESSONS\n${learningContext || 'Not available.'}` }],
     }),
@@ -204,7 +204,13 @@ async function callAnalysis(dataSummary, marketContext = '', deskContext = '', l
   }
 
   const data = await response.json()
+  if (data.error) {
+    throw new Error(data.error.message || 'API returned an error')
+  }
   const text = (data.content || []).map(b => b.text || '').join('')
+  if (data.stop_reason === 'max_tokens') {
+    throw new Error('AI response was truncated (max_tokens) — try again; if it persists, the output limit needs raising')
+  }
 
   // Resilient parse: strip code fences, then extract the outermost JSON object
   let parsed
