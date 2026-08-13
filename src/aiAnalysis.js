@@ -200,7 +200,10 @@ async function callAnalysis(dataSummary, marketContext = '', deskContext = '', l
 
   if (!response.ok) {
     const err = await response.json().catch(() => ({}))
-    throw new Error(err.error || `API error ${response.status}`)
+    const detail = typeof err.error === 'string' ? err.error
+      : err.error ? JSON.stringify(err.error)
+      : err.message || JSON.stringify(err)
+    throw new Error(`API ${response.status}: ${detail}`)
   }
 
   const data = await response.json()
