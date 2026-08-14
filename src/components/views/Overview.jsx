@@ -82,6 +82,7 @@ export default function Overview({ calls, sales, allCalls, allSales, role, scope
   // the global scope is only the instant-display fallback.
   const [analysis, setAnalysis] = useState(() => getCachedAnalysis('global'))
   const [aiLoading, setAiLoading] = useState(false)
+  const [aiStatus, setAiStatus] = useState('')
   const [aiError, setAiError] = useState('')
 
   useEffect(() => {
@@ -101,14 +102,16 @@ export default function Overview({ calls, sales, allCalls, allSales, role, scope
   async function generateWeekly() {
     if (!isAdmin || deskCalls.length === 0) return
     setAiLoading(true)
+    setAiStatus('')
     setAiError('')
     try {
-      const result = await runWeeklyAnalysis(deskCalls, 'global', deskSales)
+      const result = await runWeeklyAnalysis(deskCalls, 'global', deskSales, msg => setAiStatus(msg))
       setAnalysis(result)
     } catch (e) {
       setAiError(`Could not generate analysis — ${e?.message || 'unknown error'}`)
     }
     setAiLoading(false)
+    setAiStatus('')
   }
 
   // Whether the shown snapshot is for the current week
@@ -345,7 +348,7 @@ export default function Overview({ calls, sales, allCalls, allSales, role, scope
             {isAdmin ? (
               <button className={styles.refreshBtn} onClick={generateWeekly} disabled={aiLoading || deskCalls.length === 0}>
                 {aiLoading
-                  ? '◌ Analyzing...'
+                  ? (aiStatus ? `◌ ${aiStatus}` : '◌ Analyzing...')
                   : snapshotIsCurrent ? '↻ Regenerate this week' : `✦ Generate ${thisWeekLabel} analysis`}
               </button>
             ) : (
