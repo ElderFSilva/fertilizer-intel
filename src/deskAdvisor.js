@@ -76,19 +76,25 @@ async function buildAdvisorContext(calls, sales, scope) {
 
 // Retry transient API failures (overloaded/rate-limited) before giving up:
 // up to 2 retries with 20s/30s waits — most 529s clear on the next attempt.
-async function fetchWithRetry(url, options, retries = 2) {
+async function fetchWithRetry(url, options, retries = 2, onStatus = null) {
   const delays = [20000, 30000]
+  const wait = async (ms, why) => {
+    if (onStatus) onStatus(`${why} — retrying in ${Math.round(ms / 1000)}s…`)
+    await new Promise(r => setTimeout(r, ms))
+    if (onStatus) onStatus('retrying now…')
+  }
   for (let attempt = 0; ; attempt++) {
     let response
     try {
       response = await fetch(url, options)
     } catch (e) {
       if (attempt >= retries) throw e
-      await new Promise(r => setTimeout(r, delays[Math.min(attempt, delays.length - 1)]))
+      await wait(delays[Math.min(attempt, delays.length - 1)], 'connection problem')
       continue
     }
     if ((response.status === 529 || response.status === 429) && attempt < retries) {
-      await new Promise(r => setTimeout(r, delays[Math.min(attempt, delays.length - 1)]))
+      await wait(delays[Math.min(attempt, delays.length - 1)],
+        response.status === 529 ? 'AI server busy' : 'rate limited')
       continue
     }
     return response
