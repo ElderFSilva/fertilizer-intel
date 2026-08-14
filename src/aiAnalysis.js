@@ -189,26 +189,32 @@ POSITIONING rules (this is the desk's book stance for physical Amsul in Brazil, 
 
 // Retry transient API failures (overloaded/rate-limited) before giving up:
 // up to 2 retries with 20s/30s waits — most 529s clear on the next attempt.
-async function fetchWithRetry(url, options, retries = 2) {
+async function fetchWithRetry(url, options, retries = 2, onStatus = null) {
   const delays = [20000, 30000]
+  const wait = async (ms, why) => {
+    if (onStatus) onStatus(`${why} — retrying in ${Math.round(ms / 1000)}s…`)
+    await new Promise(r => setTimeout(r, ms))
+    if (onStatus) onStatus('retrying now…')
+  }
   for (let attempt = 0; ; attempt++) {
     let response
     try {
       response = await fetch(url, options)
     } catch (e) {
       if (attempt >= retries) throw e
-      await new Promise(r => setTimeout(r, delays[Math.min(attempt, delays.length - 1)]))
+      await wait(delays[Math.min(attempt, delays.length - 1)], 'connection problem')
       continue
     }
     if ((response.status === 529 || response.status === 429) && attempt < retries) {
-      await new Promise(r => setTimeout(r, delays[Math.min(attempt, delays.length - 1)]))
+      await wait(delays[Math.min(attempt, delays.length - 1)],
+        response.status === 529 ? 'AI server busy' : 'rate limited')
       continue
     }
     return response
   }
 }
 
-async function callAnalysis(dataSummary, marketContext = '', deskContext = '', learningContext = '') {
+async function callAnalysis(dataSummary, marketContext = '', deskContext = '', learningContext = '', onStatus = null) {
   const response = await fetchWithRetry('/api/analyze', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -218,7 +224,7 @@ async function callAnalysis(dataSummary, marketContext = '', deskContext = '', l
       system: SYSTEM_PROMPT,
       messages: [{ role: 'user', content: `Analyze this fertilizer market data and provide intelligence:\n\n${dataSummary}\n\n## MARKET CONTEXT (external data & computed indicators)\n${marketContext || 'Not available.'}\n\n## DESK HISTORY (computed from the full call & sales record)\n${deskContext || 'Not available.'}\n\n## YOUR TRACK RECORD & DESK LESSONS\n${learningContext || 'Not available.'}` }],
     }),
-  })
+  }, 2, onStatus)
 
   if (!response.ok) {
     const err = await response.json().catch(() => ({}))
@@ -307,12 +313,12 @@ export async function runAIAnalysis(calls, scope, sales = []) {
 }
 
 // ── Weekly snapshot: Mon–Fri calls + this week's publications, locked & stamped ──
-export async function runWeeklyAnalysis(calls, scope, sales = []) {
+export async function runWeeklyAnalysis(calls, scope, sales = [], onStatus = null) {
   const week = currentWeekInfo()
   const market = await buildMarketContext().catch(() => 'Market data unavailable (load error).')
   const desk = await buildDeskContext(calls, sales).catch(() => 'Desk history unavailable (load error).')
   const learning = await buildLearningContext(scope).catch(() => '')
-  const parsed = await callAnalysis(buildDataSummary(calls, true), market, desk, learning)
+  const parsed = await callAnalysis(buildDataSummary(calls, true), market, desk, learning, onStatus)
   const result = {
     signals: parsed.signals || [],
     analysis: parsed.analysis || null,
