@@ -1,7 +1,7 @@
 // AI market intelligence analysis using Claude Fable 5 (Stage 6.3)
 import { buildMarketContext } from './marketSignals.js'
 import { buildDeskContext } from './deskSignals.js'
-import { buildTrackRecord, trackRecordText, buildLessonsText } from './learningLoop.js'
+import { buildTrackRecord, trackRecordText, buildLessonsText, deskBehaviorText } from './learningLoop.js'
 import { saveAnalysisSnapshot } from './cloudAnalysis.js'
 import { supabase } from './supabaseClient.js'
 
@@ -267,14 +267,16 @@ async function callAnalysis(dataSummary, marketContext = '', deskContext = '', l
 
 
 // Assemble the learning context: the scorecard + admin-taught lessons
-async function buildLearningContext(scope) {
+async function buildLearningContext(scope, sales = null) {
   const [record, lessons] = await Promise.all([
-    buildTrackRecord(scope).catch(() => null),
+    buildTrackRecord(scope, sales).catch(() => null),
     buildLessonsText().catch(() => ''),
   ])
   const parts = []
   parts.push('### YOUR PAST STANCES, GRADED (computed, authoritative)')
   parts.push(trackRecordText(record))
+  const behavior = record?.behavior ? deskBehaviorText(record.behavior) : ''
+  if (behavior) parts.push('### STANCE VS DESK BEHAVIOR (computed, authoritative)\n' + behavior)
   if (lessons) parts.push('### DESK LESSONS (taught by the admin - treat as established desk knowledge)\n' + lessons)
   return parts.join('\n')
 }
@@ -298,7 +300,7 @@ async function logPositioning(positioning, scope, weekThursday) {
 export async function runAIAnalysis(calls, scope, sales = []) {
   const market = await buildMarketContext().catch(() => 'Market data unavailable (load error).')
   const desk = await buildDeskContext(calls, sales).catch(() => 'Desk history unavailable (load error).')
-  const learning = await buildLearningContext(scope).catch(() => '')
+  const learning = await buildLearningContext(scope, sales).catch(() => '')
   const parsed = await callAnalysis(buildDataSummary(calls, false), market, desk, learning)
   const result = {
     signals: parsed.signals || [],
@@ -318,7 +320,7 @@ export async function runWeeklyAnalysis(calls, scope, sales = [], onStatus = nul
   const week = currentWeekInfo()
   const market = await buildMarketContext().catch(() => 'Market data unavailable (load error).')
   const desk = await buildDeskContext(calls, sales).catch(() => 'Desk history unavailable (load error).')
-  const learning = await buildLearningContext(scope).catch(() => '')
+  const learning = await buildLearningContext(scope, sales).catch(() => '')
   const parsed = await callAnalysis(buildDataSummary(calls, true), market, desk, learning, onStatus)
   const result = {
     signals: parsed.signals || [],
