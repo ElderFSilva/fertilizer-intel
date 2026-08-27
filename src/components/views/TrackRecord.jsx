@@ -32,7 +32,7 @@ function Tile({ label, value, sub }) {
 const rate = t => t.total ? `${Math.round(t.correct / t.total * 100)}%` : '—'
 const frac = t => t.total ? `${t.correct}/${t.total}` : 'no data'
 
-export default function TrackRecord({ scope }) {
+export default function TrackRecord({ scope, sales = [] }) {
   const [record, setRecord] = useState(null)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
@@ -42,7 +42,7 @@ export default function TrackRecord({ scope }) {
     ;(async () => {
       setLoading(true)
       try {
-        const r = await buildTrackRecord(scope)
+        const r = await buildTrackRecord(scope, sales)
         if (active) { setRecord(r); setError('') }
       } catch {
         if (active) setError('Could not load the track record.')
@@ -50,7 +50,7 @@ export default function TrackRecord({ scope }) {
       if (active) setLoading(false)
     })()
     return () => { active = false }
-  }, [scope])
+  }, [scope, sales])
 
   const s = record?.summary
 
@@ -112,6 +112,45 @@ export default function TrackRecord({ scope }) {
               </div>
             )}
           </section>
+          {record.behavior && record.behavior.rows.some(r => r.followed !== 'n/a') && (
+            <section className={styles.section}>
+              <h2 className={styles.sectionTitle}>◨ Stance vs Desk Behavior</h2>
+              <p className={styles.sub}>Did the desk act on the call, and did acting work? Window: 2 weeks after each stance · Amsul GR sales only · followed = SHORT weeks selling ≥1.25× the trailing baseline, LONG weeks holding (or selling only at firm capture)</p>
+              <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 14 }}>
+                <Tile label="Stances followed" value={`${record.behavior.summary.followed}/${record.behavior.summary.actionable}`} sub="actionable (LONG/SHORT) only" />
+                <Tile label="Capture when following" value={record.behavior.summary.avgCaptureFollowed != null ? `${record.behavior.summary.avgCaptureFollowed >= 0 ? '+' : ''}${record.behavior.summary.avgCaptureFollowed.toFixed(0)}` : '—'} sub="USD/t vs mid at deal date" />
+                <Tile label="Acting vs waiting" value={record.behavior.summary.avgHindsightFollowed != null ? `${record.behavior.summary.avgHindsightFollowed >= 0 ? '+' : ''}${record.behavior.summary.avgHindsightFollowed.toFixed(0)}` : '—'} sub="sale VWAP vs mid 2 wks later" />
+              </div>
+              <div className={styles.tableScroll}>
+                <table className={styles.table}>
+                  <thead>
+                    <tr>
+                      <th className={styles.th}>Week</th>
+                      <th className={styles.th}>Call</th>
+                      <th className={styles.th}>Sold (2wks)</th>
+                      <th className={styles.th}>Deals</th>
+                      <th className={styles.th}>Capture</th>
+                      <th className={styles.th}>vs mid +2w</th>
+                      <th className={styles.th}>Verdict</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {record.behavior.rows.map((r, i) => (
+                      <tr key={i} className={styles.tr}>
+                        <td className={styles.td}>{fmtDate(r.week)}</td>
+                        <td className={styles.td} style={{ color: BIAS_COLOR[r.bias] || 'var(--text)', fontWeight: 700 }}>{r.bias}</td>
+                        <td className={styles.td}>{r.soldVol ? `${r.soldVol.toLocaleString('en-US')}t` : '—'}</td>
+                        <td className={styles.td}>{r.deals || '—'}</td>
+                        <td className={styles.td}>{r.capture != null ? `${r.capture >= 0 ? '+' : ''}${r.capture.toFixed(0)}` : '—'}</td>
+                        <td className={styles.td}>{r.hindsight != null ? `${r.hindsight >= 0 ? '+' : ''}${r.hindsight.toFixed(0)}` : '—'}</td>
+                        <td className={styles.td} style={{ color: r.followed === 'followed' ? 'var(--accent)' : r.followed === 'ignored' ? 'var(--red)' : 'var(--text3)' }}>{r.followed}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          )}
         </>
       )}
     </div>
