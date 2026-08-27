@@ -130,33 +130,48 @@ export function scoreDeskBehavior(stanceRows, pubs, sales) {
   const grSales = (sales || []).filter(s => isGRSale(s) && saleNum(s.donePrice) != null && saleDateOf(s))
     .map(s => ({ d: saleDateOf(s), price: saleNum(s.donePrice), vol: saleNum(s.volume) || 0 }))
   const volBetween = (a, b) => grSales.filter(x => x.d > a && x.d <= b)
-  const rows = stanceRows.map(r => {
+  const today = ymd(new Date().toISOString())
+
+  // EXCLUSIVE attribution: a stance governs from its week until the next
+  // stance takes over (capped at HORIZON_DAYS). Every sale belongs to exactly
+  // one stance - the one in force on its deal date. No overlapping windows.
+  const ordered = [...stanceRows].sort((a, b) => b.week.localeCompare(a.week)) // newest first
+  const rows = ordered.map((r, idx) => {
     const start = r.week
-    const end = addDays(start, HORIZON_DAYS)
+    const nextWeek = idx > 0 ? ordered[idx - 1].week : null
+    const cap = addDays(start, HORIZON_DAYS)
+    const end = [nextWeek, cap, today].filter(Boolean).sort()[0]
+    const periodDays = Math.max(0, Math.round((new Date(end + 'T00:00:00') - new Date(start + 'T00:00:00')) / 86400000))
     const win = volBetween(start, end)
     const vol = win.reduce((s, x) => s + x.vol, 0)
-    // baseline: trailing 12 weeks before the stance, per-2-week volume
+    const weeklyRate = periodDays >= 1 ? vol / (periodDays / 7) : 0
+    // baseline: trailing 12 weeks before the stance, as a weekly rate
     const baseWin = volBetween(addDays(start, -84), start)
-    const baseVol2w = baseWin.reduce((s, x) => s + x.vol, 0) / 6
+    const baseWeekly = baseWin.reduce((s, x) => s + x.vol, 0) / 12
     const scored = win.map(x => {
       const m = midAt(series, x.d)
-      return m ? { ...x, capture: x.price - m.mid } : null
+      const after = midFrom(series, addDays(x.d, HORIZON_DAYS))
+      return m ? { ...x, capture: x.price - m.mid, hind: after ? x.price - after.mid : null } : null
     }).filter(Boolean)
     const wVol = scored.reduce((s, x) => s + x.vol, 0)
     const capture = wVol > 0 ? scored.reduce((s, x) => s + x.capture * x.vol, 0) / wVol : null
-    const endMid = midFrom(series, end)
-    const vwap = wVol > 0 ? scored.reduce((s, x) => s + x.price * x.vol, 0) / wVol : null
-    const hindsight = (vwap != null && endMid) ? vwap - endMid.mid : null
+    const hindScored = scored.filter(x => x.hind != null)
+    const hVol = hindScored.reduce((s, x) => s + x.vol, 0)
+    const hindsight = hVol > 0 ? hindScored.reduce((s, x) => s + x.hind * x.vol, 0) / hVol : null
     let followed = 'n/a'
-    if (r.bias === 'SHORT') followed = baseVol2w > 0 ? (vol >= 1.25 * baseVol2w ? 'followed' : 'ignored') : (vol > 0 ? 'followed' : 'ignored')
-    else if (r.bias === 'LONG') followed = (vol <= 0.75 * baseVol2w || (capture != null && capture >= 0)) ? 'followed' : 'ignored'
+    if (r.bias === 'SHORT' || r.bias === 'LONG') {
+      const isLatest = idx === 0
+      if (isLatest && periodDays < 7) followed = 'pending'
+      else if (r.bias === 'SHORT') followed = baseWeekly > 0 ? (weeklyRate >= 1.25 * baseWeekly ? 'followed' : 'ignored') : (vol > 0 ? 'followed' : 'ignored')
+      else followed = (weeklyRate <= 0.75 * baseWeekly || (capture != null && capture >= 0)) ? 'followed' : 'ignored'
+    }
     return {
       week: r.week, bias: r.bias, confidence: r.confidence, result: r.result,
-      soldVol: Math.round(vol), deals: win.length, baseVol2w: Math.round(baseVol2w),
-      capture, hindsight, followed,
+      periodDays, soldVol: Math.round(vol), deals: win.length,
+      baseWeekly: Math.round(baseWeekly), capture, hindsight, followed,
     }
   })
-  const actionable = rows.filter(r => r.followed !== 'n/a')
+  const actionable = rows.filter(r => r.followed === 'followed' || r.followed === 'ignored')
   const followedRows = actionable.filter(r => r.followed === 'followed')
   const avg = (arr, k) => { const v = arr.map(r => r[k]).filter(x => x != null); return v.length ? v.reduce((s, x) => s + x, 0) / v.length : null }
   return {
