@@ -176,7 +176,7 @@ export default function Sales({ calls, sales = [], onAddSale, onDeleteSale, onEd
             </div>
             <div className={styles.field}>
               <label className={styles.label}>Client *</label>
-              <input className={styles.input} list="client-names" placeholder="Client" value={form.client} onChange={e => set('client', e.target.value)} />
+              <input className={styles.input} list="client-names" placeholder="Client" value={form.client} onChange={e => set('client', e.target.value)} onBlur={e => { const t = (e.target.value || '').trim().replace(/\s+/g, ' '); const hit = clientNames.find(k => k.toLowerCase() === t.toLowerCase()); set('client', hit || t) }} />
               <datalist id="client-names">
                 {clientNames.map(n => <option key={n} value={n} />)}
               </datalist>
