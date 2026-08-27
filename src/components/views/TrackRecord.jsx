@@ -115,7 +115,7 @@ export default function TrackRecord({ scope, sales = [] }) {
           {record.behavior && record.behavior.rows.some(r => r.followed !== 'n/a') && (
             <section className={styles.section}>
               <h2 className={styles.sectionTitle}>◨ Stance vs Desk Behavior</h2>
-              <p className={styles.sub}>Did the desk act on the call, and did acting work? Window: 2 weeks after each stance · Amsul GR sales only · followed = SHORT weeks selling ≥1.25× the trailing baseline, LONG weeks holding (or selling only at firm capture)</p>
+              <p className={styles.sub}>Did the desk act on the call, and did acting work? Each stance governs from its week until the next stance takes over (max 2 weeks) — every sale is attributed to exactly one stance, the one in force on its deal date · Amsul GR only · followed = SHORT stances selling ≥1.25× the trailing weekly baseline rate, LONG stances holding (or selling only at firm capture) · the newest stance shows pending until its period matures</p>
               <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 14 }}>
                 <Tile label="Stances followed" value={`${record.behavior.summary.followed}/${record.behavior.summary.actionable}`} sub="actionable (LONG/SHORT) only" />
                 <Tile label="Capture when following" value={record.behavior.summary.avgCaptureFollowed != null ? `${record.behavior.summary.avgCaptureFollowed >= 0 ? '+' : ''}${record.behavior.summary.avgCaptureFollowed.toFixed(0)}` : '—'} sub="USD/t vs mid at deal date" />
@@ -127,7 +127,7 @@ export default function TrackRecord({ scope, sales = [] }) {
                     <tr>
                       <th className={styles.th}>Week</th>
                       <th className={styles.th}>Call</th>
-                      <th className={styles.th}>Sold (2wks)</th>
+                      <th className={styles.th}>Sold (in force)</th>
                       <th className={styles.th}>Deals</th>
                       <th className={styles.th}>Capture</th>
                       <th className={styles.th}>vs mid +2w</th>
@@ -143,7 +143,7 @@ export default function TrackRecord({ scope, sales = [] }) {
                         <td className={styles.td}>{r.deals || '—'}</td>
                         <td className={styles.td}>{r.capture != null ? `${r.capture >= 0 ? '+' : ''}${r.capture.toFixed(0)}` : '—'}</td>
                         <td className={styles.td}>{r.hindsight != null ? `${r.hindsight >= 0 ? '+' : ''}${r.hindsight.toFixed(0)}` : '—'}</td>
-                        <td className={styles.td} style={{ color: r.followed === 'followed' ? 'var(--accent)' : r.followed === 'ignored' ? 'var(--red)' : 'var(--text3)' }}>{r.followed}</td>
+                        <td className={styles.td} style={{ color: r.followed === 'followed' ? 'var(--accent)' : r.followed === 'ignored' ? 'var(--red)' : r.followed === 'pending' ? '#d4a72c' : 'var(--text3)' }}>{r.followed}</td>
                       </tr>
                     ))}
                   </tbody>
