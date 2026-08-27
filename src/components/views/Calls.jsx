@@ -55,6 +55,14 @@ function emptyPrices() {
 }
 
 export default function Calls({ calls, sales = [], onDelete, onEdit, role, traderNames = {} }) {
+  const knownClients = [...new Set(calls.map(c => (c.client || '').trim()).filter(Boolean))]
+    .sort((a, b) => a.localeCompare(b))
+  const canonicalClient = name => {
+    const t = (name || '').trim().replace(/\s+/g, ' ')
+    if (!t) return t
+    const hit = knownClients.find(k => k.toLowerCase() === t.toLowerCase())
+    return hit || t
+  }
   const isAdmin = role === 'admin'
   const [search, setSearch] = useState('')
   const [filterProduct, setFilterProduct] = useState('')
@@ -347,7 +355,10 @@ export default function Calls({ calls, sales = [], onDelete, onEdit, role, trade
                   <div className={styles.editRow}>
                     <div className={styles.editField}>
                       <label className={styles.editLabel}>Client</label>
-                      <input className={styles.editInput} value={editForm.client} onChange={e => setEditForm(f => ({ ...f, client: e.target.value }))} />
+                      <input className={styles.editInput} list="edit-client-names" value={editForm.client} onChange={e => setEditForm(f => ({ ...f, client: e.target.value }))} onBlur={e => setEditForm(f => ({ ...f, client: canonicalClient(e.target.value) }))} />
+                      <datalist id="edit-client-names">
+                        {knownClients.map(n => <option key={n} value={n} />)}
+                      </datalist>
                     </div>
                     <div className={styles.editField}>
                       <label className={styles.editLabel}>Date</label>
