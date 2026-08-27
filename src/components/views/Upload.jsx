@@ -142,6 +142,15 @@ function CompetitorOffersEditor({ offers, onChange }) {
 }
 
 export default function Upload({ onAdd, calls = [] }) {
+  // Known client names (canonical spellings) for autocomplete + normalization
+  const knownClients = [...new Set(calls.map(c => (c.client || '').trim()).filter(Boolean))]
+    .sort((a, b) => a.localeCompare(b))
+  const canonicalClient = name => {
+    const t = (name || '').trim().replace(/\s+/g, ' ')
+    if (!t) return t
+    const hit = knownClients.find(k => k.toLowerCase() === t.toLowerCase())
+    return hit || t
+  }
   const [error, setError] = useState('')
   const [savedBanner, setSavedBanner] = useState(false)
   const [form, setForm] = useState(emptyForm())
@@ -264,7 +273,10 @@ export default function Upload({ onAdd, calls = [] }) {
         <div className={styles.row}>
           <div className={styles.field}>
             <label className={styles.label}>Client *</label>
-            <input className={styles.input} value={form.client} onChange={e => setField('client', e.target.value)} placeholder="Client name" />
+            <input className={styles.input} list="call-client-names" value={form.client} onChange={e => setField('client', e.target.value)} onBlur={e => setField('client', canonicalClient(e.target.value))} placeholder="Client name" />
+            <datalist id="call-client-names">
+              {knownClients.map(n => <option key={n} value={n} />)}
+            </datalist>
           </div>
           <div className={styles.field}>
             <label className={styles.label}>Date</label>
