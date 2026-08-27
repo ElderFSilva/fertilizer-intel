@@ -100,14 +100,86 @@ export function summarize(rows) {
   return { overall, pending, byBias, byConf }
 }
 
-export async function buildTrackRecord(scope) {
+export async function buildTrackRecord(scope, sales = null) {
   const [log, pubs] = await Promise.all([
     loadPositioningLog(scope),
     loadMarketRows('intl_publications', 2000).catch(() => []),
   ])
   const rows = scoreStances(log, pubs)
   const summary = summarize(rows)
-  return { rows, summary }
+  const behavior = Array.isArray(sales) ? scoreDeskBehavior(rows, pubs, sales) : null
+  return { rows, summary, behavior }
+}
+
+
+// ── Stance vs desk behavior: did the desk act on the call, and did acting work? ──
+// For each stance week, examine Amsul GR sales in the following HORIZON_DAYS:
+//  - followed?  SHORT: sold >= 1.25x trailing-12w weekly baseline volume.
+//               LONG: sold <= 0.75x baseline OR sold only at capture >= 0.
+//               NEUTRAL: exempt (n/a).
+//  - capture:   volume-weighted realized price vs Argus mid at each deal date.
+//  - hindsight: sale VWAP vs the mid at the end of the window
+//               (positive = selling beat waiting).
+// Recomputed from source data on every run - nothing stored.
+const saleDateOf = s => ymd(s.dealDate || s.deal_date || s.date || s.created_at || '')
+const saleNum = v => { const n = parseFloat(String(v ?? '').replace(/[^0-9.\-]/g, '')); return isNaN(n) ? null : n }
+const isGRSale = s => (s.product || '').trim().toLowerCase() === 'amsul gr'
+
+export function scoreDeskBehavior(stanceRows, pubs, sales) {
+  const series = benchSeries(pubs)
+  const grSales = (sales || []).filter(s => isGRSale(s) && saleNum(s.donePrice) != null && saleDateOf(s))
+    .map(s => ({ d: saleDateOf(s), price: saleNum(s.donePrice), vol: saleNum(s.volume) || 0 }))
+  const volBetween = (a, b) => grSales.filter(x => x.d > a && x.d <= b)
+  const rows = stanceRows.map(r => {
+    const start = r.week
+    const end = addDays(start, HORIZON_DAYS)
+    const win = volBetween(start, end)
+    const vol = win.reduce((s, x) => s + x.vol, 0)
+    // baseline: trailing 12 weeks before the stance, per-2-week volume
+    const baseWin = volBetween(addDays(start, -84), start)
+    const baseVol2w = baseWin.reduce((s, x) => s + x.vol, 0) / 6
+    const scored = win.map(x => {
+      const m = midAt(series, x.d)
+      return m ? { ...x, capture: x.price - m.mid } : null
+    }).filter(Boolean)
+    const wVol = scored.reduce((s, x) => s + x.vol, 0)
+    const capture = wVol > 0 ? scored.reduce((s, x) => s + x.capture * x.vol, 0) / wVol : null
+    const endMid = midFrom(series, end)
+    const vwap = wVol > 0 ? scored.reduce((s, x) => s + x.price * x.vol, 0) / wVol : null
+    const hindsight = (vwap != null && endMid) ? vwap - endMid.mid : null
+    let followed = 'n/a'
+    if (r.bias === 'SHORT') followed = baseVol2w > 0 ? (vol >= 1.25 * baseVol2w ? 'followed' : 'ignored') : (vol > 0 ? 'followed' : 'ignored')
+    else if (r.bias === 'LONG') followed = (vol <= 0.75 * baseVol2w || (capture != null && capture >= 0)) ? 'followed' : 'ignored'
+    return {
+      week: r.week, bias: r.bias, confidence: r.confidence, result: r.result,
+      soldVol: Math.round(vol), deals: win.length, baseVol2w: Math.round(baseVol2w),
+      capture, hindsight, followed,
+    }
+  })
+  const actionable = rows.filter(r => r.followed !== 'n/a')
+  const followedRows = actionable.filter(r => r.followed === 'followed')
+  const avg = (arr, k) => { const v = arr.map(r => r[k]).filter(x => x != null); return v.length ? v.reduce((s, x) => s + x, 0) / v.length : null }
+  return {
+    rows,
+    summary: {
+      actionable: actionable.length,
+      followed: followedRows.length,
+      avgCaptureFollowed: avg(followedRows, 'capture'),
+      avgHindsightFollowed: avg(followedRows, 'hindsight'),
+    },
+  }
+}
+
+export function deskBehaviorText(behavior) {
+  if (!behavior || !behavior.summary.actionable) return ''
+  const b = behavior.summary
+  const parts = [
+    `Stance-vs-desk: of ${b.actionable} actionable stances (LONG/SHORT), the desk acted in line with ${b.followed}.`,
+  ]
+  if (b.avgCaptureFollowed != null) parts.push(`When following, execution captured ${b.avgCaptureFollowed >= 0 ? '+' : ''}${b.avgCaptureFollowed.toFixed(0)} USD/t vs the mid at deal date.`)
+  if (b.avgHindsightFollowed != null) parts.push(`Hindsight: sales made while following beat the 2-weeks-later mid by ${b.avgHindsightFollowed >= 0 ? '+' : ''}${b.avgHindsightFollowed.toFixed(0)} USD/t on average (positive = acting beat waiting).`)
+  if (b.actionable < 4) parts.push(`[only ${b.actionable} actionable stances - weak evidence, do not over-adjust]`)
+  return parts.join(' ')
 }
 
 // Compact text for the AI prompt
