@@ -232,7 +232,7 @@ export default function Dashboard({ onLogout, user, profile, role }) {
         {view === 'argus' && <Publication calls={visibleCalls} sales={visibleSales} role={role} />}
         {view === 'sales' && <Sales calls={visibleCalls} sales={visibleSales} onAddSale={handleAddSale} onDeleteSale={handleDeleteSale} onEditSale={handleEditSale} role={role} traderNames={traderNames} />}
         {view === 'market' && <MarketData role={role} />}
-        {view === 'record' && <TrackRecord scope={'global'} />}
+        {view === 'record' && <TrackRecord scope={'global'} sales={sales} />}
         {view === 'advisor' && <Advisor role={role} calls={calls} sales={sales} scope={'global'} />}
         {view === 'backup' && <DataBackup traderId={traderId} role={role} onImport={reloadAll} />}
       </main>
