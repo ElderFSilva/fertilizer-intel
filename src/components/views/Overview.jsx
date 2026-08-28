@@ -374,15 +374,15 @@ export default function Overview({ calls, sales, allCalls, allSales, role, scope
           </div>
         </div>
 
-        {isAdmin && readiness && (
+        {isAdmin && readiness?.items && (
           <p style={{
             fontFamily: "'DM Mono', monospace", fontSize: 11, color: 'var(--text3)',
             margin: '2px 0 12px', letterSpacing: '0.02em',
           }}>
-            This week's data:{' '}
-            {readiness.map((r, i) => (
+            Data through {new Date(readiness.through + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}:{' '}
+            {readiness.items.map((r, i) => (
               <span key={r.label} style={{ color: r.ok ? 'var(--accent)' : 'var(--text3)', whiteSpace: 'nowrap' }}>
-                {r.label} {r.ok ? '✓' : '○'}{i < readiness.length - 1 ? '  ·  ' : ''}
+                {r.label} {r.ok ? '✓' : '○'}{i < readiness.items.length - 1 ? '  ·  ' : ''}
               </span>
             ))}
           </p>
