@@ -3,6 +3,7 @@ import { buildMarketContext } from './marketSignals.js'
 import { buildDeskContext } from './deskSignals.js'
 import { buildTrackRecord, trackRecordText, buildLessonsText } from './learningLoop.js'
 import { saveAnalysisSnapshot } from './cloudAnalysis.js'
+import { evaluateTriggers, triggerStatusText } from './triggerWatch.js'
 import { supabase } from './supabaseClient.js'
 
 const ARGUS_KEY = 'fertintel_argus_amsul'
@@ -142,8 +143,12 @@ Analyze the data and respond ONLY with valid JSON (no markdown, no preamble) in 
   "positioning": {
     "bias": "LONG|NEUTRAL|SHORT",
     "confidence": "low|moderate|high",
+    "action_summary": "ONE plain sentence of what the desk should DO this week - actions and numbers, no analyst language",
     "rationale": "one or two sentences citing the specific computed indicators driving the bias",
-    "trigger": "one concrete, falsifiable condition that would change this view"
+    "trigger": "the exit conditions in one plain human sentence",
+    "exit_conditions": [
+      { "metric": "cfr_composite|fob_composite|parity_spread|urea_cfr_mid|barter_aprazo|barter_antecipado", "op": "<|<=|>|>=", "level": 231, "flips_to": "LONG|NEUTRAL|SHORT" }
+    ]
   }
 }
 
@@ -185,6 +190,8 @@ POSITIONING rules (this is the desk's book stance for physical Amsul in Brazil, 
 - The bias must follow from the computed indicators (parity spread, percentile, N-unit spread, line-up, pace, barter, remaining demand) and the week's internal data. Cite them in the rationale.
 - Confidence must be honest: with thin history or stale/missing series, cap confidence at low or moderate. High confidence requires multiple fresh, agreeing signals.
 - The trigger must be concrete and falsifiable (a number or observable event), never vague.
+- EXIT CONDITIONS (mandatory): express the trigger as 1-3 machine-checkable exit_conditions using ONLY these metrics: cfr_composite, fob_composite, parity_spread, urea_cfr_mid, barter_aprazo, barter_antecipado (values as computed in the MARKET CONTEXT). Each condition: metric, op (< <= > >=), numeric level, and flips_to. The prose "trigger" sentence must match them. Qualitative conditions (e.g. clients confirming switching) may appear in the prose ONLY, and note they are not machine-monitored.
+- PLAIN ACTION LANGUAGE: action_summary is what a trader does, in desk words - e.g. "No tilt: trade the normal flow, sell decent bids at 231+, don't stretch either way." Never analyst abstractions ("momentum argues", "downside cushioned") anywhere in positioning - state what happens to prices and what the desk does about it.
 - If the data genuinely supports no view, say NEUTRAL with low confidence - that is a valid, honest answer.`
 
 
@@ -310,6 +317,8 @@ async function logPositioning(positioning, scope, weekThursday) {
       confidence: positioning.confidence || 'low',
       rationale: positioning.rationale || null,
       trigger_condition: positioning.trigger || null,
+      action_summary: positioning.action_summary || null,
+      exit_conditions: Array.isArray(positioning.exit_conditions) ? positioning.exit_conditions : null,
     })
   } catch { /* logging must never break the analysis */ }
 }
@@ -338,7 +347,12 @@ export async function runWeeklyAnalysis(calls, scope, sales = [], onStatus = nul
   const week = currentWeekInfo()
   const market = await buildMarketContext().catch(() => 'Market data unavailable (load error).')
   const desk = await buildDeskContext(calls, sales).catch(() => 'Desk history unavailable (load error).')
-  const learning = await buildLearningContext(scope).catch(() => '')
+  let learning = await buildLearningContext(scope).catch(() => '')
+  try {
+    const twEval = await evaluateTriggers(scope === 'global' ? 'global' : scope)
+    const twText = triggerStatusText(twEval)
+    if (twText) learning += '\n### TRIGGER-WATCH (computed, authoritative)\n' + twText
+  } catch { /* trigger status is best-effort */ }
   const parsed = await callAnalysis(buildDataSummary(calls, true), market, desk, learning, onStatus)
   const result = {
     signals: parsed.signals || [],
@@ -357,6 +371,8 @@ export async function runWeeklyAnalysis(calls, scope, sales = [], onStatus = nul
       confidence: pinned.confidence,
       rationale: pinned.rationale,
       trigger: pinned.trigger_condition,
+      action_summary: pinned.action_summary || null,
+      exit_conditions: pinned.exit_conditions || null,
     }
     result.stanceLockedAt = pinned.generated_at
   } else {
