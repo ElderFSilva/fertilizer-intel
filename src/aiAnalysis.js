@@ -1,7 +1,7 @@
 // AI market intelligence analysis using Claude Fable 5 (Stage 6.3)
 import { buildMarketContext } from './marketSignals.js'
 import { buildDeskContext } from './deskSignals.js'
-import { buildTrackRecord, trackRecordText, buildLessonsText, deskBehaviorText } from './learningLoop.js'
+import { buildTrackRecord, trackRecordText, buildLessonsText } from './learningLoop.js'
 import { saveAnalysisSnapshot } from './cloudAnalysis.js'
 import { supabase } from './supabaseClient.js'
 
@@ -267,18 +267,36 @@ async function callAnalysis(dataSummary, marketContext = '', deskContext = '', l
 
 
 // Assemble the learning context: the scorecard + admin-taught lessons
-async function buildLearningContext(scope, sales = null) {
+async function buildLearningContext(scope) {
   const [record, lessons] = await Promise.all([
-    buildTrackRecord(scope, sales).catch(() => null),
+    buildTrackRecord(scope).catch(() => null),
     buildLessonsText().catch(() => ''),
   ])
   const parts = []
   parts.push('### YOUR PAST STANCES, GRADED (computed, authoritative)')
   parts.push(trackRecordText(record))
-  const behavior = record?.behavior ? deskBehaviorText(record.behavior) : ''
-  if (behavior) parts.push('### STANCE VS DESK BEHAVIOR (computed, authoritative)\n' + behavior)
   if (lessons) parts.push('### DESK LESSONS (taught by the admin - treat as established desk knowledge)\n' + lessons)
   return parts.join('\n')
+}
+
+
+// ── Weekly-definitive stance ──
+// The FIRST stance generated in a market week (the Monday run, after the
+// week's data is entered) is the desk's committed stance for that week.
+// Later generations refresh signals & analysis, but their positioning output
+// is discarded: the pinned stance is returned instead and nothing is logged.
+async function getDefinitiveStance(scope, weekThursday) {
+  try {
+    const { data, error } = await supabase
+      .from('positioning_log')
+      .select('*')
+      .eq('scope', scope || 'default')
+      .eq('week_thursday', weekThursday)
+      .order('generated_at', { ascending: true })
+      .limit(1)
+    if (error || !data || !data.length) return null
+    return data[0]
+  } catch { return null }
 }
 
 // Append the stance to the immutable positioning log (best-effort, never blocks the analysis)
@@ -300,7 +318,7 @@ async function logPositioning(positioning, scope, weekThursday) {
 export async function runAIAnalysis(calls, scope, sales = []) {
   const market = await buildMarketContext().catch(() => 'Market data unavailable (load error).')
   const desk = await buildDeskContext(calls, sales).catch(() => 'Desk history unavailable (load error).')
-  const learning = await buildLearningContext(scope, sales).catch(() => '')
+  const learning = await buildLearningContext(scope).catch(() => '')
   const parsed = await callAnalysis(buildDataSummary(calls, false), market, desk, learning)
   const result = {
     signals: parsed.signals || [],
@@ -320,7 +338,7 @@ export async function runWeeklyAnalysis(calls, scope, sales = [], onStatus = nul
   const week = currentWeekInfo()
   const market = await buildMarketContext().catch(() => 'Market data unavailable (load error).')
   const desk = await buildDeskContext(calls, sales).catch(() => 'Desk history unavailable (load error).')
-  const learning = await buildLearningContext(scope, sales).catch(() => '')
+  const learning = await buildLearningContext(scope).catch(() => '')
   const parsed = await callAnalysis(buildDataSummary(calls, true), market, desk, learning, onStatus)
   const result = {
     signals: parsed.signals || [],
@@ -332,7 +350,19 @@ export async function runWeeklyAnalysis(calls, scope, sales = [], onStatus = nul
     weekThursday: week.thursdayStr,   // identifies which week this snapshot is for
     weekLabel: weekLabel(week),       // human label, e.g. "Jun 23–27, 2026"
   }
-  await logPositioning(parsed.positioning, scope, week.thursdayStr)
+  const pinned = await getDefinitiveStance(scope, week.thursdayStr)
+  if (pinned) {
+    result.positioning = {
+      bias: pinned.bias,
+      confidence: pinned.confidence,
+      rationale: pinned.rationale,
+      trigger: pinned.trigger_condition,
+    }
+    result.stanceLockedAt = pinned.generated_at
+  } else {
+    await logPositioning(parsed.positioning, scope, week.thursdayStr)
+    result.stanceLockedAt = new Date().toISOString()
+  }
   if (scope === 'global') {
     // Shared desk analysis: publish to the cloud for every user
     await saveAnalysisSnapshot(result).catch(() => {})
