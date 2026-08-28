@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { generateWeeklyReport } from '../../report.js'
 import { loadLatestAnalysisSnapshot } from '../../cloudAnalysis.js'
 import { weeklyReadiness } from '../../marketSignals.js'
+import { evaluateTriggers } from '../../triggerWatch.js'
 import { runWeeklyAnalysis, getCachedAnalysis, currentWeekInfo, weekLabel } from '../../aiAnalysis.js'
 import { PRODUCTS, buildDemandSummary } from '../../data.js'
 import styles from './Overview.module.css'
@@ -86,6 +87,13 @@ export default function Overview({ calls, sales, allCalls, allSales, role, scope
   const [aiStatus, setAiStatus] = useState('')
   const [aiError, setAiError] = useState('')
   const [readiness, setReadiness] = useState(null)
+  const [triggerEval, setTriggerEval] = useState(null)
+
+  useEffect(() => {
+    let active = true
+    evaluateTriggers('global').then(t => { if (active) setTriggerEval(t) }).catch(() => {})
+    return () => { active = false }
+  }, [aiLoading])
 
   useEffect(() => {
     if (!isAdmin) return
@@ -431,6 +439,21 @@ export default function Overview({ calls, sales, allCalls, allSales, role, scope
                 ◆ {analysis.positioning.bias} · {String(analysis.positioning.confidence || '').toUpperCase()}
               </span>
               <div style={{ flex: 1 }}>
+                {triggerEval?.anyBreached && (
+                  <p style={{
+                    color: 'var(--red)', fontSize: 13, fontWeight: 700, marginBottom: 6,
+                    fontFamily: "'DM Mono', monospace",
+                  }}>
+                    ⚠ EXIT CONDITION HIT — {triggerEval.results.filter(r => r.breached).map(r =>
+                      `${r.metric} ${r.op} ${r.level} (current ${r.current != null ? r.current.toFixed(1) : '?'})`).join('; ')}.
+                    {' '}This stance's own logic no longer holds — treat with caution until the next Monday stance.
+                  </p>
+                )}
+                {analysis.positioning.action_summary && (
+                  <p style={{ color: 'var(--text)', fontWeight: 700, marginBottom: 4 }}>
+                    {analysis.positioning.action_summary}
+                  </p>
+                )}
                 <p style={{ color: 'var(--text)' }}>{analysis.positioning.rationale}</p>
                 {analysis.positioning.trigger && (
                   <p style={{ color: 'var(--text3)', fontSize: 12, marginTop: 4 }}>
