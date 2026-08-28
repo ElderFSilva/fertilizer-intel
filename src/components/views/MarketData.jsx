@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import styles from './MarketData.module.css'
+import { evaluateTriggers } from '../../triggerWatch.js'
 import { loadMarketRows, insertMarketRow, updateMarketRow, deleteMarketRow } from '../../cloudMarketData.js'
 
 // ─────────────────────────────────────────────────────────────
@@ -307,6 +308,7 @@ export default function MarketData({ role }) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [saved, setSaved] = useState(false)
+  const [triggerNote, setTriggerNote] = useState('')
 
   async function reload(t = tab) {
     setLoading(true)
@@ -354,6 +356,17 @@ export default function MarketData({ role }) {
       setEditingId(null)
       setSaved(true)
       setTimeout(() => setSaved(false), 2500)
+      // Trigger-watch: does this fresh data point breach the standing stance?
+      if (['intl', 'barter', 'freight'].includes(tab.id)) {
+        setTriggerNote('')
+        evaluateTriggers('global').then(t => {
+          if (t?.anyBreached) {
+            const hits = t.results.filter(r => r.breached)
+              .map(r => `${r.metric} ${r.op} ${r.level} (current ${r.current != null ? r.current.toFixed(1) : '?'})`).join('; ')
+            setTriggerNote(`⚠ This week's stance exit condition is now HIT: ${hits} — the standing ${t.stance.bias} stance is falsified; see Overview.`)
+          }
+        }).catch(() => {})
+      }
     } catch (e) {
       setError(editingId ? 'Could not update (admin only).' : 'Could not save (admin only).')
     }
@@ -447,6 +460,11 @@ export default function MarketData({ role }) {
           </div>
           {error && <p className={styles.error}>{error}</p>}
           {saved && <p className={styles.success}>✓ Saved successfully!</p>}
+          {triggerNote && (
+            <p style={{ color: 'var(--red)', fontFamily: "'DM Mono', monospace", fontSize: 12, marginTop: 8 }}>
+              {triggerNote}
+            </p>
+          )}
         </section>
       )}
       {!isAdmin && error && <p className={styles.error}>{error}</p>}
