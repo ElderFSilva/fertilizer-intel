@@ -6,7 +6,7 @@
 import { supabase } from './supabaseClient.js'
 import { buildMarketContext } from './marketSignals.js'
 import { buildDeskContext } from './deskSignals.js'
-import { buildTrackRecord, trackRecordText, buildLessonsText, deskBehaviorText } from './learningLoop.js'
+import { buildTrackRecord, trackRecordText, buildLessonsText } from './learningLoop.js'
 
 const ADVISOR_SYSTEM = `You are the senior market advisor for a Brazilian Amsul (ammonium sulphate) trading desk, answering the desk head's questions directly.
 
@@ -60,14 +60,14 @@ async function buildAdvisorContext(calls, sales, scope) {
   const [market, desk, record, lessons] = await Promise.all([
     buildMarketContext().catch(() => 'Market data unavailable.'),
     buildDeskContext(calls, sales).catch(() => 'Desk history unavailable.'),
-    buildTrackRecord(scope, sales).catch(() => null),
+    buildTrackRecord(scope).catch(() => null),
     buildLessonsText().catch(() => ''),
   ])
   const parts = [
     '## MARKET CONTEXT (computed indicators)', market,
     '## DESK HISTORY (computed from calls & sales)', desk,
     '## RECENT CALLS (newest first)', recentCallsDigest(calls),
-    '## SYSTEM TRACK RECORD', trackRecordText(record) + (record?.behavior && deskBehaviorText(record.behavior) ? '\n' + deskBehaviorText(record.behavior) : ''),
+    '## SYSTEM TRACK RECORD', trackRecordText(record),
   ]
   if (lessons) parts.push('## DESK LESSONS', lessons)
   return parts.join('\n\n')
