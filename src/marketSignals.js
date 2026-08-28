@@ -272,7 +272,19 @@ function supplyBlock(snaps) {
         })
       const total = cur.reduce((sum, r) => sum + Number(r.volume_kt), 0)
       const label = idx === 0 ? 'PRIMARY line-up lens' : 'secondary line-up lens (different provider - never compare volumes against the primary)'
-      out.push(`${label} [source: ${S.src}] (report ${S.reports[0]}, ${freshness(S.reports[0], 10)}) - total visible ${fmt(total)}k tons:\n${months.join('\n')}`)
+      // Frozen expectation for the month underway: the last snapshot taken
+      // BEFORE the month began is its final expectation (the freeze rule).
+      const now = new Date()
+      const curMonthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`
+      const frozenRows = S.rows
+        .filter(r => ymd(r.period) === curMonthStart && ymd(r.report_date) < curMonthStart)
+        .sort((a, b) => ymd(b.report_date).localeCompare(ymd(a.report_date)))
+      let frozenLine = ''
+      if (frozenRows.length) {
+        const f = frozenRows[0]
+        frozenLine = `\n  ${monthLabel(f.period)} (month underway): expectation FROZEN at ${fmt(f.volume_kt)}k tons from the ${ymd(f.report_date)} report - this figure belongs to ${monthLabel(f.period)} ONLY; realized volumes are Siacesp's lens, never the line-up's.`
+      }
+      out.push(`${label} [source: ${S.src}] (report ${S.reports[0]}, ${freshness(S.reports[0], 10)}) - total visible ${fmt(total)}k tons:\n${months.join('\n')}${frozenLine}`)
     })
   } else out.push('Line-up: no data entered.')
 
@@ -399,19 +411,35 @@ export async function weeklyReadiness() {
     loadMarketRows('barter_ratios', 60).catch(() => []),
     loadMarketRows('fx_rates', 30).catch(() => []),
   ])
-  const thisWeek = weekKeyOf(new Date().toISOString())
-  const inWeek = d => weekKeyOf(d) === thisWeek
+  // The batch is "in" when data covers the most recent completed publication
+  // cycle: the most recent Friday on/before today (prices publish Thu/Fri,
+  // weekly datasets are dated Friday and entered Monday).
+  const now = new Date()
+  const lastFriday = new Date(now)
+  lastFriday.setDate(now.getDate() - ((now.getDay() + 2) % 7))
+  const y = lastFriday.getFullYear()
+  const m = String(lastFriday.getMonth() + 1).padStart(2, '0')
+  const d = String(lastFriday.getDate()).padStart(2, '0')
+  const throughStr = `${y}-${m}-${d}`
+  const targetWeek = weekKeyOf(throughStr)
+  const covers = dateVal => {
+    const wk = weekKeyOf(dateVal)
+    return wk != null && wk >= targetWeek
+  }
   const hasPub = src => pubs.some(r => r.source === src && r.product === 'amsul'
-    && r.price_point === 'cfr_brazil' && inWeek(r.pub_date))
-  return [
-    { label: 'Argus', ok: hasPub('argus') },
-    { label: 'Fertecon', ok: hasPub('fertecon') },
-    { label: 'Agrinvest', ok: hasPub('agrinvest') },
-    { label: 'Line-up', ok: snaps.some(r => r.series === 'lineup' && inWeek(r.report_date)) },
-    { label: 'Pace', ok: snaps.some(r => r.series === 'ytd_pace' && inWeek(r.report_date)) },
-    { label: 'Barter', ok: barter.some(r => inWeek(r.ratio_date)) },
-    { label: 'FX', ok: fx.some(r => inWeek(r.rate_date)) },
-  ]
+    && r.price_point === 'cfr_brazil' && covers(r.pub_date))
+  return {
+    through: throughStr,
+    items: [
+      { label: 'Argus', ok: hasPub('argus') },
+      { label: 'Fertecon', ok: hasPub('fertecon') },
+      { label: 'Agrinvest', ok: hasPub('agrinvest') },
+      { label: 'Line-up', ok: snaps.some(r => r.series === 'lineup' && covers(r.report_date)) },
+      { label: 'Pace', ok: snaps.some(r => r.series === 'ytd_pace' && covers(r.report_date)) },
+      { label: 'Barter', ok: barter.some(r => covers(r.ratio_date)) },
+      { label: 'FX', ok: fx.some(r => covers(r.rate_date)) },
+    ],
+  }
 }
 
 export async function buildMarketContext() {
