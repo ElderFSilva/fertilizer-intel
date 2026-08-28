@@ -388,6 +388,32 @@ function fxBlock(rows) {
 }
 
 // ── Main entry: build the full market context text for the AI prompt ──
+
+// ── Weekly readiness: is this week's data batch in? ──
+// Shown above the Generate button so the Monday definitive stance is never
+// accidentally generated on half-entered data. Display only - never gates.
+export async function weeklyReadiness() {
+  const [pubs, snaps, barter, fx] = await Promise.all([
+    loadMarketRows('intl_publications', 120).catch(() => []),
+    loadMarketRows('supply_snapshots', 120).catch(() => []),
+    loadMarketRows('barter_ratios', 60).catch(() => []),
+    loadMarketRows('fx_rates', 30).catch(() => []),
+  ])
+  const thisWeek = weekKeyOf(new Date().toISOString())
+  const inWeek = d => weekKeyOf(d) === thisWeek
+  const hasPub = src => pubs.some(r => r.source === src && r.product === 'amsul'
+    && r.price_point === 'cfr_brazil' && inWeek(r.pub_date))
+  return [
+    { label: 'Argus', ok: hasPub('argus') },
+    { label: 'Fertecon', ok: hasPub('fertecon') },
+    { label: 'Agrinvest', ok: hasPub('agrinvest') },
+    { label: 'Line-up', ok: snaps.some(r => r.series === 'lineup' && inWeek(r.report_date)) },
+    { label: 'Pace', ok: snaps.some(r => r.series === 'ytd_pace' && inWeek(r.report_date)) },
+    { label: 'Barter', ok: barter.some(r => inWeek(r.ratio_date)) },
+    { label: 'FX', ok: fx.some(r => inWeek(r.rate_date)) },
+  ]
+}
+
 export async function buildMarketContext() {
   const loadBench = async () => {
     const { data, error } = await supabase
