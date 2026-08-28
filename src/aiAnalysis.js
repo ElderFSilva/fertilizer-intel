@@ -144,7 +144,7 @@ Analyze the data and respond ONLY with valid JSON (no markdown, no preamble) in 
     "bias": "LONG|NEUTRAL|SHORT",
     "confidence": "low|moderate|high",
     "action_summary": "ONE plain sentence of what the desk should DO this week - actions and numbers, no analyst language",
-    "rationale": "one or two sentences citing the specific computed indicators driving the bias",
+    "rationale": "THREE labeled parts in plain desk language: 'Reasons to sell: ...' then 'Reasons to hold: ...' then 'The open question: ...' - each part short sentences with specific numbers; the open question names the main unresolved conflict in one line",
     "trigger": "the exit conditions in one plain human sentence",
     "exit_conditions": [
       { "metric": "cfr_composite|fob_composite|parity_spread|urea_cfr_mid|barter_aprazo|barter_antecipado", "op": "<|<=|>|>=", "level": 231, "flips_to": "LONG|NEUTRAL|SHORT" }
@@ -164,6 +164,7 @@ You will also receive a MARKET CONTEXT section with external data and pre-comput
 - Import parity is computed from the desk's OWN freight contract; do not mix it with published freight benchmarks.
 - Connect internal and external: judge client targets and competitor offers against parity, percentile and the N-unit spread (e.g. an offer above replacement cost is not desperation selling).
 - Trust the pre-computed indicators over re-deriving your own; cite their specific figures.
+- NUMBER-TO-PERIOD BINDING (critical): never attach a volume or price to a month, week or period unless the computed context attaches it to that EXACT period. A figure the context ties to August may never appear in a sentence about September. If unsure which period a number belongs to, omit the number.
 - Respect the freshness stamps: if a series is marked STALE or missing, say so and lower confidence accordingly. Never invent data.
 - Sample-size honesty: where the context flags weak evidence (small n), you may cite the level and the explicitly computed comparisons only. NEVER infer additional direction, trend, or causation beyond what the context literally computes.
 - Directional statements (improved/worsened, up/down, above/below) must be copied from the computed indicators, never re-derived. A lower sc/ton barter ratio is BETTER for the farmer.
@@ -191,6 +192,7 @@ POSITIONING rules (this is the desk's book stance for physical Amsul in Brazil, 
 - Confidence must be honest: with thin history or stale/missing series, cap confidence at low or moderate. High confidence requires multiple fresh, agreeing signals.
 - The trigger must be concrete and falsifiable (a number or observable event), never vague.
 - EXIT CONDITIONS (mandatory): express the trigger as 1-3 machine-checkable exit_conditions using ONLY these metrics: cfr_composite, fob_composite, parity_spread, urea_cfr_mid, barter_aprazo, barter_antecipado (values as computed in the MARKET CONTEXT). Each condition: metric, op (< <= > >=), numeric level, and flips_to. The prose "trigger" sentence must match them. Qualitative conditions (e.g. clients confirming switching) may appear in the prose ONLY, and note they are not machine-monitored.
+- RATIONALE FORMAT (mandatory): the rationale is always three labeled parts - "Reasons to sell:" (the bearish facts), "Reasons to hold:" (the bullish facts), "The open question:" (the one unresolved conflict that will decide direction). Short sentences, specific numbers, no comma-chained analysis. If the stance is strongly one-sided, the weaker column can be one short sentence, but all three labels always appear.
 - PLAIN ACTION LANGUAGE: action_summary is what a trader does, in desk words - e.g. "No tilt: trade the normal flow, sell decent bids at 231+, don't stretch either way." Never analyst abstractions ("momentum argues", "downside cushioned") anywhere in positioning - state what happens to prices and what the desk does about it.
 - If the data genuinely supports no view, say NEUTRAL with low confidence - that is a valid, honest answer.`
 
