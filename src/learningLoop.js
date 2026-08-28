@@ -29,15 +29,46 @@ function addDays(dateStr, n) {
   return `${y}-${m}-${dd}`
 }
 
-// Argus Amsul CFR compacted weekly mids, ascending by date
+// Same-week COMPOSITE Amsul CFR compacted mids (argus + fertecon + agrinvest
+// as available each week), keyed by the week's Thursday, ascending.
+// The stance is FORMED from the composite, so it is GRADED against the
+// composite - never a single source. Membership per week is disclosed.
+function weekThuOf(dateStr) {
+  const d = new Date(ymd(dateStr) + 'T00:00:00')
+  if (isNaN(d.getTime())) return null
+  const day = d.getDay()
+  const monday = new Date(d)
+  monday.setDate(d.getDate() - (day === 0 ? 6 : day - 1))
+  monday.setDate(monday.getDate() + 3)
+  const y = monday.getFullYear()
+  const m = String(monday.getMonth() + 1).padStart(2, '0')
+  const dd = String(monday.getDate()).padStart(2, '0')
+  return `${y}-${m}-${dd}`
+}
+
 function benchSeries(pubs) {
-  return pubs
-    .filter(r => r.source === 'argus' && r.frequency === 'weekly' && r.product === 'amsul'
+  const weeks = {}
+  pubs
+    .filter(r => r.frequency === 'weekly' && r.product === 'amsul'
       && r.price_point === 'cfr_brazil' && r.grade === 'compacted')
-    .map(r => ({
-      date: ymd(r.pub_date),
-      mid: (Number(r.price_low) + Number(r.price_high != null ? r.price_high : r.price_low)) / 2,
-    }))
+    .forEach(r => {
+      const wk = weekThuOf(r.pub_date)
+      if (!wk) return
+      const w = (weeks[wk] = weeks[wk] || {})
+      const prev = w[r.source]
+      if (!prev || ymd(r.pub_date) > prev.d) {
+        w[r.source] = { d: ymd(r.pub_date), mid: (Number(r.price_low) + Number(r.price_high != null ? r.price_high : r.price_low)) / 2 }
+      }
+    })
+  return Object.entries(weeks)
+    .map(([date, srcs]) => {
+      const entries = Object.entries(srcs)
+      return {
+        date,
+        mid: entries.reduce((s2, [, v]) => s2 + v.mid, 0) / entries.length,
+        sources: entries.map(([k]) => k).sort().join('+'),
+      }
+    })
     .sort((a, b) => a.date.localeCompare(b.date))
 }
 
@@ -77,6 +108,8 @@ export function scoreStances(log, pubs) {
       week, bias: r.bias, confidence: r.confidence,
       priceThen: start ? start.mid : null,
       priceAfter: end ? end.mid : null,
+      srcThen: start ? start.sources : null,
+      srcAfter: end ? end.sources : null,
       changePct, result,
       rationale: r.rationale, trigger: r.trigger_condition,
     })
@@ -100,102 +133,16 @@ export function summarize(rows) {
   return { overall, pending, byBias, byConf }
 }
 
-export async function buildTrackRecord(scope, sales = null) {
+export async function buildTrackRecord(scope) {
   const [log, pubs] = await Promise.all([
     loadPositioningLog(scope),
     loadMarketRows('intl_publications', 2000).catch(() => []),
   ])
   const rows = scoreStances(log, pubs)
   const summary = summarize(rows)
-  const behavior = Array.isArray(sales) ? scoreDeskBehavior(rows, pubs, sales) : null
-  return { rows, summary, behavior }
+  return { rows, summary }
 }
 
-
-// ── Stance vs desk behavior: did the desk act on the call, and did acting work? ──
-// For each stance week, examine Amsul GR sales in the following HORIZON_DAYS:
-//  - followed?  SHORT: sold >= 1.25x trailing-12w weekly baseline volume.
-//               LONG: sold <= 0.75x baseline OR sold only at capture >= 0.
-//               NEUTRAL: exempt (n/a).
-//  - capture:   volume-weighted realized price vs Argus mid at each deal date.
-//  - hindsight: sale VWAP vs the mid at the end of the window
-//               (positive = selling beat waiting).
-// Recomputed from source data on every run - nothing stored.
-const saleDateOf = s => ymd(s.dealDate || s.deal_date || s.date || s.created_at || '')
-const saleNum = v => { const n = parseFloat(String(v ?? '').replace(/[^0-9.\-]/g, '')); return isNaN(n) ? null : n }
-const isGRSale = s => (s.product || '').trim().toLowerCase() === 'amsul gr'
-
-export function scoreDeskBehavior(stanceRows, pubs, sales) {
-  const series = benchSeries(pubs)
-  const grSales = (sales || []).filter(s => isGRSale(s) && saleNum(s.donePrice) != null && saleDateOf(s))
-    .map(s => ({ d: saleDateOf(s), price: saleNum(s.donePrice), vol: saleNum(s.volume) || 0 }))
-  const volBetween = (a, b) => grSales.filter(x => x.d > a && x.d <= b)
-  const today = ymd(new Date().toISOString())
-
-  // EXCLUSIVE attribution: a stance governs from its week until the next
-  // stance takes over (capped at HORIZON_DAYS). Every sale belongs to exactly
-  // one stance - the one in force on its deal date. No overlapping windows.
-  const ordered = [...stanceRows].sort((a, b) => b.week.localeCompare(a.week)) // newest first
-  const rows = ordered.map((r, idx) => {
-    const start = r.week
-    const nextWeek = idx > 0 ? ordered[idx - 1].week : null
-    const cap = addDays(start, HORIZON_DAYS)
-    const end = [nextWeek, cap, today].filter(Boolean).sort()[0]
-    const periodDays = Math.max(0, Math.round((new Date(end + 'T00:00:00') - new Date(start + 'T00:00:00')) / 86400000))
-    const win = volBetween(start, end)
-    const vol = win.reduce((s, x) => s + x.vol, 0)
-    const weeklyRate = periodDays >= 1 ? vol / (periodDays / 7) : 0
-    // baseline: trailing 12 weeks before the stance, as a weekly rate
-    const baseWin = volBetween(addDays(start, -84), start)
-    const baseWeekly = baseWin.reduce((s, x) => s + x.vol, 0) / 12
-    const scored = win.map(x => {
-      const m = midAt(series, x.d)
-      const after = midFrom(series, addDays(x.d, HORIZON_DAYS))
-      return m ? { ...x, capture: x.price - m.mid, hind: after ? x.price - after.mid : null } : null
-    }).filter(Boolean)
-    const wVol = scored.reduce((s, x) => s + x.vol, 0)
-    const capture = wVol > 0 ? scored.reduce((s, x) => s + x.capture * x.vol, 0) / wVol : null
-    const hindScored = scored.filter(x => x.hind != null)
-    const hVol = hindScored.reduce((s, x) => s + x.vol, 0)
-    const hindsight = hVol > 0 ? hindScored.reduce((s, x) => s + x.hind * x.vol, 0) / hVol : null
-    let followed = 'n/a'
-    if (r.bias === 'SHORT' || r.bias === 'LONG') {
-      const isLatest = idx === 0
-      if (isLatest && periodDays < 7) followed = 'pending'
-      else if (r.bias === 'SHORT') followed = baseWeekly > 0 ? (weeklyRate >= 1.25 * baseWeekly ? 'followed' : 'ignored') : (vol > 0 ? 'followed' : 'ignored')
-      else followed = (weeklyRate <= 0.75 * baseWeekly || (capture != null && capture >= 0)) ? 'followed' : 'ignored'
-    }
-    return {
-      week: r.week, bias: r.bias, confidence: r.confidence, result: r.result,
-      periodDays, soldVol: Math.round(vol), deals: win.length,
-      baseWeekly: Math.round(baseWeekly), capture, hindsight, followed,
-    }
-  })
-  const actionable = rows.filter(r => r.followed === 'followed' || r.followed === 'ignored')
-  const followedRows = actionable.filter(r => r.followed === 'followed')
-  const avg = (arr, k) => { const v = arr.map(r => r[k]).filter(x => x != null); return v.length ? v.reduce((s, x) => s + x, 0) / v.length : null }
-  return {
-    rows,
-    summary: {
-      actionable: actionable.length,
-      followed: followedRows.length,
-      avgCaptureFollowed: avg(followedRows, 'capture'),
-      avgHindsightFollowed: avg(followedRows, 'hindsight'),
-    },
-  }
-}
-
-export function deskBehaviorText(behavior) {
-  if (!behavior || !behavior.summary.actionable) return ''
-  const b = behavior.summary
-  const parts = [
-    `Stance-vs-desk: of ${b.actionable} actionable stances (LONG/SHORT), the desk acted in line with ${b.followed}.`,
-  ]
-  if (b.avgCaptureFollowed != null) parts.push(`When following, execution captured ${b.avgCaptureFollowed >= 0 ? '+' : ''}${b.avgCaptureFollowed.toFixed(0)} USD/t vs the mid at deal date.`)
-  if (b.avgHindsightFollowed != null) parts.push(`Hindsight: sales made while following beat the 2-weeks-later mid by ${b.avgHindsightFollowed >= 0 ? '+' : ''}${b.avgHindsightFollowed.toFixed(0)} USD/t on average (positive = acting beat waiting).`)
-  if (b.actionable < 4) parts.push(`[only ${b.actionable} actionable stances - weak evidence, do not over-adjust]`)
-  return parts.join(' ')
-}
 
 // Compact text for the AI prompt
 export function trackRecordText(record) {
@@ -203,7 +150,7 @@ export function trackRecordText(record) {
   const { summary, rows } = record
   const o = summary.overall
   const parts = [
-    `Scored stances: ${o.correct} of ${o.total} correct (${o.total ? Math.round(o.correct / o.total * 100) + '%' : 'n/a'}), ${summary.pending} pending. Scoring rule: Argus CFR mid move over the following 2 weeks, +/-${THRESHOLD_PCT}% threshold.`,
+    `Scored stances: ${o.correct} of ${o.total} correct (${o.total ? Math.round(o.correct / o.total * 100) + '%' : 'n/a'}), ${summary.pending} pending. Scoring rule: same-week COMPOSITE CFR mid (argus/fertecon/agrinvest as available) move over the following 2 weeks, +/-${THRESHOLD_PCT}% threshold.`,
   ]
   const biasBits = Object.entries(summary.byBias).filter(([, v]) => v.total > 0)
     .map(([b, v]) => `${b} ${v.correct}/${v.total}`)
