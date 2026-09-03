@@ -204,7 +204,7 @@ export default function ArgusView({ calls, sales = [] }) {
               <ComposedChart data={chartData} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
                 <XAxis dataKey="label" tick={{ fill: 'var(--text3)', fontSize: 11 }} interval={0} />
-                <YAxis tick={{ fill: 'var(--text3)', fontSize: 11 }} domain={['auto', 'auto']} />
+                <YAxis tick={{ fill: 'var(--text3)', fontSize: 11 }} domain={[0, 500]} ticks={[0, 100, 200, 300, 400, 500]} allowDataOverflow />
                 <Tooltip content={<CustomTooltip />} />
                 <Legend wrapperStyle={{ fontSize: 12, color: 'var(--text2)', paddingTop: 12 }} />
                 <Line type="monotone" dataKey="argusAvg" stroke="#60b8f0" strokeWidth={2.5} strokeDasharray="6 3" dot={{ r: 5, fill: '#60b8f0' }} name="Argus Avg" connectNulls />
