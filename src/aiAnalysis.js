@@ -130,6 +130,7 @@ The products tracked are: Amsul (ammonium sulphate), Urea, MAP, SSP, TSP, NP. Pr
 
 Analyze the data and respond ONLY with valid JSON (no markdown, no preamble) in this exact structure:
 {
+  "brief": "one short narrative paragraph (3-5 sentences) summarizing the week's market in plain desk language - price level and direction, demand state, the main risk ahead",
   "signals": [
     { "type": "warning|alert|opportunity", "text": "one sharp sentence with specific numbers/clients" }
   ],
