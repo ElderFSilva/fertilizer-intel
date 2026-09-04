@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import {
   ComposedChart, Line, XAxis, YAxis, Tooltip,
-  ResponsiveContainer, Legend, CartesianGrid
+  ResponsiveContainer, CartesianGrid
 } from 'recharts'
 import styles from './Publication.module.css'
 import { cloudLoadBenchmarkFromIntl } from '../../cloudData.js'
@@ -172,6 +172,20 @@ export default function ArgusView({ calls, sales = [] }) {
   })()
   const chartData = fullChartData.filter(r => r.date >= cutoff)
 
+  // Latest printed weekly average per series, shown in the single top legend
+  const latestOf = key => {
+    for (let i = chartData.length - 1; i >= 0; i--) {
+      if (chartData[i][key] != null) return chartData[i][key]
+    }
+    return null
+  }
+  const LEGEND = [
+    { key: 'argusAvg', color: '#60b8f0', dash: true, name: 'Argus Avg' },
+    { key: 'ferteconAvg', color: '#b860f0', dash: true, name: 'Fertecon Avg' },
+    { key: 'callAvg', color: '#c8f060', dash: false, name: 'Call Average' },
+    { key: 'salesAvg', color: '#ffd60a', dash: false, name: 'Sales Avg (done)' },
+  ]
+
   const allDates = [...new Set([...argusData.map(a => a.date), ...ferteconData.map(f => f.date)])]
     .filter(d => d >= cutoff)
     .sort((a, b) => b.localeCompare(a))
@@ -200,13 +214,20 @@ export default function ArgusView({ calls, sales = [] }) {
           </div>
         ) : (
           <div className={styles.chartWrap}>
+            <div style={{ display: 'flex', gap: 22, flexWrap: 'wrap', margin: '0 0 12px 6px' }}>
+              {LEGEND.map(l => (
+                <span key={l.key} style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontSize: 12, color: 'var(--text2)' }}>
+                  <span style={{ width: 20, borderTop: `2.5px ${l.dash ? 'dashed' : 'solid'} ${l.color}` }} />
+                  {l.name}{latestOf(l.key) != null && <b style={{ color: l.color }}>{latestOf(l.key)}</b>}
+                </span>
+              ))}
+            </div>
             <ResponsiveContainer width="100%" height={340}>
               <ComposedChart data={chartData} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
                 <XAxis dataKey="label" tick={{ fill: 'var(--text3)', fontSize: 11 }} interval={0} />
                 <YAxis tick={{ fill: 'var(--text3)', fontSize: 11 }} domain={[0, 500]} ticks={[0, 100, 200, 300, 400, 500]} allowDataOverflow />
                 <Tooltip content={<CustomTooltip />} />
-                <Legend wrapperStyle={{ fontSize: 12, color: 'var(--text2)', paddingTop: 12 }} />
                 <Line type="monotone" dataKey="argusAvg" stroke="#60b8f0" strokeWidth={2.5} strokeDasharray="6 3" dot={{ r: 5, fill: '#60b8f0' }} name="Argus Avg" connectNulls />
                 <Line type="monotone" dataKey="ferteconAvg" stroke="#b860f0" strokeWidth={2.5} strokeDasharray="6 3" dot={{ r: 5, fill: '#b860f0' }} name="Fertecon Avg" connectNulls />
                 <Line type="monotone" dataKey="lowestPrice" stroke="transparent" strokeWidth={0} dot={false} legendType="none" name="Lowest Price" connectNulls />
