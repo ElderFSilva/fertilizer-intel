@@ -197,13 +197,12 @@ function buildChartData(calls, sales, argusData, ferteconData) {
 }
 
 // Latest non-null value per series (the most recent week each series printed)
-function latestValues(chartData) {
-  const pick = key => {
-    for (let i = chartData.length - 1; i >= 0; i--) {
-      if (chartData[i][key] != null) return { v: chartData[i][key], label: chartData[i].label }
-    }
-    return null
-  }
+// Legend values are the REPORTED WEEK's values only, never "the most recent
+// week that happens to have one". A series with nothing this week prints no
+// number at all - a stale figure wearing this week's label is a lie.
+function weekValues(chartData, weekThursday) {
+  const row = chartData.find(r => r.date === weekThursday) || null
+  const pick = key => (row && row[key] != null) ? { v: row[key] } : null
   return {
     argus: pick('argusAvg'),
     fertecon: pick('ferteconAvg'),
@@ -218,12 +217,17 @@ function buildChartSVG(chartData) {
   const PAD = { top: 16, right: 16, bottom: 34, left: 44 }
   const chartW = W - PAD.left - PAD.right
   const chartH = H - PAD.top - PAD.bottom
-  const minY = 0, maxY = 500 // fixed axis - identical to the app chart
+  const minY = 100, maxY = 300, stepY = 50 // fixed axis - identical to the app chart
   const xScale = i => PAD.left + (chartData.length === 1 ? chartW / 2 : (i / (chartData.length - 1)) * chartW)
-  const yScale = v => PAD.top + chartH - ((v - minY) / (maxY - minY)) * chartH
+  // clamp: a value outside the window is pinned to the edge rather than drawn
+  // off-plot, so the line stays inside the axes
+  const yScale = v => {
+    const c = Math.max(minY, Math.min(maxY, v))
+    return PAD.top + chartH - ((c - minY) / (maxY - minY)) * chartH
+  }
 
   const gridAndTicks = []
-  for (let v = 0; v <= 500; v += 100) {
+  for (let v = minY; v <= maxY; v += stepY) {
     const y = yScale(v)
     gridAndTicks.push(`<line x1="${PAD.left}" y1="${y}" x2="${W - PAD.right}" y2="${y}" stroke="#e8e8e8" stroke-dasharray="3 3"/>`)
     gridAndTicks.push(`<text x="${PAD.left - 8}" y="${y + 3}" text-anchor="end" font-size="10" fill="#999">${v}</text>`)
@@ -401,8 +405,12 @@ export async function generateWeeklyReport(calls, signals, dateFrom, dateTo, ana
 
   const now = new Date()
 
+  // The market week this report is about, keyed by its Thursday. Used by both
+  // the chart legend and the AI block so they can never describe different weeks.
+  const reportWeekThursday = getWeekThursday(toStr)
+
   const chartData = buildChartData(calls, sales, argusData, ferteconData)
-  const latest = latestValues(chartData)
+  const latest = weekValues(chartData, reportWeekThursday)
   const chartSVG = buildChartSVG(chartData)
 
   const salesPerf = buildSalesPerformance(sales, fromStr, toStr)
@@ -418,7 +426,6 @@ export async function generateWeeklyReport(calls, signals, dateFrom, dateTo, ana
   // day of the range, so a Mon–Fri export uses that week and a longer range
   // uses the week it closes on. Never "the newest snapshot in the table" —
   // that prints one week's words on another week's report.
-  const reportWeekThursday = getWeekThursday(toStr)
   let weekSnapshot = null
   let weekSnapshotId = null
   try {
@@ -559,6 +566,7 @@ export async function generateWeeklyReport(calls, signals, dateFrom, dateTo, ana
   <div class="section">
     <div class="section-title">Amsul CFR Brazil — Publication vs Market</div>
     <div class="chart-wrap">
+      <div style="font-size:10px;color:#888;margin-bottom:8px">Values shown are the weekly average for the week of ${escapeHtml(aiWeekLabel)}</div>
       <div class="chart-legend">
         <div class="legend-item"><div class="legend-dash" style="border-color:#60b8f0"></div> Argus Avg${latest.argus ? ` <b>${latest.argus.v}</b>` : ''}</div>
         <div class="legend-item"><div class="legend-dash" style="border-color:#b860f0"></div> Fertecon Avg${latest.fertecon ? ` <b>${latest.fertecon.v}</b>` : ''}</div>
