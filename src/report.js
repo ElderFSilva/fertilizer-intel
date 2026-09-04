@@ -217,7 +217,7 @@ function buildChartSVG(chartData) {
   const PAD = { top: 16, right: 16, bottom: 34, left: 44 }
   const chartW = W - PAD.left - PAD.right
   const chartH = H - PAD.top - PAD.bottom
-  const minY = 100, maxY = 300, stepY = 50 // fixed axis - identical to the app chart
+  const minY = 180, maxY = 280, stepY = 50 // fixed axis - identical to the app chart
   const xScale = i => PAD.left + (chartData.length === 1 ? chartW / 2 : (i / (chartData.length - 1)) * chartW)
   // clamp: a value outside the window is pinned to the edge rather than drawn
   // off-plot, so the line stays inside the axes
