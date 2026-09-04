@@ -336,6 +336,7 @@ export async function runAIAnalysis(calls, scope, sales = []) {
   const result = {
     signals: parsed.signals || [],
     analysis: parsed.analysis || null,
+    brief: parsed.brief || '',
     positioning: parsed.positioning || null,
     trackRecord: (await buildTrackRecord(scope).catch(() => null))?.summary || null,
     generatedAt: new Date().toISOString(),
@@ -361,6 +362,7 @@ export async function runWeeklyAnalysis(calls, scope, sales = [], onStatus = nul
   const result = {
     signals: parsed.signals || [],
     analysis: parsed.analysis || null,
+    brief: parsed.brief || '',
     positioning: parsed.positioning || null,
     trackRecord: (await buildTrackRecord(scope).catch(() => null))?.summary || null,
     generatedAt: new Date().toISOString(),
