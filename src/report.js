@@ -1,11 +1,4 @@
-const ARGUS_KEY = 'fertintel_argus_amsul'
-const FERTECON_KEY = 'fertintel_fertecon_amsul'
-const SALES_KEY = 'fertintel_sales'
-
-function loadStorage(key) {
-  try { const r = localStorage.getItem(key); return r ? JSON.parse(r) : [] }
-  catch { return [] }
-}
+import { cloudLoadBenchmarkFromIntl } from './cloudData.js'
 
 function formatDate(dateStr) {
   if (!dateStr) return '—'
@@ -107,7 +100,7 @@ function saleLoggedDate(sale) {
   return new Date(0)
 }
 
-function buildChartData(calls, argusData, ferteconData) {
+function buildChartData(calls, sales, argusData, ferteconData) {
   const weekMap = {}
 
   argusData.forEach(a => {
@@ -148,7 +141,26 @@ function buildChartData(calls, argusData, ferteconData) {
     weekMap[thursday].highestPrice = Math.max(...prices)
   })
 
-  return Object.entries(weekMap)
+  // Sales performed: weekly average of DONE prices for Amsul GR, bucketed by
+  // deal date (falls back to created_at) - identical to the app chart.
+  const salesByWeek = {}
+  ;(sales || []).forEach(sl => {
+    if ((sl.product || '') !== 'Amsul GR') return
+    const when = sl.date || (sl.created_at ? String(sl.created_at).slice(0, 10) : null)
+    if (!when) return
+    const thursday = getWeekThursday(when)
+    if (!thursday) return
+    const price = parsePrice(sl.donePrice)
+    if (!price) return
+    if (!salesByWeek[thursday]) salesByWeek[thursday] = []
+    salesByWeek[thursday].push(price)
+  })
+  Object.entries(salesByWeek).forEach(([thursday, prices]) => {
+    if (!weekMap[thursday]) weekMap[thursday] = {}
+    weekMap[thursday].salesAvg = Math.round(prices.reduce((a, b) => a + b, 0) / prices.length)
+  })
+
+  const rows = Object.entries(weekMap)
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([date, data]) => ({
       date,
@@ -156,67 +168,64 @@ function buildChartData(calls, argusData, ferteconData) {
       argusAvg: data.argusAvg ?? null,
       ferteconAvg: data.ferteconAvg ?? null,
       callAvg: data.callAvg ?? null,
-      lowestPrice: data.lowestPrice ?? null,
-      highestPrice: data.highestPrice ?? null,
+      salesAvg: data.salesAvg ?? null,
     }))
+  // Rolling window: last 8 weeks only - identical to the app chart
+  const cut = new Date()
+  cut.setDate(cut.getDate() - 8 * 7)
+  const y = cut.getFullYear()
+  const m = String(cut.getMonth() + 1).padStart(2, '0')
+  const dd = String(cut.getDate()).padStart(2, '0')
+  const cutoff = `${y}-${m}-${dd}`
+  return rows.filter(r => r.date >= cutoff)
 }
 
 function buildChartSVG(chartData) {
   if (chartData.length < 2) return '<p style="color:#888;font-size:12px;text-align:center;padding:40px 0">Not enough data to display chart.</p>'
-
-  const W = 860, H = 280
-  const PAD = { top: 20, right: 100, bottom: 40, left: 50 }
+  const W = 720, H = 300
+  const PAD = { top: 16, right: 16, bottom: 34, left: 44 }
   const chartW = W - PAD.left - PAD.right
   const chartH = H - PAD.top - PAD.bottom
-
-  const allVals = chartData.flatMap(d => [d.argusAvg, d.ferteconAvg, d.callAvg].filter(Boolean))
-  if (!allVals.length) return '<p style="color:#888;font-size:12px;text-align:center;padding:40px 0">No price data available.</p>'
-
-  const minY = Math.floor(Math.min(...allVals) - 10)
-  const maxY = Math.ceil(Math.max(...allVals) + 10)
-
-  const n = chartData.length
-  const xScale = i => PAD.left + (i / Math.max(n - 1, 1)) * chartW
+  const minY = 0, maxY = 500 // fixed axis - identical to the app chart
+  const xScale = i => PAD.left + (chartData.length === 1 ? chartW / 2 : (i / (chartData.length - 1)) * chartW)
   const yScale = v => PAD.top + chartH - ((v - minY) / (maxY - minY)) * chartH
 
-  function makeLine(key, color, dash = '') {
-    let path = ''
-    chartData.forEach((d, i) => {
-      if (d[key] == null) return
-      path += path === '' ? `M ${xScale(i).toFixed(1)} ${yScale(d[key]).toFixed(1)}`
-                          : ` L ${xScale(i).toFixed(1)} ${yScale(d[key]).toFixed(1)}`
-    })
+  const gridAndTicks = []
+  for (let v = 0; v <= 500; v += 100) {
+    const y = yScale(v)
+    gridAndTicks.push(`<line x1="${PAD.left}" y1="${y}" x2="${W - PAD.right}" y2="${y}" stroke="#e8e8e8" stroke-dasharray="3 3"/>`)
+    gridAndTicks.push(`<text x="${PAD.left - 8}" y="${y + 3}" text-anchor="end" font-size="10" fill="#999">${v}</text>`)
+  }
+  const xLabels = chartData.map((r, i) =>
+    `<text x="${xScale(i)}" y="${H - PAD.bottom + 18}" text-anchor="middle" font-size="10" fill="#999">${r.label}</text>`).join('')
+
+  // connectNulls: draw each series through its existing points only
+  const seriesPath = (key) => {
+    const pts = chartData.map((r, i) => r[key] != null ? [xScale(i), yScale(r[key])] : null).filter(Boolean)
+    if (!pts.length) return { path: '', dots: '' }
+    const path = pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' ')
+    return { path, pts }
+  }
+  const SERIES = [
+    { key: 'argusAvg', color: '#60b8f0', dash: '6 3', name: 'Argus Avg' },
+    { key: 'ferteconAvg', color: '#b860f0', dash: '6 3', name: 'Fertecon Avg' },
+    { key: 'callAvg', color: '#9bbf2e', dash: '', name: 'Call Average' },
+    { key: 'salesAvg', color: '#e6b400', dash: '', name: 'Sales Avg (done)' },
+  ]
+  const lines = SERIES.map(sr => {
+    const { path, pts } = seriesPath(sr.key)
     if (!path) return ''
-    return `<path d="${path}" stroke="${color}" stroke-width="2.5" fill="none" ${dash ? `stroke-dasharray="${dash}"` : ''} stroke-linejoin="round" stroke-linecap="round"/>`
-  }
-
-  function makeDots(key, color) {
-    return chartData.map((d, i) => d[key] != null
-      ? `<circle cx="${xScale(i).toFixed(1)}" cy="${yScale(d[key]).toFixed(1)}" r="5" fill="${color}" stroke="white" stroke-width="1.5"/>`
-      : '').join('')
-  }
-
-  const gridLines = Array.from({ length: 5 }, (_, i) => {
-    const v = minY + (i / 4) * (maxY - minY)
-    const y = yScale(v).toFixed(1)
-    return `<line x1="${PAD.left}" y1="${y}" x2="${W - PAD.right}" y2="${y}" stroke="#e0e0e0" stroke-width="1" stroke-dasharray="3 3"/>
-            <text x="${PAD.left - 6}" y="${(parseFloat(y) + 4).toFixed(1)}" text-anchor="end" font-size="10" fill="#999">${Math.round(v)}</text>`
+    const dots = (pts || []).map(p => `<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="3.5" fill="${sr.color}"/>`).join('')
+    return `<path d="${path}" fill="none" stroke="${sr.color}" stroke-width="2.5"${sr.dash ? ` stroke-dasharray="${sr.dash}"` : ''}/>${dots}`
   }).join('')
+  const legend = SERIES.map((sr, i) =>
+    `<g transform="translate(${PAD.left + i * 165}, ${H - 6})"><line x1="0" y1="-4" x2="18" y2="-4" stroke="${sr.color}" stroke-width="2.5"${sr.dash ? ` stroke-dasharray="${sr.dash}"` : ''}/><text x="24" y="0" font-size="10" fill="#555">${sr.name}</text></g>`).join('')
 
-  const xLabels = chartData.map((d, i) =>
-    `<text x="${xScale(i).toFixed(1)}" y="${H - 6}" text-anchor="middle" font-size="10" fill="#999">${d.label}</text>`
-  ).join('')
-
-  return `<svg width="${W}" height="${H}" xmlns="http://www.w3.org/2000/svg" style="font-family:'Helvetica Neue',Arial,sans-serif;max-width:100%;display:block">
-    ${gridLines}
-    <rect x="${PAD.left}" y="${PAD.top}" width="${chartW}" height="${chartH}" fill="none" stroke="#e0e0e0" stroke-width="1"/>
-    ${makeLine('argusAvg', '#60b8f0', '6 3')}
-    ${makeLine('ferteconAvg', '#b860f0', '6 3')}
-    ${makeLine('callAvg', '#4caf50')}
-    ${makeDots('argusAvg', '#60b8f0')}
-    ${makeDots('ferteconAvg', '#b860f0')}
-    ${makeDots('callAvg', '#4caf50')}
+  return `<svg viewBox="0 0 ${W} ${H + 14}" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;background:#fff">
+    ${gridAndTicks.join('')}
     ${xLabels}
+    ${lines}
+    ${legend}
   </svg>`
 }
 
@@ -348,9 +357,13 @@ const ANALYSIS_SECTIONS = [
 const SIGNAL_COLOR = { warning: '#f0b840', alert: '#e05c4b', opportunity: '#4caf50' }
 
 
-export function generateWeeklyReport(calls, signals, dateFrom, dateTo, analysis, sales) {
-  const argusData = loadStorage(ARGUS_KEY)
-  const ferteconData = loadStorage(FERTECON_KEY)
+export async function generateWeeklyReport(calls, signals, dateFrom, dateTo, analysis, sales) {
+  let argusData = [], ferteconData = []
+  try {
+    const bench = await cloudLoadBenchmarkFromIntl()
+    argusData = bench.argus || []
+    ferteconData = bench.fertecon || []
+  } catch { /* chart renders with whatever loaded */ }
 
   // Default range = current Mon–Fri
   const { monday, friday } = currentWeekRange()
@@ -360,7 +373,7 @@ export function generateWeeklyReport(calls, signals, dateFrom, dateTo, analysis,
 
   const now = new Date()
 
-  const chartData = buildChartData(calls, argusData, ferteconData)
+  const chartData = buildChartData(calls, sales, argusData, ferteconData)
   const chartSVG = buildChartSVG(chartData)
 
   const salesPerf = buildSalesPerformance(sales, fromStr, toStr)
@@ -478,7 +491,7 @@ export function generateWeeklyReport(calls, signals, dateFrom, dateTo, analysis,
         <div class="ai-card-text">${escapeHtml(aiDeep[sec.key])}</div>
       </div>` : '').join('')}
     </div>
-    <div class="ai-disclaimer">Generated by Claude Opus 4.8 · Analysis is informational, not financial advice</div>` : ''}
+    <div class="ai-disclaimer">Generated by Claude Fable 5 · Analysis is informational, not financial advice</div>` : ''}
   </div>` : ''}
 
   <div class="section">
