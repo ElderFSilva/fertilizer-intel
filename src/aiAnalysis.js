@@ -47,13 +47,16 @@ export function currentWeekInfo() {
   return { monday, friday, thursdayStr: fmt(thursday), mondayStr: fmt(monday), fridayStr: fmt(friday) }
 }
 
-// Human label like "Jun 23–27, 2026"
+// Human label like "Jun 23–27, 2026" — or "Aug 31 – Sep 4, 2026" when the
+// week straddles two months (and the year when it straddles two years).
 export function weekLabel(info = currentWeekInfo()) {
-  const opts = { month: 'short', day: 'numeric' }
-  const mon = info.monday.toLocaleDateString('en-US', opts)
-  const friDay = info.friday.toLocaleDateString('en-US', { day: 'numeric' })
-  const year = info.friday.getFullYear()
-  return `${mon}–${friDay}, ${year}`
+  const mon = info.monday, fri = info.friday
+  const m1 = mon.toLocaleDateString('en-US', { month: 'short' })
+  const m2 = fri.toLocaleDateString('en-US', { month: 'short' })
+  const y1 = mon.getFullYear(), y2 = fri.getFullYear()
+  if (y1 !== y2) return `${m1} ${mon.getDate()}, ${y1} – ${m2} ${fri.getDate()}, ${y2}`
+  if (mon.getMonth() !== fri.getMonth()) return `${m1} ${mon.getDate()} – ${m2} ${fri.getDate()}, ${y2}`
+  return `${m1} ${mon.getDate()}–${fri.getDate()}, ${y2}`
 }
 
 // Build a compact text summary. If weekOnly is true, restrict to current Mon–Fri
@@ -391,6 +394,52 @@ export async function runWeeklyAnalysis(calls, scope, sales = [], onStatus = nul
   }
   localStorage.setItem(cacheKey(scope), JSON.stringify(result))
   return result
+}
+
+// ── Brief backfill ──
+// Produce the narrative brief from a snapshot that already has the written
+// analysis but no brief (generated on a build before the field existed).
+// Summarises ONLY what that week's analysis already says — it introduces no
+// new numbers, so every figure keeps the provenance of the original run.
+export async function generateBriefFromAnalysis(analysisObj, weekLabelText = '') {
+  const a = analysisObj && analysisObj.analysis
+  if (!a) return ''
+  const body = [
+    ['Price trends', a.priceTrends],
+    ['Demand', a.demand],
+    ['Competitors', a.competitors],
+    ['Opportunities & risks', a.opportunities],
+    ['Supply', a.supply],
+  ].filter(([, v]) => v).map(([k, v]) => `## ${k}\n${v}`).join('\n\n')
+  if (!body) return ''
+
+  const system = `You are a senior fertilizer market analyst on a Brazilian trading desk. You will be given the written sections of a market analysis that has ALREADY been produced for one market week.
+
+Write ONE paragraph of 3-5 sentences summarising that week in plain desk language: price level and direction, demand state, and the main risk ahead.
+
+Hard rules:
+- Use ONLY facts and figures present in the sections given. Introduce no new number, client, port or claim.
+- Never invent a trend the sections do not state. Copy directional words (up/down, improved/worsened) as written.
+- Plain language, no analyst padding. No preamble, no heading, no markdown.
+- Respond with the paragraph text only.`
+
+  try {
+    const response = await fetchWithRetry('/api/analyze', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-fable-5',
+        max_tokens: 700,
+        system,
+        messages: [{ role: 'user', content: `Market week${weekLabelText ? `: ${weekLabelText}` : ''}\n\n${body}` }],
+      }),
+    }, 1)
+    if (!response.ok) return ''
+    const data = await response.json()
+    if (data.error) return ''
+    const text = (data.content || []).map(b => b.text || '').join('').trim()
+    return text.replace(/^```[a-z]*\s*/i, '').replace(/```$/, '').trim()
+  } catch { return '' }
 }
 
 export function getCachedAnalysis(scope) {
