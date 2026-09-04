@@ -135,8 +135,8 @@ export default function Overview({ calls, sales, allCalls, allSales, role, scope
   const snapshotIsCurrent = analysis?.weekThursday === currentWeekInfo().thursdayStr
   const thisWeekLabel = weekLabel()
 
-  function handleExport() {
-    const html = generateWeeklyReport(calls, analysis?.signals || [], reportFrom, reportTo, analysis, sales)
+  async function handleExport() {
+    const html = await generateWeeklyReport(calls, analysis?.signals || [], reportFrom, reportTo, analysis, sales)
     const win = window.open('', '_blank')
     win.document.write(html)
     win.document.close()
