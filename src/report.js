@@ -212,7 +212,7 @@ function weekValues(chartData, weekThursday) {
 }
 
 function buildChartSVG(chartData) {
-  if (chartData.length < 2) return '<p style="color:#888;font-size:12px;text-align:center;padding:40px 0">Not enough data to display chart.</p>'
+  if (chartData.length < 2) return '<p style="color:#5a5b54;font-size:12px;text-align:center;padding:40px 0">Not enough data to display chart.</p>'
   const W = 720, H = 300
   const PAD = { top: 16, right: 16, bottom: 34, left: 44 }
   const chartW = W - PAD.left - PAD.right
@@ -229,11 +229,11 @@ function buildChartSVG(chartData) {
   const gridAndTicks = []
   for (let v = minY; v <= maxY; v += stepY) {
     const y = yScale(v)
-    gridAndTicks.push(`<line x1="${PAD.left}" y1="${y}" x2="${W - PAD.right}" y2="${y}" stroke="#e8e8e8" stroke-dasharray="3 3"/>`)
-    gridAndTicks.push(`<text x="${PAD.left - 8}" y="${y + 3}" text-anchor="end" font-size="10" fill="#999">${v}</text>`)
+    gridAndTicks.push(`<line x1="${PAD.left}" y1="${y}" x2="${W - PAD.right}" y2="${y}" stroke="#2a2b26" stroke-dasharray="3 3"/>`)
+    gridAndTicks.push(`<text x="${PAD.left - 8}" y="${y + 3}" text-anchor="end" font-size="10" fill="#5a5b54">${v}</text>`)
   }
   const xLabels = chartData.map((r, i) =>
-    `<text x="${xScale(i)}" y="${H - PAD.bottom + 18}" text-anchor="middle" font-size="10" fill="#999">${r.label}</text>`).join('')
+    `<text x="${xScale(i)}" y="${H - PAD.bottom + 18}" text-anchor="middle" font-size="10" fill="#5a5b54">${r.label}</text>`).join('')
 
   // connectNulls: draw each series through its existing points only
   const seriesPath = (key) => {
@@ -245,8 +245,8 @@ function buildChartSVG(chartData) {
   const SERIES = [
     { key: 'argusAvg', color: '#60b8f0', dash: '6 3', name: 'Argus Avg' },
     { key: 'ferteconAvg', color: '#b860f0', dash: '6 3', name: 'Fertecon Avg' },
-    { key: 'callAvg', color: '#9bbf2e', dash: '', name: 'Call Average' },
-    { key: 'salesAvg', color: '#e6b400', dash: '', name: 'Sales Avg (done)' },
+    { key: 'callAvg', color: '#c8f060', dash: '', name: 'Call Average' },
+    { key: 'salesAvg', color: '#ffd60a', dash: '', name: 'Sales Avg (done)' },
   ]
   const lines = SERIES.map(sr => {
     const { path, pts } = seriesPath(sr.key)
@@ -254,7 +254,7 @@ function buildChartSVG(chartData) {
     const dots = (pts || []).map(p => `<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="3.5" fill="${sr.color}"/>`).join('')
     return `<path d="${path}" fill="none" stroke="${sr.color}" stroke-width="2.5"${sr.dash ? ` stroke-dasharray="${sr.dash}"` : ''}/>${dots}`
   }).join('')
-  return `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;background:#fff">
+  return `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;background:transparent">
     ${gridAndTicks.join('')}
     ${xLabels}
     ${lines}
@@ -386,7 +386,7 @@ const ANALYSIS_SECTIONS = [
   { key: 'opportunities', label: 'Opportunities & Risks' },
 ]
 
-const SIGNAL_COLOR = { warning: '#f0b840', alert: '#e05c4b', opportunity: '#4caf50' }
+const SIGNAL_COLOR = { warning: '#f0b840', alert: '#ff6b5b', opportunity: '#c8f060' }
 
 
 export async function generateWeeklyReport(calls, signals, dateFrom, dateTo, analysis, sales) {
@@ -469,63 +469,76 @@ export async function generateWeeklyReport(calls, signals, dateFrom, dateTo, ana
 <meta charset="UTF-8">
 <title>FertIntel Report – ${periodLabel}</title>
 <style>
+  :root {
+    --bg: #0e0f0c; --bg2: #161713; --bg3: #1e1f1a;
+    --border: #2a2b26; --border2: #383930;
+    --text: #e8e9e2; --text2: #9a9b93; --text3: #5a5b54;
+    --accent: #c8f060; --red: #ff6b5b; --amber: #f0b840; --blue: #60b8f0;
+  }
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: 'Helvetica Neue', Arial, sans-serif; color: #1a1a1a; background: white; font-size: 12px; }
-  .page { max-width: 920px; margin: 0 auto; padding: 40px 48px; }
+  html, body { background: var(--bg); }
+  body { font-family: 'Cabinet Grotesk', 'Helvetica Neue', Arial, sans-serif; color: var(--text); font-size: 12px; -webkit-font-smoothing: antialiased; }
+  .page { max-width: 920px; margin: 0 auto; padding: 40px 48px; background: var(--bg); }
 
-  .header { display: flex; justify-content: space-between; align-items: flex-start; padding-bottom: 20px; border-bottom: 2px solid #111; margin-bottom: 32px; }
-  .header h1 { font-size: 22px; font-weight: 700; letter-spacing: -0.5px; }
-  .header p { font-size: 12px; color: #666; margin-top: 4px; }
-  .brand { font-size: 13px; font-weight: 700; text-align: right; }
-  .meta { font-size: 11px; color: #888; margin-top: 3px; text-align: right; }
+  .header { display: flex; justify-content: space-between; align-items: flex-start; padding-bottom: 20px; border-bottom: 2px solid var(--border2); margin-bottom: 32px; }
+  .header h1 { font-size: 22px; font-weight: 700; letter-spacing: -0.5px; color: var(--text); }
+  .header p { font-size: 12px; color: var(--text2); margin-top: 4px; }
+  .brand { font-size: 13px; font-weight: 700; text-align: right; color: var(--accent); }
+  .meta { font-size: 11px; color: var(--text3); margin-top: 3px; text-align: right; }
 
   .section { margin-bottom: 36px; }
-  .section-title { font-size: 10px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: #666; padding-bottom: 6px; border-bottom: 1px solid #e0e0e0; margin-bottom: 16px; }
+  .section-title { font-size: 10px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text2); padding-bottom: 6px; border-bottom: 1px solid var(--border); margin-bottom: 16px; }
 
-  .chart-wrap { background: #fafafa; border: 1px solid #eee; border-radius: 8px; padding: 16px; overflow-x: auto; }
+  .chart-wrap { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 16px; overflow-x: auto; }
+  .chart-caption { font-size: 10px; color: var(--text3); margin-bottom: 8px; }
   .chart-legend { display: flex; gap: 20px; flex-wrap: wrap; margin-bottom: 14px; }
-  .legend-item { display: flex; align-items: center; gap: 6px; font-size: 10px; color: #555; }
+  .legend-item { display: flex; align-items: center; gap: 6px; font-size: 10px; color: var(--text2); }
   .legend-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
   .legend-dash { width: 20px; height: 0; border-top: 2.5px dashed; flex-shrink: 0; }
 
+  .brief { font-size: 12.5px; line-height: 1.65; color: var(--text); margin: 0 0 16px; }
+  .brief-none { font-size: 12.5px; line-height: 1.65; color: var(--text3); font-style: italic; margin: 0 0 16px; }
+
   .bubbles-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
-  .bubble-card { border: 1px solid #e0e0e0; border-radius: 10px; padding: 16px 18px; }
-  .bubble-product { font-size: 13px; font-weight: 700; margin-bottom: 12px; }
+  .bubble-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 16px 18px; }
+  .bubble-product { font-size: 13px; font-weight: 700; margin-bottom: 12px; color: var(--text); }
   .bubble-stats { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; text-align: center; }
-  .bubble-val { font-size: 18px; font-weight: 700; }
-  .bubble-lbl { font-size: 9px; color: #888; text-transform: uppercase; letter-spacing: 0.06em; margin-top: 2px; }
-  .bubble-count { font-size: 10px; color: #bbb; margin-top: 10px; }
+  .bubble-val { font-size: 18px; font-weight: 700; color: var(--text); }
+  .bubble-lbl { font-size: 9px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.06em; margin-top: 2px; }
+  .bubble-count { font-size: 10px; color: var(--text3); margin-top: 10px; }
 
   .volume-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
-  .volume-card { background: #f7f7f7; border-radius: 8px; padding: 14px 16px; }
-  .volume-product { font-size: 11px; font-weight: 600; color: #666; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; }
-  .volume-num { font-size: 20px; font-weight: 700; }
-  .volume-unit { font-size: 10px; color: #999; margin-top: 2px; }
+  .volume-card { background: var(--bg3); border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; }
+  .volume-product { font-size: 11px; font-weight: 600; color: var(--text2); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; }
+  .volume-num { font-size: 20px; font-weight: 700; color: var(--text); }
+  .volume-unit { font-size: 10px; color: var(--text3); margin-top: 2px; }
 
   .demand-table { width: 100%; border-collapse: collapse; font-size: 11px; }
-  .demand-table th { text-align: left; padding: 8px 10px; font-size: 9px; text-transform: uppercase; letter-spacing: 0.05em; color: #888; border-bottom: 1px solid #e0e0e0; }
-  .demand-table td { padding: 8px 10px; border-bottom: 1px solid #f0f0f0; }
-  .demand-client { font-weight: 700; }
-  .demand-target { color: #2e7d32; font-weight: 600; }
+  .demand-table th { text-align: left; padding: 8px 10px; font-size: 9px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text3); border-bottom: 1px solid var(--border2); }
+  .demand-table td { padding: 8px 10px; border-bottom: 1px solid var(--border); color: var(--text2); }
+  .demand-client { font-weight: 700; color: var(--text); }
+  .demand-target { color: var(--accent); font-weight: 600; }
 
   .ai-signals { display: flex; flex-direction: column; gap: 8px; margin-bottom: 18px; }
-  .ai-signal { display: flex; align-items: flex-start; gap: 10px; border: 1px solid #e0e0e0; border-left-width: 3px; border-radius: 6px; padding: 10px 14px; font-size: 12px; }
+  .ai-signal { display: flex; align-items: flex-start; gap: 10px; background: var(--bg2); border: 1px solid var(--border); border-left-width: 3px; border-radius: 6px; padding: 10px 14px; font-size: 12px; }
   .ai-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
-  .ai-card { border: 1px solid #e0e0e0; border-radius: 10px; padding: 14px 16px; }
-  .ai-card-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: #666; margin-bottom: 6px; }
-  .ai-card-text { font-size: 12px; line-height: 1.55; color: #222; }
-  .ai-disclaimer { font-size: 9px; color: #aaa; margin-top: 12px; text-align: center; }
+  .ai-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
+  .ai-card-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--accent); margin-bottom: 6px; }
+  .ai-card-text { font-size: 12px; line-height: 1.55; color: var(--text2); }
+  .ai-disclaimer { font-size: 9px; color: var(--text3); margin-top: 12px; text-align: center; }
 
   .sales-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 16px; }
-  .sales-stat { border: 1px solid #e0e0e0; border-radius: 10px; padding: 16px 18px; text-align: center; }
-  .sales-stat-num { font-size: 22px; font-weight: 700; }
-  .sales-stat-lbl { font-size: 9px; color: #888; text-transform: uppercase; letter-spacing: 0.06em; margin-top: 3px; }
+  .sales-stat { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 16px 18px; text-align: center; }
+  .sales-stat-num { font-size: 22px; font-weight: 700; color: var(--text); }
+  .sales-stat-lbl { font-size: 9px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.06em; margin-top: 3px; }
   .sales-table { width: 100%; border-collapse: collapse; font-size: 11px; }
-  .sales-table th { text-align: left; padding: 8px 10px; font-size: 9px; text-transform: uppercase; letter-spacing: 0.05em; color: #888; border-bottom: 1px solid #e0e0e0; }
-  .sales-table td { padding: 8px 10px; border-bottom: 1px solid #f0f0f0; }
-  .footer { margin-top: 40px; padding-top: 14px; border-top: 1px solid #e0e0e0; display: flex; justify-content: space-between; font-size: 10px; color: #aaa; }
+  .sales-table th { text-align: left; padding: 8px 10px; font-size: 9px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text3); border-bottom: 1px solid var(--border2); }
+  .sales-table td { padding: 8px 10px; border-bottom: 1px solid var(--border); color: var(--text2); }
+  .footer { margin-top: 40px; padding-top: 14px; border-top: 1px solid var(--border); display: flex; justify-content: space-between; font-size: 10px; color: var(--text3); }
 
   @media print {
+    /* Force the dark theme through to PDF/print, which strips backgrounds by default */
+    html, body, .page { background: var(--bg) !important; }
     body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     .page { padding: 20px 24px; }
     .ai-card, .bubble-card, .sales-stat, .demand-table tr { break-inside: avoid; }
@@ -550,8 +563,8 @@ export async function generateWeeklyReport(calls, signals, dateFrom, dateTo, ana
   <div class="section">
     <div class="section-title">AI Market Analysis${aiWeekLabel ? ` — Week of ${escapeHtml(aiWeekLabel)}` : ''}</div>
     ${aiBrief
-      ? `<p style="font-size:12.5px;line-height:1.65;color:#333;margin:0 0 16px">${escapeHtml(aiBrief)}</p>`
-      : `<p style="font-size:12.5px;line-height:1.65;color:#888;font-style:italic;margin:0 0 16px">${escapeHtml(aiBriefNotice)}</p>`}
+      ? `<p class="brief">${escapeHtml(aiBrief)}</p>`
+      : `<p class="brief-none">${escapeHtml(aiBriefNotice)}</p>`}
     ${aiDeep ? `
     <div class="ai-grid">
       ${ANALYSIS_SECTIONS.map(sec => aiDeep[sec.key] ? `
@@ -566,12 +579,12 @@ export async function generateWeeklyReport(calls, signals, dateFrom, dateTo, ana
   <div class="section">
     <div class="section-title">Amsul CFR Brazil — Publication vs Market</div>
     <div class="chart-wrap">
-      <div style="font-size:10px;color:#888;margin-bottom:8px">Values shown are the weekly average for the week of ${escapeHtml(aiWeekLabel)}</div>
+      <div class="chart-caption">Values shown are the weekly average for the week of ${escapeHtml(aiWeekLabel)}</div>
       <div class="chart-legend">
         <div class="legend-item"><div class="legend-dash" style="border-color:#60b8f0"></div> Argus Avg${latest.argus ? ` <b>${latest.argus.v}</b>` : ''}</div>
         <div class="legend-item"><div class="legend-dash" style="border-color:#b860f0"></div> Fertecon Avg${latest.fertecon ? ` <b>${latest.fertecon.v}</b>` : ''}</div>
-        <div class="legend-item"><div class="legend-dot" style="background:#9bbf2e"></div> Call Average${latest.call ? ` <b>${latest.call.v}</b>` : ''}</div>
-        <div class="legend-item"><div class="legend-dot" style="background:#e6b400"></div> Sales Avg (done)${latest.sales ? ` <b>${latest.sales.v}</b>` : ''}</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#c8f060"></div> Call Average${latest.call ? ` <b>${latest.call.v}</b>` : ''}</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#ffd60a"></div> Sales Avg (done)${latest.sales ? ` <b>${latest.sales.v}</b>` : ''}</div>
       </div>
       ${chartSVG}
     </div>
@@ -586,8 +599,8 @@ export async function generateWeeklyReport(calls, signals, dateFrom, dateTo, ana
         <div class="bubble-product">${b.product}</div>
         <div class="bubble-stats">
           <div><div class="bubble-val" style="color:#f0b840">${b.low}</div><div class="bubble-lbl">Lowest</div></div>
-          <div><div class="bubble-val" style="color:#4caf50">${b.avg}</div><div class="bubble-lbl">Average</div></div>
-          <div><div class="bubble-val" style="color:#e05c4b">${b.high}</div><div class="bubble-lbl">Highest</div></div>
+          <div><div class="bubble-val" style="color:#c8f060">${b.avg}</div><div class="bubble-lbl">Average</div></div>
+          <div><div class="bubble-val" style="color:#ff6b5b">${b.high}</div><div class="bubble-lbl">Highest</div></div>
         </div>
         <div class="bubble-count">${b.count} price point${b.count !== 1 ? 's' : ''} recorded</div>
       </div>`).join('')}
