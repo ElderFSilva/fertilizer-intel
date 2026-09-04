@@ -1,4 +1,5 @@
 import { cloudLoadBenchmarkFromIntl } from './cloudData.js'
+import { loadAnalysisSnapshotForWeek } from './cloudAnalysis.js'
 
 function formatDate(dateStr) {
   if (!dateStr) return '—'
@@ -67,6 +68,20 @@ function getWeekThursday(dateStr) {
   const d = new Date(monday + 'T00:00:00')
   d.setDate(d.getDate() + 3)
   return toLocalYMD(d)
+}
+
+// Human label for a market week from its Thursday key, e.g. "Sep 1–5, 2026"
+function weekLabelFromThursday(thursdayStr) {
+  if (!thursdayStr) return ''
+  const th = new Date(thursdayStr + 'T00:00:00')
+  if (isNaN(th.getTime())) return thursdayStr
+  const mon = new Date(th); mon.setDate(th.getDate() - 3)
+  const fri = new Date(th); fri.setDate(th.getDate() + 1)
+  const m1 = mon.toLocaleDateString('en-US', { month: 'short' })
+  const m2 = fri.toLocaleDateString('en-US', { month: 'short' })
+  return mon.getMonth() === fri.getMonth()
+    ? `${m1} ${mon.getDate()}–${fri.getDate()}, ${fri.getFullYear()}`
+    : `${m1} ${mon.getDate()} – ${m2} ${fri.getDate()}, ${fri.getFullYear()}`
 }
 
 // Current Mon–Fri window (for the always-current demand list)
@@ -397,10 +412,32 @@ export async function generateWeeklyReport(calls, signals, dateFrom, dateTo, ana
 
   const fmtVol = v => Number(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
-  // AI analysis block (uses saved weekly snapshot as-is)
-  const aiBrief = (analysis && analysis.brief) || ''
-  const aiDeep = analysis && analysis.analysis
-  const aiWeekLabel = analysis && analysis.weekLabel
+  // ── AI analysis block, resolved to the WEEK BEING REPORTED ──
+  // The market week is keyed by its Thursday. The report anchors on the LAST
+  // day of the range, so a Mon–Fri export uses that week and a longer range
+  // uses the week it closes on. Never "the newest snapshot in the table" —
+  // that prints one week's words on another week's report.
+  const reportWeekThursday = getWeekThursday(toStr)
+  let weekSnapshot = null
+  try {
+    weekSnapshot = await loadAnalysisSnapshotForWeek(reportWeekThursday)
+  } catch { weekSnapshot = null }
+  // Cloud unreachable or nothing stored: fall back to the snapshot handed in
+  // by the app ONLY if it belongs to the very week being reported.
+  if (!weekSnapshot && analysis && analysis.weekThursday === reportWeekThursday) {
+    weekSnapshot = analysis
+  }
+
+  const aiBrief = (weekSnapshot && weekSnapshot.brief) || ''
+  const aiDeep = weekSnapshot && weekSnapshot.analysis
+  const aiWeekLabel = (weekSnapshot && weekSnapshot.weekLabel) || weekLabelFromThursday(reportWeekThursday)
+
+  // Two honest kinds of "nothing", never blank space: no analysis was ever
+  // generated for that week, or one exists but predates the brief field.
+  const aiBriefNotice = aiBrief ? ''
+    : weekSnapshot
+      ? `Analysis for the week of ${aiWeekLabel} predates the brief (panels below).`
+      : `No analysis was generated for the week of ${aiWeekLabel}.`
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -485,10 +522,12 @@ export async function generateWeeklyReport(calls, signals, dateFrom, dateTo, ana
     </div>
   </div>
 
-  ${(aiBrief || aiDeep) ? `
+  ${(aiBrief || aiDeep || aiBriefNotice) ? `
   <div class="section">
     <div class="section-title">AI Market Analysis${aiWeekLabel ? ` — Week of ${escapeHtml(aiWeekLabel)}` : ''}</div>
-    ${aiBrief ? `<p style="font-size:12.5px;line-height:1.65;color:#333;margin:0 0 16px">${escapeHtml(aiBrief)}</p>` : ''}
+    ${aiBrief
+      ? `<p style="font-size:12.5px;line-height:1.65;color:#333;margin:0 0 16px">${escapeHtml(aiBrief)}</p>`
+      : `<p style="font-size:12.5px;line-height:1.65;color:#888;font-style:italic;margin:0 0 16px">${escapeHtml(aiBriefNotice)}</p>`}
     ${aiDeep ? `
     <div class="ai-grid">
       ${ANALYSIS_SECTIONS.map(sec => aiDeep[sec.key] ? `
