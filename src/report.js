@@ -180,6 +180,22 @@ function buildChartData(calls, sales, argusData, ferteconData) {
   return rows.filter(r => r.date >= cutoff)
 }
 
+// Latest non-null value per series (the most recent week each series printed)
+function latestValues(chartData) {
+  const pick = key => {
+    for (let i = chartData.length - 1; i >= 0; i--) {
+      if (chartData[i][key] != null) return { v: chartData[i][key], label: chartData[i].label }
+    }
+    return null
+  }
+  return {
+    argus: pick('argusAvg'),
+    fertecon: pick('ferteconAvg'),
+    call: pick('callAvg'),
+    sales: pick('salesAvg'),
+  }
+}
+
 function buildChartSVG(chartData) {
   if (chartData.length < 2) return '<p style="color:#888;font-size:12px;text-align:center;padding:40px 0">Not enough data to display chart.</p>'
   const W = 720, H = 300
@@ -218,14 +234,10 @@ function buildChartSVG(chartData) {
     const dots = (pts || []).map(p => `<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="3.5" fill="${sr.color}"/>`).join('')
     return `<path d="${path}" fill="none" stroke="${sr.color}" stroke-width="2.5"${sr.dash ? ` stroke-dasharray="${sr.dash}"` : ''}/>${dots}`
   }).join('')
-  const legend = SERIES.map((sr, i) =>
-    `<g transform="translate(${PAD.left + i * 165}, ${H - 6})"><line x1="0" y1="-4" x2="18" y2="-4" stroke="${sr.color}" stroke-width="2.5"${sr.dash ? ` stroke-dasharray="${sr.dash}"` : ''}/><text x="24" y="0" font-size="10" fill="#555">${sr.name}</text></g>`).join('')
-
-  return `<svg viewBox="0 0 ${W} ${H + 14}" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;background:#fff">
+  return `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;background:#fff">
     ${gridAndTicks.join('')}
     ${xLabels}
     ${lines}
-    ${legend}
   </svg>`
 }
 
@@ -374,6 +386,7 @@ export async function generateWeeklyReport(calls, signals, dateFrom, dateTo, ana
   const now = new Date()
 
   const chartData = buildChartData(calls, sales, argusData, ferteconData)
+  const latest = latestValues(chartData)
   const chartSVG = buildChartSVG(chartData)
 
   const salesPerf = buildSalesPerformance(sales, fromStr, toStr)
@@ -385,7 +398,7 @@ export async function generateWeeklyReport(calls, signals, dateFrom, dateTo, ana
   const fmtVol = v => Number(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
   // AI analysis block (uses saved weekly snapshot as-is)
-  const aiSignals = (analysis && analysis.signals) || signals || []
+  const aiBrief = (analysis && analysis.brief) || ''
   const aiDeep = analysis && analysis.analysis
   const aiWeekLabel = analysis && analysis.weekLabel
 
@@ -472,17 +485,10 @@ export async function generateWeeklyReport(calls, signals, dateFrom, dateTo, ana
     </div>
   </div>
 
-  ${(aiSignals.length > 0 || aiDeep) ? `
+  ${(aiBrief || aiDeep) ? `
   <div class="section">
     <div class="section-title">AI Market Analysis${aiWeekLabel ? ` — Week of ${escapeHtml(aiWeekLabel)}` : ''}</div>
-    ${aiSignals.length > 0 ? `
-    <div class="ai-signals">
-      ${aiSignals.map(s => `
-      <div class="ai-signal" style="border-left-color:${SIGNAL_COLOR[s.type] || '#888'}">
-        <span style="color:${SIGNAL_COLOR[s.type] || '#888'};font-weight:700">●</span>
-        <span>${escapeHtml(s.text)}</span>
-      </div>`).join('')}
-    </div>` : ''}
+    ${aiBrief ? `<p style="font-size:12.5px;line-height:1.65;color:#333;margin:0 0 16px">${escapeHtml(aiBrief)}</p>` : ''}
     ${aiDeep ? `
     <div class="ai-grid">
       ${ANALYSIS_SECTIONS.map(sec => aiDeep[sec.key] ? `
@@ -498,9 +504,10 @@ export async function generateWeeklyReport(calls, signals, dateFrom, dateTo, ana
     <div class="section-title">Amsul CFR Brazil — Publication vs Market</div>
     <div class="chart-wrap">
       <div class="chart-legend">
-        <div class="legend-item"><div class="legend-dash" style="border-color:#60b8f0"></div> Argus Avg</div>
-        <div class="legend-item"><div class="legend-dash" style="border-color:#b860f0"></div> Fertecon Avg</div>
-        <div class="legend-item"><div class="legend-dot" style="background:#4caf50"></div> Call Average</div>
+        <div class="legend-item"><div class="legend-dash" style="border-color:#60b8f0"></div> Argus Avg${latest.argus ? ` <b>${latest.argus.v}</b>` : ''}</div>
+        <div class="legend-item"><div class="legend-dash" style="border-color:#b860f0"></div> Fertecon Avg${latest.fertecon ? ` <b>${latest.fertecon.v}</b>` : ''}</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#9bbf2e"></div> Call Average${latest.call ? ` <b>${latest.call.v}</b>` : ''}</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#e6b400"></div> Sales Avg (done)${latest.sales ? ` <b>${latest.sales.v}</b>` : ''}</div>
       </div>
       ${chartSVG}
     </div>
