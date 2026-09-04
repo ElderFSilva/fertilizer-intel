@@ -172,13 +172,30 @@ export default function ArgusView({ calls, sales = [] }) {
   })()
   const chartData = fullChartData.filter(r => r.date >= cutoff)
 
-  // Latest printed weekly average per series, shown in the single top legend
-  const latestOf = key => {
-    for (let i = chartData.length - 1; i >= 0; i--) {
-      if (chartData[i][key] != null) return chartData[i][key]
-    }
-    return null
-  }
+  // CURRENT week's weekly average per series, shown in the single top legend.
+  // Never "the most recent week that printed one": a series with nothing this
+  // week shows no number, rather than a stale figure under this week's label.
+  const currentThursday = (() => {
+    const now = new Date()
+    const day = now.getDay()
+    const mon = new Date(now)
+    mon.setDate(now.getDate() - (day === 0 ? 6 : day - 1))
+    mon.setDate(mon.getDate() + 3)
+    return toLocalYMD(mon)
+  })()
+  const currentWeekRow = chartData.find(r => r.date === currentThursday) || null
+  const currentWeekLabel = (() => {
+    const th = new Date(currentThursday + 'T00:00:00')
+    if (isNaN(th.getTime())) return currentThursday
+    const mon = new Date(th); mon.setDate(th.getDate() - 3)
+    const fri = new Date(th); fri.setDate(th.getDate() + 1)
+    const m1 = mon.toLocaleDateString('en-US', { month: 'short' })
+    const m2 = fri.toLocaleDateString('en-US', { month: 'short' })
+    return mon.getMonth() === fri.getMonth()
+      ? `${m1} ${mon.getDate()}\u2013${fri.getDate()}, ${fri.getFullYear()}`
+      : `${m1} ${mon.getDate()} \u2013 ${m2} ${fri.getDate()}, ${fri.getFullYear()}`
+  })()
+  const latestOf = key => (currentWeekRow && currentWeekRow[key] != null) ? currentWeekRow[key] : null
   const LEGEND = [
     { key: 'argusAvg', color: '#60b8f0', dash: true, name: 'Argus Avg' },
     { key: 'ferteconAvg', color: '#b860f0', dash: true, name: 'Fertecon Avg' },
@@ -214,6 +231,9 @@ export default function ArgusView({ calls, sales = [] }) {
           </div>
         ) : (
           <div className={styles.chartWrap}>
+            <div style={{ fontSize: 11, color: 'var(--text3)', margin: '0 0 6px 6px' }}>
+              Values shown are the weekly average for the week of {currentWeekLabel}
+            </div>
             <div style={{ display: 'flex', gap: 22, flexWrap: 'wrap', margin: '0 0 12px 6px' }}>
               {LEGEND.map(l => (
                 <span key={l.key} style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontSize: 12, color: 'var(--text2)' }}>
@@ -226,7 +246,7 @@ export default function ArgusView({ calls, sales = [] }) {
               <ComposedChart data={chartData} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
                 <XAxis dataKey="label" tick={{ fill: 'var(--text3)', fontSize: 11 }} interval={0} />
-                <YAxis tick={{ fill: 'var(--text3)', fontSize: 11 }} domain={[0, 500]} ticks={[0, 100, 200, 300, 400, 500]} allowDataOverflow />
+                <YAxis tick={{ fill: 'var(--text3)', fontSize: 11 }} domain={[100, 300]} ticks={[100, 150, 200, 250, 300]} allowDataOverflow />
                 <Tooltip content={<CustomTooltip />} />
                 <Line type="monotone" dataKey="argusAvg" stroke="#60b8f0" strokeWidth={2.5} strokeDasharray="6 3" dot={{ r: 5, fill: '#60b8f0' }} name="Argus Avg" connectNulls />
                 <Line type="monotone" dataKey="ferteconAvg" stroke="#b860f0" strokeWidth={2.5} strokeDasharray="6 3" dot={{ r: 5, fill: '#b860f0' }} name="Fertecon Avg" connectNulls />
