@@ -23,13 +23,22 @@ export async function loadAnalysisSnapshotForWeek(weekThursday) {
   if (!weekThursday) return null
   const { data, error } = await supabase
     .from('analysis_snapshots')
-    .select('payload, created_at')
+    .select('id, payload, created_at')
     .eq('week_thursday', weekThursday)
     .order('created_at', { ascending: false })
     .limit(1)
   if (error) throw error
   if (!data || !data.length) return null
-  return data[0].payload
+  return { id: data[0].id, payload: data[0].payload }
+}
+
+// Write a backfilled brief into an existing snapshot so it is generated once,
+// not on every export. Best-effort: a failure here never blocks the report.
+export async function saveBriefToSnapshot(id, payload) {
+  if (!id || !payload) return
+  try {
+    await supabase.from('analysis_snapshots').update({ payload }).eq('id', id)
+  } catch { /* the report already has the brief in hand */ }
 }
 
 export async function loadLatestAnalysisSnapshot() {
