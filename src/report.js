@@ -1,5 +1,6 @@
 import { cloudLoadBenchmarkFromIntl } from './cloudData.js'
-import { loadAnalysisSnapshotForWeek } from './cloudAnalysis.js'
+import { loadAnalysisSnapshotForWeek, saveBriefToSnapshot } from './cloudAnalysis.js'
+import { generateBriefFromAnalysis } from './aiAnalysis.js'
 
 function formatDate(dateStr) {
   if (!dateStr) return '—'
@@ -419,8 +420,10 @@ export async function generateWeeklyReport(calls, signals, dateFrom, dateTo, ana
   // that prints one week's words on another week's report.
   const reportWeekThursday = getWeekThursday(toStr)
   let weekSnapshot = null
+  let weekSnapshotId = null
   try {
-    weekSnapshot = await loadAnalysisSnapshotForWeek(reportWeekThursday)
+    const row = await loadAnalysisSnapshotForWeek(reportWeekThursday)
+    if (row) { weekSnapshot = row.payload; weekSnapshotId = row.id }
   } catch { weekSnapshot = null }
   // Cloud unreachable or nothing stored: fall back to the snapshot handed in
   // by the app ONLY if it belongs to the very week being reported.
@@ -428,15 +431,29 @@ export async function generateWeeklyReport(calls, signals, dateFrom, dateTo, ana
     weekSnapshot = analysis
   }
 
-  const aiBrief = (weekSnapshot && weekSnapshot.brief) || ''
+  let aiBrief = (weekSnapshot && weekSnapshot.brief) || ''
   const aiDeep = weekSnapshot && weekSnapshot.analysis
-  const aiWeekLabel = (weekSnapshot && weekSnapshot.weekLabel) || weekLabelFromThursday(reportWeekThursday)
+
+  // The report ALWAYS carries a brief when the week has an analysis. Snapshots
+  // written before the brief field existed get one generated here from their
+  // own sections, then saved back so it is produced once, not every export.
+  if (!aiBrief && aiDeep) {
+    aiBrief = await generateBriefFromAnalysis(weekSnapshot, weekLabelFromThursday(reportWeekThursday)).catch(() => '')
+    if (aiBrief && weekSnapshotId) {
+      await saveBriefToSnapshot(weekSnapshotId, { ...weekSnapshot, brief: aiBrief })
+    }
+  }
+  // Label is DERIVED from the week key, never read from the stored snapshot:
+  // old snapshots carry labels written by an earlier, month-blind formatter
+  // (which rendered this week as "Aug 31–4, 2026"). Deriving self-heals them.
+  const aiWeekLabel = weekLabelFromThursday(reportWeekThursday)
+    || (weekSnapshot && weekSnapshot.weekLabel) || ''
 
   // Two honest kinds of "nothing", never blank space: no analysis was ever
   // generated for that week, or one exists but predates the brief field.
   const aiBriefNotice = aiBrief ? ''
     : weekSnapshot
-      ? `Analysis for the week of ${aiWeekLabel} predates the brief (panels below).`
+      ? `Brief unavailable for the week of ${aiWeekLabel} — analysis panels below.`
       : `No analysis was generated for the week of ${aiWeekLabel}.`
 
   return `<!DOCTYPE html>
@@ -640,7 +657,7 @@ export async function generateWeeklyReport(calls, signals, dateFrom, dateTo, ana
 
   <div class="footer">
     <span>FertIntel — Confidential</span>
-    <span>fertintel.vercel.app</span>
+    <span>${escapeHtml(typeof window !== 'undefined' && window.location ? window.location.hostname : 'fertintel.app')}</span>
   </div>
 
 </div>
