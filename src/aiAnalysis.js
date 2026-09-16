@@ -92,7 +92,7 @@ function buildDataSummary(calls, weekOnly = false) {
 
     const demand = (c.demandRows || [])
       .filter(r => r.product || r.volume || r.port || r.priceTarget)
-      .map(r => `${r.product || '?'} ${r.volume || '?'}t ${r.port || ''} target ${r.priceTarget || '?'}`)
+      .map(r => `${r.product || '?'} ${r.volume || '?'}t ${r.port || ''} price target ${r.priceTarget || '?'} (indication, not a bid)`)
       .join('; ')
 
     const comp = (c.competitorOffers || [])
@@ -178,6 +178,7 @@ You will also receive a MARKET CONTEXT section with external data and pre-comput
 - BENCHMARKS ARE COMPOSITES: when multiple sources (Argus, Fertecon, Agrinvest, Profercy) are fresh, the reference price is their composite - never quote a single source as "the market" when a composite exists. If sources diverge notably, say so: source disagreement is information.
 - GRADE EQUIVALENCE (established desk fact): "Amsul GR" (the desk's label in calls and sales) and "Amsul compacted" (the label in Argus/Fertecon/Agrinvest assessments) are THE SAME product - treat them as identical everywhere: GR offers, targets and sales compare directly against compacted benchmarks, parity and percentiles. "Amsul STD" / "standard" is a DIFFERENT product.
 - GRADE DISCIPLINE (critical): Amsul COMPACTED/GR and STANDARD are different products at different prices. NEVER compare a price of one grade against a benchmark of another. Competitor offers and client targets whose grade is not stated must be treated as GRADE-UNKNOWN and flagged as such - never assumed comparable to the compacted benchmark. Before calling any offer "workable" or "below market", confirm the grades match; if unknown, say the comparison is unconfirmed.
+- TARGET IS NOT A BID (critical): in Demand lines, a price TARGET is the client's indicated price level - where he might buy if a bid is presented. It is NOT a bid. A BID is a firm buying intention at a stated price and volume, and exists only when the call's Remarks or Notes state it explicitly. Never describe a target as a bid, never write "hitting the bid" or "bidding" about a target, and never compute a captured margin against a target as if it were executable. Targets are compared against replacement and parity only as indications of where demand sits.
 - OPEN DEMAND: only ACTIVE lines (last 45 days) are the live book. Stale lines are re-engagement material, never current demand, never a reason to sell. GR and STD open demand are different products: any selling recommendation anchored to the compacted composite may cite GR lines only - STD lines get their own sentence against STD references or none.
 - The DESK HISTORY section is computed from the desk's own full call and sales record. Client breadth, open demand, quiet clients and execution capture are AUTHORITATIVE computed facts - cite them. Use open demand and breadth to judge demand quality; use execution capture (our realized prices vs the published mid) to judge our real pricing power; use quiet regulars as concrete re-engagement opportunities.
 - Barter has two independent dimensions: weekly DIRECTION (improved/worsened) and LEVEL vs the 4-year norm (cheap/expensive). Report both when available; never merge them into one judgment.
