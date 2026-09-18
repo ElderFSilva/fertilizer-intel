@@ -1,0 +1,94 @@
+/* ── Shared call edit form (All Calls inline + Overview popup) ── */
+
+.form { display: flex; flex-direction: column; gap: 14px; }
+
+.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+.field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+
+.label {
+  font-size: 11px; color: var(--text3); font-family: 'DM Mono', monospace;
+  text-transform: uppercase; letter-spacing: 0.05em;
+}
+
+.subLabel {
+  font-size: 10px; color: var(--text3); font-family: 'DM Mono', monospace;
+  text-transform: uppercase; letter-spacing: 0.05em; display: block; margin-bottom: 3px;
+}
+
+.sectionHeader { display: flex; align-items: center; justify-content: space-between; }
+
+.input, .textarea, .select {
+  background: var(--bg3); border: 1px solid var(--border2); border-radius: 6px;
+  padding: 8px 8px; color: var(--text); font-size: 12px; outline: none;
+  transition: border-color 0.2s; font-family: inherit; width: 100%; min-width: 0;
+}
+.input:focus, .textarea:focus, .select:focus { border-color: var(--accent); }
+.textarea { resize: vertical; }
+.select { cursor: pointer; }
+
+/* Prices & trends: grade/label · price · trend */
+.priceRow { display: grid; grid-template-columns: 90px 1fr 105px; align-items: center; gap: 6px; }
+.productLabel { font-size: 12px; font-family: 'DM Mono', monospace; color: var(--text2); }
+.gradeSelect {
+  background: transparent; border: none; outline: none;
+  color: var(--text2); font-size: 12px;
+  font-family: 'DM Mono', monospace; cursor: pointer;
+  padding: 0; padding-right: 14px; width: 100%;
+  -webkit-appearance: none; -moz-appearance: none; appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='6' viewBox='0 0 8 6'%3E%3Cpath fill='%23c8f060' d='M4 6L0 0h8z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right center;
+}
+.gradeSelect:hover { color: var(--accent); }
+
+/* One editable line (demand row or competitor offer) + its remove button */
+.lineWrap { display: flex; align-items: flex-start; gap: 8px; margin-bottom: 6px; }
+.cell { min-width: 0; }
+
+/* Demand: product · volume · port · target · laycan */
+.demandGrid { display: grid; grid-template-columns: 1.3fr 0.9fr 1.3fr 1fr 0.9fr; gap: 8px; flex: 1; min-width: 0; }
+
+/* Competitor offer: competitor · product · price · port · laycan — same shape
+   as the demand line so the eye finds laycan in the same place in both */
+.offerGrid { display: grid; grid-template-columns: 1.3fr 1.1fr 0.9fr 1.3fr 0.9fr; gap: 8px; flex: 1; min-width: 0; }
+
+.addBtn {
+  background: var(--bg3); border: 1px solid var(--accent); color: var(--accent);
+  border-radius: 6px; padding: 5px 12px; font-size: 12px; font-weight: 600;
+  cursor: pointer; transition: all 0.15s; font-family: inherit;
+}
+.addBtn:hover { background: var(--accent-dim); }
+
+.removeBtn {
+  background: transparent; border: 1px solid var(--border2); color: var(--text3);
+  border-radius: 6px; width: 28px; height: 34px; font-size: 11px; flex-shrink: 0;
+  cursor: pointer; transition: all 0.15s; display: flex; align-items: center; justify-content: center;
+  margin-top: 18px;
+}
+.removeBtn:hover { border-color: var(--red); color: var(--red); }
+
+.empty { font-size: 12px; color: var(--text3); font-family: 'DM Mono', monospace; padding: 4px 0; }
+
+.actions { display: flex; gap: 8px; margin-top: 4px; }
+
+.cancelBtn {
+  background: transparent; border: 1px solid var(--border2); color: var(--text2);
+  border-radius: 8px; padding: 10px 18px; font-size: 14px; transition: all 0.15s;
+  cursor: pointer; font-family: inherit;
+}
+.cancelBtn:hover { border-color: var(--red); color: var(--red); }
+
+.saveBtn {
+  background: var(--accent); color: #0e0f0c; border: none;
+  border-radius: 8px; padding: 10px 20px; font-size: 14px; font-weight: 700;
+  transition: all 0.15s; flex: 1; cursor: pointer; font-family: inherit;
+}
+.saveBtn:hover { background: var(--accent2); }
+.saveBtn:disabled, .cancelBtn:disabled { opacity: 0.6; cursor: default; }
+
+@media (max-width: 768px) {
+  .row2 { grid-template-columns: 1fr; }
+  .demandGrid, .offerGrid { grid-template-columns: 1fr 1fr; }
+  .priceRow { grid-template-columns: 80px 1fr 95px; }
+}
