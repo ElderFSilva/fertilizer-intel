@@ -1,6 +1,7 @@
 import { cloudLoadBenchmarkFromIntl } from './cloudData.js'
 import { loadAnalysisSnapshotForWeek, saveBriefToSnapshot } from './cloudAnalysis.js'
 import { generateBriefFromAnalysis } from './aiAnalysis.js'
+import { canonicalDemands } from './demands.js'
 
 function formatDate(dateStr) {
   if (!dateStr) return '—'
@@ -284,53 +285,29 @@ function buildPriceBubbles(calls, fromStr, toStr) {
   }).filter(Boolean)
 }
 
+// Total demand volume per product in the period. Goes through the shared
+// canonical book (demands.js): one line per standing demand (same
+// client+product+volume+port+laycan collapses, latest wins), and rows that
+// are linked, closed, superseded by a volume update, or converted to a sale
+// are not counted.
 function buildDemandVolume(calls, fromStr, toStr, soldDemandIds) {
-  const fromD = parseDate(fromStr)
-  const toD = parseDate(toStr); toD.setHours(23, 59, 59)
-  const periodCalls = calls.filter(c => { const d = parseDate(c.date); return d >= fromD && d <= toD })
-
-  // Count every recorded demand in the period, but:
-  //  - skip rows flagged isDuplicate / linkedToDemandId (don't double count)
-  //  - skip demands converted to a sale (id in soldDemandIds)
-  //  - dedupe exact-match repeats (same client+product+volume+port+target) within the period
   const map = {}
-  const seen = new Set()
-  periodCalls.forEach(c => {
-    const rows = c.demandRows?.length ? c.demandRows
-      : (c.demandProduct || c.demandVolume) ? [{ product: c.demandProduct, volume: c.demandVolume, port: c.demandPort, priceTarget: c.demandPriceTarget }] : []
-    rows.forEach(r => {
-      if (!r.product || !r.volume) return
-      if (r.isDuplicate || r.linkedToDemandId) return
-      if (r.closed) return
-      if (r.id && soldDemandIds && soldDemandIds.has(r.id)) return
-      const vol = parseFloat(r.volume); if (isNaN(vol)) return
-      const sig = [
-        (c.client || '?').trim().toLowerCase(),
-        (r.product || '').trim().toLowerCase(),
-        String(vol),
-        (r.port || '').trim().toLowerCase(),
-        (r.priceTarget || '').trim().toLowerCase(),
-      ].join('|')
-      if (seen.has(sig)) return
-      seen.add(sig)
-      map[r.product] = (map[r.product] || 0) + vol
-    })
+  canonicalDemands(calls, { from: parseDate(fromStr), to: parseDate(toStr), soldDemandIds }).forEach(d => {
+    if (!d.product) return
+    const vol = parseFloat(d.volume); if (isNaN(vol)) return
+    map[d.product] = (map[d.product] || 0) + vol
   })
-
   return Object.entries(map).map(([product, total]) => ({ product, total })).sort((a, b) => b.total - a.total)
 }
 
-// Client Demand Status — always the current Mon–Fri week, grouped by client
+// Client Demand Status — always the current Mon–Fri week, grouped by client.
+// Same canonical book as the Overview list, so the two never disagree.
 function buildCurrentWeekDemandList(calls) {
   const { monday, friday } = currentWeekRange()
   const byClient = {}
-  calls.forEach(c => {
-    const d = parseDate(c.date)
-    if (d < monday || d > friday) return
-    const rows = (c.demandRows || []).filter(r => r.product || r.volume || r.port || r.priceTarget || r.laycan)
-    if (!rows.length) return
-    if (!byClient[c.client]) byClient[c.client] = []
-    rows.forEach(r => byClient[c.client].push(r))
+  canonicalDemands(calls, { from: monday, to: friday }).forEach(r => {
+    if (!byClient[r.client]) byClient[r.client] = []
+    byClient[r.client].push(r)
   })
   return Object.keys(byClient).sort().map(client => ({ client, rows: byClient[client] }))
 }
