@@ -3,6 +3,7 @@ import { PRODUCTS } from '../../data.js'
 import styles from './Calls.module.css'
 import PortSelect from './PortSelect.jsx'
 import ClientIntel from './ClientIntel.jsx'
+import CallEditForm, { buildEditForm } from './CallEditForm.jsx'
 
 function formatDate(dateStr) {
   if (!dateStr) return '—'
@@ -24,45 +25,18 @@ function formatVolume(val) {
   return num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' T'
 }
 
-const TREND_OPTIONS = ['up', 'stable', 'down', 'none']
-const TREND_LABEL = { up: '↑ Up', stable: '↔ Stable', down: '↓ Down', none: '—' }
 const TREND_ICON = { up: '↑', stable: '↔', down: '↓', none: '—' }
-const DEMAND_PRODUCTS = ['', 'Amsul GR', 'Amsul STD', 'Urea', 'MAP', 'SSP 20%', 'SSP 19%', 'TSP 45%', 'TSP 46%', 'NP 10-45', 'NP 11-44', 'NP 08-40', 'NP 08-40+5S']
 const PRODUCT_GRADES = {
   Amsul: ['Amsul GR', 'Amsul STD'],
   SSP: ['SSP 20%', 'SSP 19%'],
   TSP: ['TSP 45%', 'TSP 46%'],
   NP: ['NP 10-45', 'NP 11-44', 'NP 08-40', 'NP 08-40+5S'],
 }
-const DEFAULT_GRADE = {
-  Amsul: 'Amsul GR',
-  SSP: 'SSP 20%',
-  TSP: 'TSP 45%',
-  NP: 'NP 10-45',
-}
 const TREND_COLOR = { up: 'var(--accent)', stable: 'var(--blue)', down: 'var(--red)', none: 'var(--text3)' }
-
-function newDemandId() {
-  return 'd_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7)
-}
-
-function emptyDemandRow() {
-  return { id: newDemandId(), product: '', volume: '', port: '', priceTarget: '' }
-}
-
-function emptyPrices() {
-  return Object.fromEntries(PRODUCTS.map(p => [p, { value: '', trend: 'none', grade: DEFAULT_GRADE[p] || '' }]))
-}
 
 export default function Calls({ calls, sales = [], onDelete, onEdit, role, traderNames = {} }) {
   const knownClients = [...new Set(calls.map(c => (c.client || '').trim()).filter(Boolean))]
     .sort((a, b) => a.localeCompare(b))
-  const canonicalClient = name => {
-    const t = (name || '').trim().replace(/\s+/g, ' ')
-    if (!t) return t
-    const hit = knownClients.find(k => k.toLowerCase() === t.toLowerCase())
-    return hit || t
-  }
   const isAdmin = role === 'admin'
   const [search, setSearch] = useState('')
   const [filterProduct, setFilterProduct] = useState('')
@@ -154,26 +128,11 @@ export default function Calls({ calls, sales = [], onDelete, onEdit, role, trade
 
   function startEdit(c) {
     setEditingId(c.id)
-    setEditForm({
-      client: c.client,
-      date: c.date,
-      demandRows: c.demandRows?.length ? c.demandRows.map(r => r.id ? r : { ...r, id: newDemandId() }) : (
-        (c.demandProduct || c.demandVolume || c.demandPort || c.demandPriceTarget)
-          ? [{ product: c.demandProduct || '', volume: c.demandVolume || '', port: c.demandPort || '', priceTarget: c.demandPriceTarget || '' }]
-          : [emptyDemandRow()]
-      ),
-      demand: c.demand || '',
-      remarks: c.remarks || '',
-      prices: { ...emptyPrices(), ...Object.fromEntries(PRODUCTS.map(p => [p, { value: c.prices?.[p]?.value || '', trend: c.prices?.[p]?.trend || 'none', grade: c.prices?.[p]?.grade || DEFAULT_GRADE[p] || '' }])) }
-    })
+    setEditForm(buildEditForm(c))
     setExpandedId(c.id)
   }
 
   function cancelEdit() { setEditingId(null); setEditForm(null) }
-
-  function setEditPrice(product, field, val) {
-    setEditForm(f => ({ ...f, prices: { ...f.prices, [product]: { ...f.prices[product], [field]: val } } }))
-  }
 
   function saveEdit(id) {
     onEdit(id, editForm)
@@ -336,6 +295,7 @@ export default function Calls({ calls, sales = [], onDelete, onEdit, role, trade
                             <span className={styles.compProduct}>{o.product}</span>
                             <span className={styles.compPrice}>{o.price}</span>
                             {o.port && <span className={styles.compPort}>{o.port}</span>}
+                            {o.laycan && <span className={styles.compPort}>· {o.laycan}</span>}
                           </div>
                         ))}
                       </div>
@@ -352,107 +312,14 @@ export default function Calls({ calls, sales = [], onDelete, onEdit, role, trade
 
               {open && isEditing && (
                 <div className={styles.editForm}>
-                  <div className={styles.editRow}>
-                    <div className={styles.editField}>
-                      <label className={styles.editLabel}>Client</label>
-                      <input className={styles.editInput} list="edit-client-names" value={editForm.client} onChange={e => setEditForm(f => ({ ...f, client: e.target.value }))} onBlur={e => setEditForm(f => ({ ...f, client: canonicalClient(e.target.value) }))} />
-                      <datalist id="edit-client-names">
-                        {knownClients.map(n => <option key={n} value={n} />)}
-                      </datalist>
-                    </div>
-                    <div className={styles.editField}>
-                      <label className={styles.editLabel}>Date</label>
-                      <input type="date" className={styles.editInput} value={editForm.date} onChange={e => setEditForm(f => ({ ...f, date: e.target.value }))} />
-                    </div>
-                  </div>
-
-                  <label className={styles.editLabel}>Prices & Trends</label>
-                  {PRODUCTS.map(p => (
-                    <div key={p} className={styles.editPriceRow}>
-                      {PRODUCT_GRADES[p] ? (
-                        <select className={styles.editNpGrade} value={editForm.prices[p].grade || DEFAULT_GRADE[p]} onChange={e => setEditPrice(p, 'grade', e.target.value)}>
-                          {PRODUCT_GRADES[p].map(g => <option key={g} value={g}>{g}</option>)}
-                        </select>
-                      ) : (
-                        <span className={styles.editProductLabel}>{p}</span>
-                      )}
-                      <input className={styles.editPriceInput} placeholder="Price" value={editForm.prices[p].value} onChange={e => setEditPrice(p, 'value', e.target.value)} />
-                      <select className={styles.editTrendSelect} value={editForm.prices[p].trend} onChange={e => setEditPrice(p, 'trend', e.target.value)}>
-                        {TREND_OPTIONS.map(t => <option key={t} value={t}>{TREND_LABEL[t]}</option>)}
-                      </select>
-                    </div>
-                  ))}
-
-                  <div className={styles.editField}>
-                    <label className={styles.editLabel}>Demand</label>
-                    <div className={styles.editDemandHeader}>
-                      <button type="button" className={styles.addDemandBtn} onClick={() => setEditForm(f => ({ ...f, demandRows: [...(f.demandRows || []), emptyDemandRow()] }))}>+ Add Demand</button>
-                    </div>
-                    {(editForm.demandRows || [emptyDemandRow()]).map((row, i) => (
-                      <div key={i} className={styles.editDemandRowWrap}>
-                        <div className={styles.editDemandGrid}>
-                          <div>
-                            <label className={styles.editSubLabel}>Product</label>
-                            <select className={styles.editInput} value={row.product || ''} onChange={e => {
-                              const rows = [...(editForm.demandRows || [])]
-                              rows[i] = { ...rows[i], product: e.target.value }
-                              setEditForm(f => ({ ...f, demandRows: rows }))
-                            }}>
-                              {DEMAND_PRODUCTS.map(p => <option key={p} value={p}>{p || '— Select —'}</option>)}
-                            </select>
-                          </div>
-                          <div>
-                            <label className={styles.editSubLabel}>Volume (Tons)</label>
-                            <input type="number" step="0.01" min="0" className={styles.editInput} value={row.volume || ''} onChange={e => {
-                              const rows = [...(editForm.demandRows || [])]
-                              rows[i] = { ...rows[i], volume: e.target.value }
-                              setEditForm(f => ({ ...f, demandRows: rows }))
-                            }} placeholder="e.g. 5,000.00" />
-                          </div>
-                          <div>
-                            <label className={styles.editSubLabel}>Port</label>
-                            <PortSelect value={row.port || ''} onChange={val => {
-                              const rows = [...(editForm.demandRows || [])]
-                              rows[i] = { ...rows[i], port: val }
-                              setEditForm(f => ({ ...f, demandRows: rows }))
-                            }} />
-                          </div>
-                          <div>
-                            <label className={styles.editSubLabel}>Price Target</label>
-                            <input className={styles.editInput} value={row.priceTarget || ''} onChange={e => {
-                              const rows = [...(editForm.demandRows || [])]
-                              rows[i] = { ...rows[i], priceTarget: e.target.value }
-                              setEditForm(f => ({ ...f, demandRows: rows }))
-                            }} placeholder="e.g. 240 CFR" />
-                          </div>
-                          <div>
-                            <label className={styles.editSubLabel}>Laycan</label>
-                            <input className={styles.editInput} value={row.laycan || ''} onChange={e => {
-                              const rows = [...(editForm.demandRows || [])]
-                              rows[i] = { ...rows[i], laycan: e.target.value }
-                              setEditForm(f => ({ ...f, demandRows: rows }))
-                            }} placeholder="e.g. Jun 15-30" />
-                          </div>
-                        </div>
-                        {(editForm.demandRows || []).length > 1 && (
-                          <button type="button" className={styles.removeDemandBtn} onClick={() => {
-                            const rows = (editForm.demandRows || []).filter((_, idx) => idx !== i)
-                            setEditForm(f => ({ ...f, demandRows: rows }))
-                          }}>✕</button>
-                        )}
-                      </div>
-                    ))}
-                    <textarea className={styles.editTextarea} rows={2} value={editForm.demand} onChange={e => setEditForm(f => ({ ...f, demand: e.target.value }))} placeholder="Additional notes, laycan..." />
-                  </div>
-                  <div className={styles.editField}>
-                    <label className={styles.editLabel}>Remarks</label>
-                    <textarea className={styles.editTextarea} rows={3} value={editForm.remarks} onChange={e => setEditForm(f => ({ ...f, remarks: e.target.value }))} />
-                  </div>
-
-                  <div className={styles.editActions}>
-                    <button className={styles.cancelEditBtn} onClick={cancelEdit}>Cancel</button>
-                    <button className={styles.saveEditBtn} onClick={() => saveEdit(c.id)}>◈ Save Changes</button>
-                  </div>
+                  <CallEditForm
+                    form={editForm}
+                    setForm={setEditForm}
+                    knownClients={knownClients}
+                    onSave={() => saveEdit(c.id)}
+                    onCancel={cancelEdit}
+                    datalistId="calls-edit-client-names"
+                  />
                 </div>
               )}
             </div>
