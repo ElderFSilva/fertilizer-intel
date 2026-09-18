@@ -5,6 +5,8 @@ import { weeklyReadiness } from '../../marketSignals.js'
 import { evaluateTriggers } from '../../triggerWatch.js'
 import { runWeeklyAnalysis, getCachedAnalysis, currentWeekInfo, weekLabel } from '../../aiAnalysis.js'
 import { PRODUCTS, buildDemandSummary } from '../../data.js'
+import { canonicalDemands } from '../../demands.js'
+import CallEditForm, { buildEditForm } from './CallEditForm.jsx'
 import styles from './Overview.module.css'
 
 function formatDate(dateStr) {
@@ -53,7 +55,7 @@ const ANALYSIS_SECTIONS = [
   { key: 'opportunities', label: 'Opportunities & Risks', icon: '◇' },
 ]
 
-export default function Overview({ calls, sales, allCalls, allSales, role, scope, scopeLabel }) {
+export default function Overview({ calls, sales, allCalls, allSales, role, scope, scopeLabel, onEdit }) {
   const isAdmin = role === 'admin'
   const deskCalls = allCalls || calls
   const deskSales = allSales || sales
@@ -61,6 +63,35 @@ export default function Overview({ calls, sales, allCalls, allSales, role, scope
   const clients = Object.keys(demandMap)
   const recentCalls = calls.slice(0, 5)
   const [demandPopup, setDemandPopup] = useState(null)
+  // Trader-only edit of the call a demand row belongs to, inside the popup.
+  // Admin's popup stays read-only (desk ruling 2026-09-18).
+  const [popupEdit, setPopupEdit] = useState(null)   // { call, form }
+  const [popupSaving, setPopupSaving] = useState(false)
+  const [popupError, setPopupError] = useState('')
+  const canEditCalls = role !== 'admin' && typeof onEdit === 'function'
+  const knownClients = [...new Set(calls.map(c => (c.client || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b))
+
+  function closeDemandPopup() {
+    setDemandPopup(null); setPopupEdit(null); setPopupError(''); setPopupSaving(false)
+  }
+
+  function startPopupEdit(call) {
+    if (!call || call.id == null) return
+    setPopupError('')
+    setPopupEdit({ call, form: buildEditForm(call) })
+  }
+
+  async function savePopupEdit() {
+    if (!popupEdit) return
+    setPopupSaving(true); setPopupError('')
+    try {
+      await onEdit(popupEdit.call.id, popupEdit.form)
+      closeDemandPopup()
+    } catch {
+      setPopupError('Could not save the call. Try again.')
+      setPopupSaving(false)
+    }
+  }
   const [showReportModal, setShowReportModal] = useState(false)
   // Client Demand Status filters
   const [filterProduct, setFilterProduct] = useState('')
@@ -155,16 +186,6 @@ export default function Overview({ calls, sales, allCalls, allSales, role, scope
     count: calls.filter(c => c.prices?.[p]?.value || c.prices?.[p]?.trend !== 'none').length,
   })).sort((a, b) => b.count - a.count)
 
-  function getDemandRows(call) {
-    if (call.demandRows?.length) {
-      return call.demandRows.filter(r => r.product || r.volume || r.port || r.priceTarget || r.laycan)
-    }
-    if (call.demandProduct || call.demandVolume || call.demandPort || call.demandPriceTarget) {
-      return [{ product: call.demandProduct, volume: call.demandVolume, port: call.demandPort, priceTarget: call.demandPriceTarget }]
-    }
-    return []
-  }
-
   const signals = analysis?.signals || []
 
   // ── Current week (Mon–Fri) demand collection ──
@@ -184,17 +205,18 @@ export default function Overview({ calls, sales, allCalls, allSales, role, scope
 
   const { monday: weekMon, friday: weekFri } = currentWeekRange()
 
-  // Gather every demand row from every call dated within this Mon–Fri, grouped by client
+  // This week's book, grouped by client, through the shared canonical view
+  // (demands.js): the same standing demand logged on several calls this week
+  // is ONE row (latest wins); linked, closed, superseded and sold rows are out.
   const weekDemandsByClient = {}
-  calls.forEach(c => {
-    const d = parseDate(c.date)
-    if (d < weekMon || d > weekFri) return
-    const rows = getDemandRows(c)
-    if (!rows.length) return
-    if (!weekDemandsByClient[c.client]) weekDemandsByClient[c.client] = { rows: [], latestCall: c }
-    rows.forEach(r => weekDemandsByClient[c.client].rows.push(r))
-    if (parseDate(c.date) >= parseDate(weekDemandsByClient[c.client].latestCall.date)) {
-      weekDemandsByClient[c.client].latestCall = c
+  const callById = {}
+  calls.forEach(c => { if (c && c.id != null) callById[c.id] = c })
+  canonicalDemands(calls, { from: weekMon, to: weekFri }).forEach(r => {
+    const c = callById[r.callId] || calls.find(x => x.client === r.client && x.date === r.callDate) || { date: r.callDate }
+    if (!weekDemandsByClient[r.client]) weekDemandsByClient[r.client] = { rows: [], latestCall: c }
+    weekDemandsByClient[r.client].rows.push(r)
+    if (parseDate(c.date) >= parseDate(weekDemandsByClient[r.client].latestCall.date)) {
+      weekDemandsByClient[r.client].latestCall = c
     }
   })
   const weekDemandClients = Object.keys(weekDemandsByClient).sort()
@@ -266,14 +288,31 @@ export default function Overview({ calls, sales, allCalls, allSales, role, scope
 
       {/* Demand popup overlay */}
       {demandPopup && (
-        <div className={styles.popupOverlay} onClick={() => setDemandPopup(null)}>
-          <div className={styles.popup} onClick={e => e.stopPropagation()}>
+        <div className={styles.popupOverlay} onClick={() => !popupSaving && closeDemandPopup()}>
+          <div className={`${styles.popup} ${popupEdit ? styles.popupWide : ''}`} onClick={e => e.stopPropagation()}>
             <div className={styles.popupHeader}>
               <span className={styles.popupClient}>{demandPopup.client}</span>
-              <span className={styles.popupDate}>{formatDate(demandPopup.date)}</span>
-              <button className={styles.popupClose} onClick={() => setDemandPopup(null)}>✕</button>
+              <span className={styles.popupDate}>{popupEdit ? 'Editing call of ' : ''}{formatDate(demandPopup.date)}</span>
+              {canEditCalls && !popupEdit && demandPopup.call?.id != null && (
+                <button className={styles.popupEditBtn} onClick={() => startPopupEdit(demandPopup.call)}>✎ Edit call</button>
+              )}
+              <button className={styles.popupClose} onClick={closeDemandPopup} disabled={popupSaving}>✕</button>
             </div>
-            {demandPopup.demandRows?.length > 0 && (
+            {popupEdit && (
+              <div className={styles.popupEditBody}>
+                {popupError && <p className={styles.popupError}>{popupError}</p>}
+                <CallEditForm
+                  form={popupEdit.form}
+                  setForm={updater => setPopupEdit(pe => pe ? { ...pe, form: typeof updater === 'function' ? updater(pe.form) : updater } : pe)}
+                  knownClients={knownClients}
+                  onSave={savePopupEdit}
+                  onCancel={() => { setPopupEdit(null); setPopupError('') }}
+                  saving={popupSaving}
+                  datalistId="overview-edit-client-names"
+                />
+              </div>
+            )}
+            {!popupEdit && demandPopup.demandRows?.length > 0 && (
               <div className={styles.popupBlock}>
                 <span className={styles.popupLabel}>Demand</span>
                 <div className={styles.popupDemandRows}>
@@ -314,13 +353,13 @@ export default function Overview({ calls, sales, allCalls, allSales, role, scope
                 </div>
               </div>
             )}
-            {demandPopup.demand && (
+            {!popupEdit && demandPopup.demand && (
               <div className={styles.popupBlock}>
                 <span className={styles.popupLabel}>Notes</span>
                 <p className={styles.popupText}>{demandPopup.demand}</p>
               </div>
             )}
-            {demandPopup.remarks && (
+            {!popupEdit && demandPopup.remarks && (
               <div className={styles.popupBlock}>
                 <span className={styles.popupLabel}>Remarks</span>
                 <p className={styles.popupText}>{demandPopup.remarks}</p>
@@ -554,13 +593,18 @@ export default function Overview({ calls, sales, allCalls, allSales, role, scope
                     <div
                       key={idx}
                       className={styles.demandListRow}
-                      onClick={() => setDemandPopup({
-                        client: cl,
-                        date: latestCall.date,
-                        demandRows: weekDemandsByClient[cl].rows,
-                        demand: latestCall.demand,
-                        remarks: latestCall.remarks
-                      })}
+                      onClick={() => {
+                        const call = callById[row.callId] || latestCall
+                        setPopupEdit(null); setPopupError('')
+                        setDemandPopup({
+                          client: cl,
+                          date: call.date,
+                          call,
+                          demandRows: weekDemandsByClient[cl].rows,
+                          demand: call.demand,
+                          remarks: call.remarks
+                        })
+                      }}
                     >
                       <span className={styles.demandListClient}>{idx === 0 ? cl : ''}</span>
                       <span className={styles.demandListCell}>{row.product || '—'}</span>
