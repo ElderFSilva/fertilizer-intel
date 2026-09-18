@@ -1,7 +1,7 @@
 import PortSelect from './PortSelect.jsx'
 import { useState } from 'react'
 import { PRODUCTS } from '../../data.js'
-import { findVolumeConflicts, ACTIVE_DAYS } from '../../demands.js'
+import { findVolumeConflicts, findActiveIdentityLines, volumeNum, ACTIVE_DAYS } from '../../demands.js'
 import styles from './Upload.module.css'
 
 const TREND_OPTIONS = ['up', 'stable', 'down', 'none']
@@ -169,7 +169,11 @@ export default function Upload({ onAdd, calls = [] }) {
     const queue = []
     currentRows.forEach(row => {
       const existing = findVolumeConflicts(calls, client, row, form.date)
-      if (existing.length) queue.push({ rowId: row.id, existing, latest: existing[0] })
+      if (!existing.length) return
+      // Same-volume lines are shown too, so the trader sees the whole book for
+      // this demand - not only the line that differs.
+      const same = findActiveIdentityLines(calls, client, row, form.date).filter(d => volumeNum(d.volume) === volumeNum(row.volume))
+      queue.push({ rowId: row.id, existing, latest: existing[0], same })
     })
 
     if (queue.length) {
@@ -223,8 +227,15 @@ export default function Upload({ onAdd, calls = [] }) {
                 <button className={styles.dupClose} onClick={() => setDupPopup(null)}>✕</button>
               </div>
               <p className={styles.dupIntro}>
-                <strong>{form.client}</strong> already has <strong>{describeDemand(item.latest)}</strong> (logged {fmtLogged(item.latest.callDate)}).
-                This call says <strong>{formatVol(current.volume)}t</strong>.
+                <strong>{form.client}</strong> already has{' '}
+                {[...(item.same || []), ...item.existing]
+                  .sort((a, b) => b.callDate.localeCompare(a.callDate))
+                  .map((d, i, arr) => (
+                    <span key={i}><strong>{formatVol(d.volume)}t</strong> ({fmtLogged(d.callDate)}){i < arr.length - 2 ? ', ' : i === arr.length - 2 ? ' and ' : ''}</span>
+                  ))}{' '}
+                {[item.latest.product, item.latest.port, item.latest.laycan].filter(Boolean).join(' ')}.
+                This call says <strong>{formatVol(current.volume)}t</strong>
+                {item.same?.length ? <> — same as the {fmtLogged(item.same[0].callDate)} line</> : null}.
               </p>
               {others.length > 0 && (
                 <div className={styles.dupList}>
