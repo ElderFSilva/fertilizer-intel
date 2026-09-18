@@ -5,6 +5,7 @@
 // only interprets pre-computed, authoritative facts.
 
 import { loadMarketRows } from './cloudMarketData.js'
+import { canonicalDemands, ACTIVE_DAYS as DEMAND_ACTIVE_DAYS } from './demands.js'
 
 const ymd = v => String(v).slice(0, 10)
 const dayMs = 86400000
@@ -53,16 +54,14 @@ function clientBlock(calls, soldDemandIds) {
   // Open (unsold) demand - ACTIVE window only (last 45 days). Demand lines
   // older than that are stale interest, not the live book; they are counted
   // separately so the AI never presents dead lines as actionable demand.
-  const ACTIVE_DAYS = 45
-  const openDemand = []
-  valid.forEach(c => {
-    ;(c.demandRows || []).forEach(r => {
-      if ((r.product || r.volume) && !(r.id && soldDemandIds.has(r.id))) {
-        openDemand.push({ client: c.client, date: callDate(c), product: r.product || '?', port: r.port || '', volume: num(r.volume), target: priceNum(r.priceTarget) })
-      }
-    })
-  })
-  openDemand.sort((a, b) => b.date.localeCompare(a.date))
+  // Rows come through canonicalDemands(): the same standing demand re-logged
+  // on several calls is ONE line (latest wins), superseded/linked/closed/sold
+  // rows are already gone. See demands.js for the desk ruling.
+  const ACTIVE_DAYS = DEMAND_ACTIVE_DAYS
+  const openDemand = canonicalDemands(valid, { soldDemandIds }).map(d => ({
+    client: d.client, date: d.callDate, product: d.product || '?', port: d.port || '',
+    volume: num(d.volume), target: priceNum(d.priceTarget), occurrences: d.occurrences,
+  }))
   const isGR = d => { const pr = (d.product || '').toLowerCase(); return pr === 'amsul gr' || pr === 'amsul' }
   const isSTD = d => (d.product || '').toLowerCase() === 'amsul std'
   const active = openDemand.filter(d => daysAgo(d.date) <= ACTIVE_DAYS)
@@ -81,9 +80,9 @@ function clientBlock(calls, soldDemandIds) {
     `Full call history: ${valid.length} calls across ${Object.keys(byClient).length} clients.`,
     `Client breadth: ${activeNow} distinct clients active in the last 7 days vs a prior 4-week average of ${avgPrior.toFixed(1)}/week (${avgPrior > 0 ? pct(((activeNow - avgPrior) / avgPrior) * 100) : 'n/a'}). Rising breadth = broadening demand; THIS COMPUTED COMPARISON IS AUTHORITATIVE.`,
   ]
-  const fmtLine = d => `${d.client} ${d.volume ? d.volume + 't' : '?t'}${d.port ? ' ' + d.port : ''}${d.target ? ' target ' + d.target : ''} (${d.date})`
+  const fmtLine = d => `${d.client} ${d.volume ? d.volume + 't' : '?t'}${d.port ? ' ' + d.port : ''}${d.target ? ' target ' + d.target : ''} (${d.date}${d.occurrences > 1 ? `, repeated on ${d.occurrences} calls` : ''})`
   if (activeGR.length) {
-    lines.push(`ACTIVE open Amsul GR/compacted demand (logged within ${ACTIVE_DAYS}d, not yet converted): ~${Math.round(volOf(activeGR))}t across ${activeGR.length} lines. Most recent: ${activeGR.slice(0, 6).map(fmtLine).join('; ')}.`)
+    lines.push(`ACTIVE open Amsul GR/compacted demand (logged within ${ACTIVE_DAYS}d, not yet converted; each standing demand counted ONCE even when repeated on several calls): ~${Math.round(volOf(activeGR))}t across ${activeGR.length} lines. Most recent: ${activeGR.slice(0, 6).map(fmtLine).join('; ')}.`)
   } else {
     lines.push('No active open Amsul GR demand lines (last 45d).')
   }
