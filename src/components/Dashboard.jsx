@@ -225,7 +225,7 @@ export default function Dashboard({ onLogout, user, profile, role }) {
             {error}
           </div>
         )}
-        {view === 'overview' && <Overview calls={visibleCalls} sales={visibleSales} allCalls={calls} allSales={sales} role={role} scope={aiScope} scopeLabel={aiScopeLabel} />}
+        {view === 'overview' && <Overview calls={visibleCalls} sales={visibleSales} allCalls={calls} allSales={sales} role={role} scope={aiScope} scopeLabel={aiScopeLabel} onEdit={handleEdit} />}
         {view === 'upload' && !isAdmin && <Upload onAdd={handleAdd} calls={calls} />}
         {view === 'calls' && <Calls calls={visibleCalls} sales={visibleSales} onDelete={handleDelete} onEdit={handleEdit} role={role} traderNames={traderNames} />}
         {view === 'prices' && <PriceTrends calls={visibleCalls} sales={visibleSales} />}
