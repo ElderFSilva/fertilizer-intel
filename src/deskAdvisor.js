@@ -46,7 +46,7 @@ function recentCallsDigest(calls, limit = 15) {
       .join('; ')
     const comp = (c.competitorOffers || [])
       .filter(o => o.competitor || o.price)
-      .map(o => `${o.competitor || '?'} ${o.product || '?'} at ${o.price || '?'}`)
+      .map(o => `${o.competitor || '?'} ${o.product || '?'} at ${o.price || '?'}${o.port ? ' ' + o.port : ''}${o.laycan ? ' shipment ' + o.laycan : ''}`)
       .join('; ')
     const parts = [`[${c.date}] ${c.client}`]
     if (prices) parts.push(`prices: ${prices}`)
