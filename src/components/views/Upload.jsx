@@ -1,6 +1,7 @@
 import PortSelect from './PortSelect.jsx'
 import { useState } from 'react'
 import { PRODUCTS } from '../../data.js'
+import { findVolumeConflicts, ACTIVE_DAYS } from '../../demands.js'
 import styles from './Upload.module.css'
 
 const TREND_OPTIONS = ['up', 'stable', 'down', 'none']
@@ -25,7 +26,7 @@ function emptyPrices() {
 }
 
 function emptyCompOffer() {
-  return { competitor: '', product: 'Amsul GR', price: '', port: '' }
+  return { competitor: '', product: 'Amsul GR', price: '', port: '', laycan: '' }
 }
 
 // Demand rows now carry a stable id so they can be referenced (sales link, report dedup)
@@ -52,46 +53,21 @@ function parseDate(dateStr) {
   return new Date(0)
 }
 
-// Monday of the week for a given date
-function getWeekMonday(dateStr) {
-  const d = parseDate(dateStr)
-  if (d.getTime() === 0) return null
-  const day = d.getDay()
-  const monday = new Date(d)
-  monday.setDate(d.getDate() - (day === 0 ? 6 : day - 1))
-  monday.setHours(0, 0, 0, 0)
-  return monday
-}
-
-// Find this client's active demands recorded earlier the same Mon–Fri week
-function findActiveDemandsThisWeek(calls, client, dateStr) {
-  if (!client) return []
-  const weekMonday = getWeekMonday(dateStr)
-  if (!weekMonday) return []
-  const weekFriday = new Date(weekMonday)
-  weekFriday.setDate(weekMonday.getDate() + 4)
-  weekFriday.setHours(23, 59, 59, 999)
-  const thisDate = parseDate(dateStr)
-
-  const found = []
-  calls.forEach(c => {
-    if (c.client !== client) return
-    const cd = parseDate(c.date)
-    if (cd < weekMonday || cd > weekFriday) return
-    if (cd > thisDate) return // only earlier-or-same in the week
-    ;(c.demandRows || []).forEach(r => {
-      if (!r.product || !r.volume) return
-      if (r.closed) return // already closed (e.g. converted to sale)
-      found.push({ ...r, callDate: c.date, callId: c.id })
-    })
-  })
-  return found
-}
-
 function formatVol(v) {
   const n = parseFloat(v)
   if (isNaN(n)) return v
   return n.toLocaleString('en-US', { maximumFractionDigits: 0 })
+}
+
+function fmtLogged(dateStr) {
+  const d = parseDate(dateStr)
+  if (d.getTime() === 0) return dateStr || ''
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+}
+
+// One line of a demand in desk words: "35,000t Amsul GR Santarém Dec"
+function describeDemand(r) {
+  return [formatVol(r.volume) + 't', r.product, r.port, r.laycan].filter(Boolean).join(' ')
 }
 
 function CompetitorOffersEditor({ offers, onChange }) {
@@ -112,29 +88,29 @@ function CompetitorOffersEditor({ offers, onChange }) {
       )}
       {offers.map((o, i) => (
         <div key={i} className={styles.compRow}>
-          <div className={styles.compRowTop}>
-            <div className={styles.compFieldWrap}>
-              <span className={styles.compFieldLabel}>Competitor</span>
-              <input className={styles.compInput} placeholder="e.g. Koch, OCP, Helm" value={o.competitor} onChange={e => updateOffer(i, 'competitor', e.target.value)} />
-            </div>
-            <div className={styles.compFieldWrap}>
-              <span className={styles.compFieldLabel}>Product</span>
-              <select className={styles.compSelect} value={o.product} onChange={e => updateOffer(i, 'product', e.target.value)}>
-                {COMP_PRODUCTS.map(p => <option key={p} value={p}>{p}</option>)}
-              </select>
-            </div>
+          <div className={styles.compFieldWrap}>
+            <span className={styles.compFieldLabel}>Competitor</span>
+            <input className={styles.compInput} placeholder="e.g. Koch, OCP, Helm" value={o.competitor} onChange={e => updateOffer(i, 'competitor', e.target.value)} />
           </div>
-          <div className={styles.compRowBottom}>
-            <div className={styles.compFieldWrap}>
-              <span className={styles.compFieldLabel}>Price</span>
-              <input className={styles.compInput} placeholder="e.g. 255 CFR" value={o.price} onChange={e => updateOffer(i, 'price', e.target.value)} />
-            </div>
-            <div className={styles.compPortWrap}>
-              <span className={styles.compFieldLabel}>Port</span>
-              <PortSelect value={o.port || ''} onChange={val => updateOffer(i, 'port', val)} />
-            </div>
-            <button type="button" className={styles.removeOfferBtn} onClick={() => removeOffer(i)}>✕</button>
+          <div className={styles.compFieldWrap}>
+            <span className={styles.compFieldLabel}>Product</span>
+            <select className={styles.compSelect} value={o.product} onChange={e => updateOffer(i, 'product', e.target.value)}>
+              {COMP_PRODUCTS.map(p => <option key={p} value={p}>{p}</option>)}
+            </select>
           </div>
+          <div className={styles.compFieldWrap}>
+            <span className={styles.compFieldLabel}>Price</span>
+            <input className={styles.compInput} placeholder="e.g. 255 CFR" value={o.price} onChange={e => updateOffer(i, 'price', e.target.value)} />
+          </div>
+          <div className={styles.compFieldWrap}>
+            <span className={styles.compFieldLabel}>Port</span>
+            <PortSelect value={o.port || ''} onChange={val => updateOffer(i, 'port', val)} />
+          </div>
+          <div className={styles.compFieldWrap}>
+            <span className={styles.compFieldLabel}>Laycan</span>
+            <input className={styles.compInput} placeholder="e.g. Oct 15-30" value={o.laycan || ''} onChange={e => updateOffer(i, 'laycan', e.target.value)} />
+          </div>
+          <button type="button" className={styles.removeOfferBtn} title="Remove offer" onClick={() => removeOffer(i)}>✕</button>
         </div>
       ))}
     </div>
@@ -154,7 +130,12 @@ export default function Upload({ onAdd, calls = [] }) {
   const [error, setError] = useState('')
   const [savedBanner, setSavedBanner] = useState(false)
   const [form, setForm] = useState(emptyForm())
-  const [dupPopup, setDupPopup] = useState(null) // { existing: [...], pendingForm }
+  // Volume-update prompt. A demand row being logged that matches an ACTIVE
+  // line (same client + product + port + laycan, last ACTIVE_DAYS) with a
+  // DIFFERENT volume pauses the save: the trader chooses Update or Separate.
+  // Exact repeats (same volume) never prompt - they collapse on read.
+  // { rows, queue: [{ rowId, existing: [...], latest }], idx }
+  const [dupPopup, setDupPopup] = useState(null)
 
   function setField(field, val) {
     setForm(f => ({ ...f, [field]: val }))
@@ -180,48 +161,43 @@ export default function Upload({ onAdd, calls = [] }) {
   function handleSave() {
     if (!form.client.trim()) { setError('Client name is required.'); return }
 
-    // Check for active demands this week that exactly match a demand row being logged now
-    const activeDemands = findActiveDemandsThisWeek(calls, form.client.trim(), form.date)
+    const client = form.client.trim()
     const currentRows = (form.demandRows || []).filter(r => r.product && r.volume)
 
-    if (activeDemands.length > 0 && currentRows.length > 0) {
-      // Find matches: existing active demands that share product (the trigger condition)
-      const matches = []
-      currentRows.forEach(row => {
-        activeDemands.forEach(ex => {
-          if (ex.product === row.product) {
-            matches.push({ existing: ex, current: row })
-          }
-        })
-      })
-      if (matches.length > 0) {
-        setDupPopup({ matches, allActive: activeDemands })
-        return
-      }
+    // Every row whose identity is already active with a different volume
+    // needs the trader's call. Build the queue and ask one at a time.
+    const queue = []
+    currentRows.forEach(row => {
+      const existing = findVolumeConflicts(calls, client, row, form.date)
+      if (existing.length) queue.push({ rowId: row.id, existing, latest: existing[0] })
+    })
+
+    if (queue.length) {
+      setDupPopup({ rows: form.demandRows || [], queue, idx: 0 })
+      return
     }
 
     finalizeSave(form)
   }
 
-  // User chose: link to existing — mark the current matching rows as linked (don't double-count)
-  function handleLink() {
-    const matchedCurrentIds = new Set(dupPopup.matches.map(m => m.current.id))
-    const linkMap = {}
-    dupPopup.matches.forEach(m => { linkMap[m.current.id] = m.existing.id })
-
-    const updatedRows = (form.demandRows || []).map(r => {
-      if (matchedCurrentIds.has(r.id)) {
-        // Mark as a link to the original demand so the report counts it only once
-        return { ...r, linkedToDemandId: linkMap[r.id], isDuplicate: true }
-      }
-      return r
+  // Apply the trader's choice for the current conflict, then move to the next
+  // one or save. Update: the new row supersedes the latest existing line (that
+  // line stays in history untouched, it just stops counting). Separate: both count.
+  function resolveConflict(choice) {
+    if (!dupPopup) return
+    const item = dupPopup.queue[dupPopup.idx]
+    const rows = dupPopup.rows.map(r => {
+      if (r.id !== item.rowId) return r
+      if (choice === 'update') return { ...r, supersedesDemandId: item.latest.id || null }
+      const { supersedesDemandId, ...rest } = r
+      return rest
     })
-    finalizeSave({ ...form, demandRows: updatedRows })
-  }
-
-  // User chose: this is new/separate — save as-is, counts independently
-  function handleSaveAsNew() {
-    finalizeSave(form)
+    const nextIdx = dupPopup.idx + 1
+    if (nextIdx < dupPopup.queue.length) {
+      setDupPopup({ ...dupPopup, rows, idx: nextIdx })
+      return
+    }
+    finalizeSave({ ...form, demandRows: rows })
   }
 
   return (
@@ -232,42 +208,49 @@ export default function Upload({ onAdd, calls = [] }) {
 
       {savedBanner && <div className={styles.successBanner}>✓ Call saved successfully!</div>}
 
-      {/* Duplicate-demand popup */}
-      {dupPopup && (
-        <div className={styles.dupOverlay} onClick={() => setDupPopup(null)}>
-          <div className={styles.dupModal} onClick={e => e.stopPropagation()}>
-            <div className={styles.dupHeader}>
-              <span className={styles.dupTitle}>⚠ Existing Demand This Week</span>
-              <button className={styles.dupClose} onClick={() => setDupPopup(null)}>✕</button>
-            </div>
-            <p className={styles.dupIntro}>
-              <strong>{form.client}</strong> already has an open demand recorded this week for the same product:
-            </p>
-            <div className={styles.dupList}>
-              {dupPopup.matches.map((m, i) => (
-                <div key={i} className={styles.dupItem}>
-                  <span className={styles.dupItemProduct}>{m.existing.product}</span>
-                  <span className={styles.dupItemDetail}>
-                    {formatVol(m.existing.volume)}t {m.existing.port ? `· ${m.existing.port}` : ''} {m.existing.priceTarget ? `· ${m.existing.priceTarget}` : ''}
-                  </span>
-                  <span className={styles.dupItemDate}>logged {new Date(m.existing.callDate + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</span>
+      {/* Volume-update prompt (one conflict at a time) */}
+      {dupPopup && (() => {
+        const item = dupPopup.queue[dupPopup.idx]
+        const current = dupPopup.rows.find(r => r.id === item.rowId) || {}
+        const others = item.existing.slice(1)
+        return (
+          <div className={styles.dupOverlay} onClick={() => setDupPopup(null)}>
+            <div className={styles.dupModal} onClick={e => e.stopPropagation()}>
+              <div className={styles.dupHeader}>
+                <span className={styles.dupTitle}>
+                  ⚠ Volume changed{dupPopup.queue.length > 1 ? ` (${dupPopup.idx + 1} of ${dupPopup.queue.length})` : ''}
+                </span>
+                <button className={styles.dupClose} onClick={() => setDupPopup(null)}>✕</button>
+              </div>
+              <p className={styles.dupIntro}>
+                <strong>{form.client}</strong> already has <strong>{describeDemand(item.latest)}</strong> (logged {fmtLogged(item.latest.callDate)}).
+                This call says <strong>{formatVol(current.volume)}t</strong>.
+              </p>
+              {others.length > 0 && (
+                <div className={styles.dupList}>
+                  {others.map((ex, i) => (
+                    <div key={i} className={styles.dupItem}>
+                      <span className={styles.dupItemDetail}>Also active: {describeDemand(ex)}</span>
+                      <span className={styles.dupItemDate}>logged {fmtLogged(ex.callDate)} · not affected by this choice</span>
+                    </div>
+                  ))}
                 </div>
-              ))}
+              )}
+              <p className={styles.dupQuestion}>Is this an update of that demand, or a separate cargo?</p>
+              <div className={styles.dupActions}>
+                <button className={styles.dupLinkBtn} onClick={() => resolveConflict('update')}>
+                  ↻ Update — replaces the {formatVol(item.latest.volume)}t
+                  <span className={styles.dupBtnHint}>The old line stays in history but no longer counts</span>
+                </button>
+                <button className={styles.dupNewBtn} onClick={() => resolveConflict('separate')}>
+                  + Separate — a second cargo, count both
+                </button>
+              </div>
+              <p className={styles.dupTip}>Same client, product, port and laycan within the last {ACTIVE_DAYS} days. Identical volumes never ask — they count once automatically.</p>
             </div>
-            <p className={styles.dupQuestion}>Is this the same demand, or new tonnage?</p>
-            <div className={styles.dupActions}>
-              <button className={styles.dupLinkBtn} onClick={handleLink}>
-                ↩ Same demand — link it
-                <span className={styles.dupBtnHint}>Won't double-count in reports</span>
-              </button>
-              <button className={styles.dupNewBtn} onClick={handleSaveAsNew}>
-                + New tonnage — count separately
-              </button>
-            </div>
-            <p className={styles.dupTip}>Tip: if the volume just grew, link it here and edit the original demand to the new figure.</p>
           </div>
-        </div>
-      )}
+        )
+      })()}
 
       <div className={styles.form}>
         <div className={styles.row}>
