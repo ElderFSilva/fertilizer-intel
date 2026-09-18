@@ -204,6 +204,17 @@
 }
 .popupClose:hover { border-color: var(--red); color: var(--red); }
 
+/* Popup edit mode (traders only): wider card, scrolls if the form is tall */
+.popupWide { max-width: 760px; max-height: 92vh; overflow-y: auto; }
+.popupEditBtn {
+  background: transparent; border: 1px solid var(--border2); color: var(--text2);
+  border-radius: 6px; padding: 6px 12px; font-size: 12px; cursor: pointer;
+  font-family: inherit; transition: all 0.15s; white-space: nowrap;
+}
+.popupEditBtn:hover { border-color: var(--accent); color: var(--accent); }
+.popupEditBody { display: flex; flex-direction: column; gap: 10px; }
+.popupError { font-size: 12px; color: var(--red); font-family: 'DM Mono', monospace; }
+
 .popupBlock { display: flex; flex-direction: column; gap: 6px; }
 .popupLabel { font-size: 10px; color: var(--text3); font-family: 'DM Mono', monospace; text-transform: uppercase; letter-spacing: 0.08em; }
 .popupText { font-size: 14px; color: var(--text); line-height: 1.6; }
