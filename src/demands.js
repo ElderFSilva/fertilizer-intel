@@ -119,17 +119,24 @@ export function canonicalDemands(calls, opts = {}) {
     .sort((a, b) => b.callDate.localeCompare(a.callDate) || a.client.localeCompare(b.client))
 }
 
-// Write-side check for the upload prompt: active lines (last ACTIVE_DAYS,
-// relative to the call being logged) with the same identity but a DIFFERENT
-// volume. An exact match (same volume) is the same demand and needs no prompt.
-// Returns [] when nothing conflicts.
-export function findVolumeConflicts(calls, client, row, dateStr) {
-  if (!client || !row || !row.product || volumeNum(row.volume) == null) return []
+// Every ACTIVE line (last ACTIVE_DAYS, relative to the call being logged)
+// with the same identity as `row` - the whole book for that client + product
+// + port + laycan, newest first. Exact-volume matches included.
+export function findActiveIdentityLines(calls, client, row, dateStr) {
+  if (!client || !row || !row.product) return []
   const ref = toDate(dateStr) || new Date()
   const from = new Date(ref.getTime() - ACTIVE_DAYS * dayMs)
   const identity = demandIdentity(client, row)
-  const vol = volumeNum(row.volume)
   return canonicalDemands(calls, { from, to: ref })
-    .filter(d => demandIdentity(d.client, d) === identity && volumeNum(d.volume) !== vol)
+    .filter(d => demandIdentity(d.client, d) === identity)
     .sort((a, b) => b.callDate.localeCompare(a.callDate))
+}
+
+// Write-side check for the upload prompt: active lines with the same identity
+// but a DIFFERENT volume. An exact match (same volume) is the same demand and
+// needs no prompt on its own. Returns [] when nothing conflicts.
+export function findVolumeConflicts(calls, client, row, dateStr) {
+  const vol = volumeNum(row && row.volume)
+  if (vol == null) return []
+  return findActiveIdentityLines(calls, client, row, dateStr).filter(d => volumeNum(d.volume) !== vol)
 }
