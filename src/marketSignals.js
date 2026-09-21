@@ -316,19 +316,40 @@ function supplyBlock(snaps) {
       return d.getMonth() === lm.getMonth() && d.getFullYear() === lm.getFullYear() - 1
     })
     const yr = yearOf(latest.period)
+    // COMPLETENESS GUARD: a year-to-date comparison is only valid when BOTH
+    // years hold the identical set of months. A missing prior-year month
+    // would otherwise silently turn into a growth rate (Aug 2025 absent ->
+    // "+14.2%" when the truth was -6.7%). Missing months are named instead.
+    const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+    const monthsOf = y => new Set(act.filter(r => yearOf(r.period) === y).map(r => new Date(ymd(r.period) + 'T00:00:00').getMonth()))
+    const curMonths = monthsOf(yr)
+    const prevMonths = monthsOf(yr - 1)
+    const upTo = lm.getMonth()
+    const missingCur = [], missingPrev = []
+    for (let m = 0; m <= upTo; m++) {
+      if (!curMonths.has(m)) missingCur.push(`${MONTHS[m]} ${yr}`)
+      if (!prevMonths.has(m)) missingPrev.push(`${MONTHS[m]} ${yr - 1}`)
+    }
+    const missing = [...missingPrev, ...missingCur]
     const ytdCur = act.filter(r => yearOf(r.period) === yr)
       .reduce((s, r) => s + Number(r.volume_kt), 0)
-    const monthsCovered = act.filter(r => yearOf(r.period) === yr).length
     const ytdPrev = act.filter(r => {
       const d = new Date(ymd(r.period) + 'T00:00:00')
-      return d.getFullYear() === yr - 1 && d.getMonth() <= lm.getMonth()
+      return d.getFullYear() === yr - 1 && d.getMonth() <= upTo
     }).reduce((s, r) => s + Number(r.volume_kt), 0)
     let line = `Siacesp customs-cleared actuals: ${monthLabel(latest.period)} = ${fmt(latest.volume_kt)}k tons`
     if (samePrev) {
       const prevLabel = monthLabel(samePrev.period)
       line += ` vs ${fmt(samePrev.volume_kt)}k in ${prevLabel} (${pct(((latest.volume_kt - samePrev.volume_kt) / samePrev.volume_kt) * 100)} vs ${prevLabel})`
+    } else {
+      line += ` - ${MONTHS[upTo]} ${yr - 1} not entered, same-month YoY not computable`
     }
-    if (ytdPrev > 0) line += `. Jan-${monthLabel(latest.period).split(' ')[0]} total: ${fmt(ytdCur)}k in ${yr} vs ${fmt(ytdPrev)}k in ${yr - 1} (${pct(((ytdCur - ytdPrev) / ytdPrev) * 100)} vs same months of ${yr - 1})`
+    const ytdLabel = `Jan-${MONTHS[upTo]}`
+    if (missing.length === 0 && ytdPrev > 0) {
+      line += `. ${ytdLabel} total: ${fmt(ytdCur)}k in ${yr} vs ${fmt(ytdPrev)}k in ${yr - 1} (${pct(((ytdCur - ytdPrev) / ytdPrev) * 100)} vs same months of ${yr - 1})`
+    } else {
+      line += `. ${ytdLabel} ${yr} entered so far: ${fmt(ytdCur)}k. YEAR-TO-DATE COMPARISON NOT COMPUTABLE - series incomplete (missing: ${missing.length ? missing.join(', ') : 'prior year'}); do NOT infer growth or decline`
+    }
     line += `. (Realized customs data; compare only against Siacesp itself.)`
     out.push(line)
   }
