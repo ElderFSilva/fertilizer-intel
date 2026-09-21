@@ -279,8 +279,10 @@ function supplyBlock(snaps) {
       const frozenRows = S.rows
         .filter(r => ymd(r.period) === curMonthStart && ymd(r.report_date) < curMonthStart)
         .sort((a, b) => ymd(b.report_date).localeCompare(ymd(a.report_date)))
+      // Printed for the PRIMARY lens only: a retired provider's frozen figure
+      // beside the live one would read as two expectations for one month.
       let frozenLine = ''
-      if (frozenRows.length) {
+      if (idx === 0 && frozenRows.length) {
         const f = frozenRows[0]
         frozenLine = `\n  ${monthLabel(f.period)} (month underway): expectation FROZEN at ${fmt(f.volume_kt)}k tons from the ${ymd(f.report_date)} report - this figure belongs to ${monthLabel(f.period)} ONLY; realized volumes are Siacesp's lens, never the line-up's.`
       }
