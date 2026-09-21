@@ -186,7 +186,7 @@ const TABS = [
     id: 'lineup',
     label: 'Line-up',
     table: 'supply_snapshots',
-    hint: 'Argus forward line-up — total kt per arrival month. Each week, ADD new rows with that report\u2019s date (don\u2019t edit old weeks): the revision history is itself a signal.',
+    hint: 'Forward line-up — total kt per arrival month, Orion series (source Orion) since the Aug 14 2026 report. Each week, ADD new rows with that report\u2019s date (don\u2019t edit old weeks): the revision history is itself a signal. Enter only months that have not started. Never enter Argus totals.',
     fixed: { series: 'lineup' },
     fields: [
       { key: 'report_date', label: 'Report Date', type: 'date', required: true, def: todayYMD },
@@ -194,8 +194,8 @@ const TABS = [
         { v: 'amsul', l: 'Amsul' }, { v: 'urea', l: 'Urea' } ] },
       { key: 'period', label: 'Arrival Month', type: 'month', required: true },
       { key: 'volume_kt', label: 'Total Volume (k tons)', type: 'number', required: true, ph: 'e.g. 259' },
-      { key: 'source', label: 'Source', type: 'select', def: 'argus', options: [
-        { v: 'argus', l: 'Argus' }, { v: 'agrinvest', l: 'Agrinvest' }, { v: 'other', l: 'Other' } ] },
+      { key: 'source', label: 'Source', type: 'select', def: 'orion', options: [
+        { v: 'orion', l: 'Orion' }, { v: 'wilson_sons', l: 'Wilson Sons' }, { v: 'argus', l: 'Argus' }, { v: 'agrinvest', l: 'Agrinvest' }, { v: 'other', l: 'Other' } ] },
     ],
     columns: [
       { key: 'report_date', label: 'Report', fmt: fmtDate },
