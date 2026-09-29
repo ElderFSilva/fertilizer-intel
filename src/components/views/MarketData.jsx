@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import LineupUpload from './LineupUpload.jsx'
 import styles from './MarketData.module.css'
 import { evaluateTriggers } from '../../triggerWatch.js'
 import { loadMarketRows, insertMarketRow, updateMarketRow, deleteMarketRow } from '../../cloudMarketData.js'
@@ -421,10 +422,14 @@ export default function MarketData({ role }) {
 
       <p className={styles.hint}>{tab.hint}</p>
 
+      {/* Line-up tab: Orion file upload + parties (admin only). The manual
+          form below stays for corrections and non-Orion sources. */}
+      {isAdmin && tab.id === 'lineup' && <LineupUpload onWritten={() => reload(tab)} />}
+
       {/* Entry form — admin only */}
       {isAdmin && (
         <section className={styles.section}>
-          <h2 className={styles.sectionTitle}>{editingId ? '✎ Edit Entry' : '⊕ Add Entry'}</h2>
+          <h2 className={styles.sectionTitle}>{editingId ? '✎ Edit Entry' : (tab.id === 'lineup' ? '⊕ Add Entry (manual)' : '⊕ Add Entry')}</h2>
           <div className={styles.formWrap}>
             {tab.fields.map(fl => (
               <div key={fl.key} className={styles.formField}>
