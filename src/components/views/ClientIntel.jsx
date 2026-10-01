@@ -2,7 +2,7 @@ import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'rec
 import { loadSales } from '../../sales.js'
 import styles from './ClientIntel.module.css'
 
-const PRODUCTS = ['Amsul', 'Urea', 'MAP', 'SSP', 'TSP', 'NP']
+const PRODUCTS = ['Amsul', 'Urea', 'N43 + 2.5S', 'MAP', 'SSP', 'TSP', 'NP']
 
 function formatDate(dateStr) {
   if (!dateStr) return '—'
