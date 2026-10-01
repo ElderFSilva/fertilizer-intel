@@ -12,11 +12,11 @@ import styles from './CallEditForm.module.css'
 
 const TREND_OPTIONS = ['up', 'stable', 'down', 'none']
 const TREND_LABEL = { up: '↑ Up', stable: '↔ Stable', down: '↓ Down', none: '—' }
-const DEMAND_PRODUCTS = ['', 'Amsul GR', 'Amsul STD', 'Urea', 'MAP', 'SSP 20%', 'SSP 19%', 'TSP 45%', 'TSP 46%', 'NP 10-45', 'NP 11-44', 'NP 08-40', 'NP 08-40+5S']
-const COMP_PRODUCTS = ['Amsul GR', 'Amsul STD', 'Urea', 'MAP', 'SSP 20%', 'SSP 19%', 'TSP 45%', 'TSP 46%', 'NP 10-45', 'NP 11-44', 'NP 08-40', 'NP 08-40+5S']
+const DEMAND_PRODUCTS = ['', 'Amsul GR', 'Amsul STD', 'Urea', 'N43 + 2.5S', 'MAP', 'SSP 20%', 'SSP 19%', 'MC 20%', 'TSP 45%', 'TSP 46%', 'NP 10-45', 'NP 11-44', 'NP 08-40', 'NP 08-40+5S']
+const COMP_PRODUCTS = ['Amsul GR', 'Amsul STD', 'Urea', 'N43 + 2.5S', 'MAP', 'SSP 20%', 'SSP 19%', 'MC 20%', 'TSP 45%', 'TSP 46%', 'NP 10-45', 'NP 11-44', 'NP 08-40', 'NP 08-40+5S']
 const PRODUCT_GRADES = {
   Amsul: ['Amsul GR', 'Amsul STD'],
-  SSP: ['SSP 20%', 'SSP 19%'],
+  SSP: ['SSP 20%', 'SSP 19%', 'MC 20%'],
   TSP: ['TSP 45%', 'TSP 46%'],
   NP: ['NP 10-45', 'NP 11-44', 'NP 08-40', 'NP 08-40+5S'],
 }
