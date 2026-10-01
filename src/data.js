@@ -1,4 +1,4 @@
-export const PRODUCTS = ['Amsul', 'Urea', 'MAP', 'SSP', 'TSP', 'NP']
+export const PRODUCTS = ['Amsul', 'Urea', 'N43 + 2.5S', 'MAP', 'SSP', 'TSP', 'NP']
 
 export const TREND = { up: '↑', stable: '↔', down: '↓', none: '—' }
 
