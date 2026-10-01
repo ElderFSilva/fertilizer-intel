@@ -28,7 +28,7 @@ function formatVolume(val) {
 const TREND_ICON = { up: '↑', stable: '↔', down: '↓', none: '—' }
 const PRODUCT_GRADES = {
   Amsul: ['Amsul GR', 'Amsul STD'],
-  SSP: ['SSP 20%', 'SSP 19%'],
+  SSP: ['SSP 20%', 'SSP 19%', 'MC 20%'],
   TSP: ['TSP 45%', 'TSP 46%'],
   NP: ['NP 10-45', 'NP 11-44', 'NP 08-40', 'NP 08-40+5S'],
 }
@@ -172,7 +172,7 @@ export default function Calls({ calls, sales = [], onDelete, onEdit, role, trade
             <label className={styles.filterLabel}>Product</label>
             <select className={styles.filterSelect} value={filterProduct} onChange={e => setFilterProduct(e.target.value)}>
               <option value="">All products</option>
-              {['Amsul', 'Urea', 'MAP', 'SSP', 'TSP', 'NP 10-45', 'NP 08-40'].map(p => <option key={p} value={p}>{p}</option>)}
+              {['Amsul', 'Urea', 'N43 + 2.5S', 'MAP', 'SSP', 'TSP', 'NP 10-45', 'NP 08-40'].map(p => <option key={p} value={p}>{p}</option>)}
             </select>
           </div>
           <div className={styles.filterField}>
