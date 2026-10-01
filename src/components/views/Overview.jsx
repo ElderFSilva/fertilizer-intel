@@ -183,7 +183,7 @@ export default function Overview({ calls, sales, allCalls, allSales, role, scope
 
   const productActivity = PRODUCTS.map(p => ({
     name: p,
-    count: calls.filter(c => c.prices?.[p]?.value || c.prices?.[p]?.trend !== 'none').length,
+    count: calls.filter(c => c.prices?.[p]?.value || (c.prices?.[p]?.trend && c.prices[p].trend !== 'none')).length,
   })).sort((a, b) => b.count - a.count)
 
   const signals = analysis?.signals || []
