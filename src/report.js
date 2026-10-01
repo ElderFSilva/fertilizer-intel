@@ -265,7 +265,7 @@ function buildChartSVG(chartData) {
 function buildPriceBubbles(calls, fromStr, toStr) {
   const fromD = parseDate(fromStr)
   const toD = parseDate(toStr); toD.setHours(23, 59, 59)
-  const PRODUCTS = ['Amsul', 'Urea', 'MAP', 'SSP', 'TSP', 'NP']
+  const PRODUCTS = ['Amsul', 'Urea', 'N43 + 2.5S', 'MAP', 'SSP', 'TSP', 'NP']
   const periodCalls = calls.filter(c => { const d = parseDate(c.date); return d >= fromD && d <= toD })
 
   return PRODUCTS.map(product => {
