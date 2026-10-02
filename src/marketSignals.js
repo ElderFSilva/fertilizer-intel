@@ -422,6 +422,91 @@ function fxBlock(rows) {
   return `### FX\nUSD/BRL ${Number(cur.rate).toFixed(3)}, ${freshness(cur.rate_date)}${chg != null ? `, ${pct(chg)} vs previous entry` : ''}. BRL weakening raises fertilizer cost in reais even with stable USD prices (and vice versa).`
 }
 
+
+// ── Inland basis (Agrinvest FCA Paranaguá / FOB Rondonópolis) ──
+// Two spreads, each read against its FULL entered history (ruling 2026-10-02):
+//   port basis   = FCA Paranaguá  - CFR composite (same market week)
+//   inland basis = FOB Rondonópolis - FCA Paranaguá (same market week)
+// Hypothesis under test: compressing basis = distributors cannot pass prices
+// on -> CFR demand fades within weeks. Computed and described only; the
+// prompt forbids using it as a stance driver until the track record says so.
+function weeklyMids(rows) {
+  // one value per market week: average of that week's mids (any source)
+  const by = {}
+  rows.forEach(r => {
+    const wk = weekKeyOf(r.pub_date); if (!wk) return
+    ;(by[wk] = by[wk] || []).push(mid(r))
+  })
+  const out = {}
+  Object.entries(by).forEach(([wk, arr]) => { out[wk] = arr.reduce((a, b) => a + b, 0) / arr.length })
+  return out
+}
+
+function weeklyComposite(pubs, benchRows) {
+  // CFR compacted composite per week: latest entry per source within the week, averaged
+  const by = {}
+  pubs.filter(r => r.product === 'amsul' && r.price_point === 'cfr_brazil' && r.grade === 'compacted' && r.frequency === 'weekly')
+    .forEach(r => { const wk = weekKeyOf(r.pub_date); if (!wk) return; (by[wk] = by[wk] || {}); const d = ymd(r.pub_date); if (!by[wk][r.source] || by[wk][r.source].date < d) by[wk][r.source] = { date: d, mid: mid(r) } })
+  ;(benchRows || []).forEach(r => { const wk = weekKeyOf(r.pub_date); if (!wk) return; (by[wk] = by[wk] || {}); const d = ymd(r.pub_date); const m = (Number(r.low) + Number(r.high)) / 2; if (!by[wk][r.source] || by[wk][r.source].date < d) by[wk][r.source] = { date: d, mid: m } })
+  const out = {}
+  Object.entries(by).forEach(([wk, srcs]) => { const v = Object.values(srcs); out[wk] = { mid: v.reduce((a, e) => a + e.mid, 0) / v.length, n: v.length } })
+  return out
+}
+
+function describeSpread(name, series, formula) {
+  // series: [{ wk, value }] ascending by week, complete weeks only
+  if (!series.length) return `${name} (${formula}): not computable - no week has both legs entered.`
+  const vals = series.map(s => s.value)
+  const last = series[series.length - 1]
+  // Compare by CALENDAR week, never by position: a week missing a leg is a
+  // gap, not a neighbour.
+  const weeksBack = (wk, n) => { const d = new Date(wk + 'T00:00:00'); d.setDate(d.getDate() - 7 * n); return ymd(d.toISOString().slice(0, 10)) }
+  const byWk = Object.fromEntries(series.map(x => [x.wk, x]))
+  const prev = byWk[weeksBack(last.wk, 1)] || null
+  const m4 = byWk[weeksBack(last.wk, 4)] || null
+  const sorted = [...vals].sort((a, b) => a - b)
+  const median = sorted.length % 2 ? sorted[(sorted.length - 1) / 2] : (sorted[sorted.length / 2 - 1] + sorted[sorted.length / 2]) / 2
+  const dir = (a, b) => a == null || b == null ? '' : (a > b ? 'WIDENED' : a < b ? 'COMPRESSED' : 'unchanged')
+  const parts = [`${name} (${formula}): ${fmt(last.value, 1)} USD/t for the week of ${last.wk}`]
+  if (prev) parts.push(`vs ${fmt(prev.value, 1)} last week (${dir(last.value, prev.value)} ${fmt(Math.abs(last.value - prev.value), 1)})`)
+  else parts.push('prior week not computable (a leg missing) - no week-on-week direction')
+  if (m4) parts.push(`vs ${fmt(m4.value, 1)} four weeks ago (${dir(last.value, m4.value)} ${fmt(Math.abs(last.value - m4.value), 1)})`)
+  else parts.push('four-weeks-ago not computable')
+  parts.push(`history since inception: n=${series.length} weeks, min ${fmt(sorted[0], 1)}, median ${fmt(median, 1)}, max ${fmt(sorted[sorted.length - 1], 1)}, current at the ${percentileOf(last.value, vals)}th percentile${series.length < 8 ? ' (SMALL SAMPLE - level only, no trend claims)' : ''}`)
+  return parts.join('; ') + '.'
+}
+
+function inlandBlock(pubs, benchRows) {
+  const fcaRows = pubs.filter(r => r.product === 'amsul' && r.price_point === 'fca_paranagua')
+  const rondoRows = pubs.filter(r => r.product === 'amsul' && r.price_point === 'fob_rondonopolis')
+  if (!fcaRows.length && !rondoRows.length) return null
+  const fca = weeklyMids(fcaRows)
+  const rondo = weeklyMids(rondoRows)
+  const cfr = weeklyComposite(pubs, benchRows)
+
+  const weeks = [...new Set([...Object.keys(fca), ...Object.keys(rondo)])].sort()
+  const port = weeks.filter(wk => fca[wk] != null && cfr[wk]).map(wk => ({ wk, value: fca[wk] - cfr[wk].mid }))
+  const inland = weeks.filter(wk => fca[wk] != null && rondo[wk] != null).map(wk => ({ wk, value: rondo[wk] - fca[wk] }))
+
+  const latestWk = weeks[weeks.length - 1]
+  const latestFca = fcaRows.sort((a, b) => ymd(b.pub_date).localeCompare(ymd(a.pub_date)))[0]
+  const latestRondo = rondoRows.sort((a, b) => ymd(b.pub_date).localeCompare(ymd(a.pub_date)))[0]
+  const levels = [
+    latestFca ? `FCA Paranaguá ${fmt(mid(latestFca))} (${latestFca.source}, ${freshness(latestFca.pub_date, 10)})` : 'FCA Paranaguá: not entered',
+    latestRondo ? `FOB Rondonópolis ${fmt(mid(latestRondo))} (${latestRondo.source}, ${freshness(latestRondo.pub_date, 10)})` : 'FOB Rondonópolis: not entered',
+  ]
+  const gaps = []
+  if (latestWk && fca[latestWk] == null) gaps.push('FCA missing for the latest week')
+  if (latestWk && rondo[latestWk] == null) gaps.push('FOB Rondonópolis missing for the latest week')
+  if (latestWk && fca[latestWk] != null && !cfr[latestWk]) gaps.push('CFR composite missing for the latest week - port basis not computable this week')
+
+  return `### INLAND BASIS (Agrinvest inland prices vs CFR - UNTESTED leading indicator, describe only)
+Latest levels: ${levels.join('; ')}.
+${describeSpread('Port basis', port, 'FCA Paranaguá minus CFR compacted composite, same market week')}
+${describeSpread('Inland basis', inland, 'FOB Rondonópolis minus FCA Paranaguá, same market week')}${gaps.length ? `\nGaps: ${gaps.join('; ')}.` : ''}
+Reading: a COMPRESSING basis means distributors cannot pass CFR prices on and tend to stop bidding within weeks; a WIDENING basis means room to buy. This relationship is a hypothesis under test, not a fact: cite the computed level and direction words only, never infer a stance from it alone.`
+}
+
 // ── Main entry: build the full market context text for the AI prompt ──
 
 // ── Weekly readiness: is this week's data batch in? ──
@@ -471,7 +556,7 @@ export async function buildMarketContext() {
       .from('publications')
       .select('source, pub_date, low, high')
       .order('pub_date', { ascending: false })
-      .limit(60)
+      .limit(600)
     if (error) return []
     return data || []
   }
@@ -489,6 +574,7 @@ export async function buildMarketContext() {
     pricesBlock(pubs, benchRows),
     parityBlock(pubs, freights, benchRows),
     nUnitBlock(pubs),
+    inlandBlock(pubs, benchRows),
     supplyBlock(snaps),
     barterBlock(barter),
     progressBlock(progress),
