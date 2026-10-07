@@ -2,6 +2,7 @@ import { cloudLoadBenchmarkFromIntl } from './cloudData.js'
 import { loadAnalysisSnapshotForWeek, saveBriefToSnapshot } from './cloudAnalysis.js'
 import { generateBriefFromAnalysis } from './aiAnalysis.js'
 import { canonicalDemands } from './demands.js'
+import { buildHistory, addDays as histAddDays, GRADE_BAND_PCT, GRADE_HORIZON_DAYS } from './history.js'
 
 function formatDate(dateStr) {
   if (!dateStr) return '—'
@@ -197,6 +198,58 @@ function buildChartData(calls, sales, argusData, ferteconData) {
   return rows.filter(r => r.date >= cutoff)
 }
 
+
+// ── History chart (2 years): CFR Argus mid vs its full-history percentile bands,
+// with every graded stance - the same computation as the History view.
+function buildHistorySVG(hist) {
+  if (!hist || !hist.rows || hist.rows.length < 8) return ''
+  const cut = histAddDays(new Date().toISOString().slice(0, 10), -730)
+  const rows = hist.rows.filter(r => r.date >= cut)
+  if (rows.length < 8) return ''
+  const b = hist.cfrBands
+  const W = 720, H = 300
+  const PAD = { top: 16, right: 70, bottom: 30, left: 44 }
+  const cw = W - PAD.left - PAD.right, ch = H - PAD.top - PAD.bottom
+  const vals = [...rows.map(r => r.cfr), b.p25, b.p90]
+  const minY = Math.floor((Math.min(...vals) - 10) / 10) * 10
+  const maxY = Math.ceil((Math.max(...vals) + 10) / 10) * 10
+  const xs = i => PAD.left + (i / (rows.length - 1)) * cw
+  const ys = v => PAD.top + ch - ((Math.max(minY, Math.min(maxY, v)) - minY) / (maxY - minY)) * ch
+  const idxOf = d => { const i = rows.findIndex(r => r.date >= d); return i < 0 ? rows.length - 1 : i }
+  const grid = []
+  const step = (maxY - minY) / 5
+  for (let v = minY; v <= maxY + 0.01; v += step) {
+    grid.push(`<line x1="${PAD.left}" y1="${ys(v)}" x2="${W - PAD.right}" y2="${ys(v)}" stroke="#2a2b26" stroke-dasharray="3 3"/>`)
+    grid.push(`<text x="${PAD.left - 8}" y="${ys(v) + 3}" text-anchor="end" font-size="10" fill="#5a5b54">${Math.round(v)}</text>`)
+  }
+  const every = Math.max(1, Math.round(rows.length / 8))
+  const xl = rows.map((r, i) => i % every === 0
+    ? `<text x="${xs(i)}" y="${H - PAD.bottom + 16}" text-anchor="middle" font-size="10" fill="#5a5b54">${new Date(r.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', year: '2-digit' })}</text>` : '').join('')
+  const bands = [['p25', 'P25'], ['p50', 'median'], ['p75', 'P75'], ['p90', 'P90']].map(([k, l]) =>
+    `<line x1="${PAD.left}" y1="${ys(b[k])}" x2="${W - PAD.right}" y2="${ys(b[k])}" stroke="#5a5b54" stroke-dasharray="4 4"/><text x="${W - PAD.right + 6}" y="${ys(b[k]) + 3}" font-size="9" fill="#5a5b54">${l} ${Math.round(b[k])}</text>`).join('')
+  const boxes = rows.map((r, i) => {
+    if (!r.stance) return ''
+    const col = r.stance.result === 'correct' ? '#c8f060' : r.stance.result === 'wrong' ? '#ff6b5b' : '#9a9b93'
+    const x2 = xs(idxOf(histAddDays(r.date, GRADE_HORIZON_DAYS)))
+    const y1 = ys(r.stance.priceThen * (1 + GRADE_BAND_PCT / 100)), y2 = ys(r.stance.priceThen * (1 - GRADE_BAND_PCT / 100))
+    return `<rect x="${xs(i)}" y="${y1}" width="${Math.max(2, x2 - xs(i))}" height="${Math.max(1, y2 - y1)}" fill="${col}" fill-opacity="0.12"/>`
+  }).join('')
+  const path = rows.map((r, i) => `${i === 0 ? 'M' : 'L'}${xs(i).toFixed(1)},${ys(r.cfr).toFixed(1)}`).join(' ')
+  const marks = rows.map((r, i) => {
+    if (!r.stance) return ''
+    const col = r.stance.result === 'correct' ? '#c8f060' : r.stance.result === 'wrong' ? '#ff6b5b' : '#9a9b93'
+    const cx = xs(i), cy = ys(r.stance.priceThen), q = 5
+    if (r.stance.bias === 'LONG') return `<polygon points="${cx},${cy - q} ${cx - q},${cy + q} ${cx + q},${cy + q}" fill="${col}" stroke="#0e0f0c"/>`
+    if (r.stance.bias === 'SHORT') return `<polygon points="${cx},${cy + q} ${cx - q},${cy - q} ${cx + q},${cy - q}" fill="${col}" stroke="#0e0f0c"/>`
+    return `<rect x="${cx - q + 1}" y="${cy - q + 1}" width="${2 * q - 2}" height="${2 * q - 2}" fill="${col}" stroke="#0e0f0c"/>`
+  }).join('')
+  return `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;background:transparent">
+    ${grid.join('')}${xl}${bands}${boxes}
+    <path d="${path}" fill="none" stroke="#60b8f0" stroke-width="2"/>
+    ${marks}
+  </svg>`
+}
+
 // Latest non-null value per series (the most recent week each series printed)
 // Legend values are the REPORTED WEEK's values only, never "the most recent
 // week that happens to have one". A series with nothing this week prints no
@@ -389,6 +442,12 @@ export async function generateWeeklyReport(calls, signals, dateFrom, dateTo, ana
   const chartData = buildChartData(calls, sales, argusData, ferteconData)
   const latest = weekValues(chartData, reportWeekThursday)
   const chartSVG = buildChartSVG(chartData)
+  let historySVG = '', historyNow = null
+  try {
+    const hist = await buildHistory()
+    historySVG = buildHistorySVG(hist)
+    historyNow = hist.cfrNow
+  } catch { /* history is optional in the report */ }
 
   const salesPerf = buildSalesPerformance(sales, fromStr, toStr)
   const soldDemandIds = salesPerf.soldDemandIds || new Set()
@@ -566,6 +625,15 @@ export async function generateWeeklyReport(calls, signals, dateFrom, dateTo, ana
       ${chartSVG}
     </div>
   </div>
+
+  ${historySVG ? `
+  <div class="section">
+    <div class="section-title">Amsul CFR Brazil — 2-year history vs percentile bands, with graded stances</div>
+    <div class="chart-wrap">
+      <div class="chart-caption">Argus weekly mid. Bands are percentiles of the full record${historyNow ? ` — current ${historyNow.mid.toFixed(1)} sits at the ${historyNow.pct}th percentile` : ''}. ▲ LONG ■ NEUTRAL ▼ SHORT, green correct / red wrong / grey pending; box = ±${GRADE_BAND_PCT}% over ${GRADE_HORIZON_DAYS} days.</div>
+      ${historySVG}
+    </div>
+  </div>` : ''}
 
   ${priceBubbles.length > 0 ? `
   <div class="section">
