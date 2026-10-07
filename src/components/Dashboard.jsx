@@ -3,6 +3,7 @@ import { buildMarketSignals } from '../data.js'
 import { cloudLoadCalls, cloudAddCall, cloudEditCall, cloudDeleteCall, cloudLoadSales, cloudAddSale, cloudEditSale, cloudDeleteSale, cloudLoadProfiles, runWeeklyBackupIfDue } from '../cloudData.js'
 import Sidebar from './Sidebar.jsx'
 import Overview from './views/Overview.jsx'
+import History from './views/History.jsx'
 import Calls from './views/Calls.jsx'
 import Upload from './views/Upload.jsx'
 import Sales from './views/Sales.jsx'
@@ -233,6 +234,7 @@ export default function Dashboard({ onLogout, user, profile, role }) {
         {view === 'sales' && <Sales calls={visibleCalls} sales={visibleSales} onAddSale={handleAddSale} onDeleteSale={handleDeleteSale} onEditSale={handleEditSale} role={role} traderNames={traderNames} />}
         {view === 'market' && <MarketData role={role} />}
         {view === 'record' && <TrackRecord scope={'global'} />}
+        {view === 'history' && <History />}
         {view === 'advisor' && <Advisor role={role} calls={calls} sales={sales} scope={'global'} />}
         {view === 'backup' && <DataBackup traderId={traderId} role={role} onImport={reloadAll} />}
       </main>
