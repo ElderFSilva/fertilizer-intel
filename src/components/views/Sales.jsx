@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import PortSelect from './PortSelect.jsx'
 import { buildSalesStats, SALE_PRODUCTS } from '../../sales.js'
+import { exportSalesXlsx, exportSalesPdf } from '../../salesExport.js'
 import styles from './Sales.module.css'
 
 function formatDate(dateStr) {
@@ -51,6 +52,15 @@ export default function Sales({ calls, sales = [], onAddSale, onDeleteSale, onEd
   const [showOptional, setShowOptional] = useState(false)
   const [busy, setBusy] = useState(false)
 
+  // Search + filters for the log; stats and exports follow the filtered set
+  const [search, setSearch] = useState('')
+  const [fProduct, setFProduct] = useState('')
+  const [fPort, setFPort] = useState('')
+  const [fTrader, setFTrader] = useState('')
+  const [fFrom, setFFrom] = useState('')
+  const [fTo, setFTo] = useState('')
+  const [showFilters, setShowFilters] = useState(false)
+
   const clientNames = [...new Set(calls.map(c => c.client).filter(Boolean))].sort()
 
   // Build demand options for the selected client (to optionally link).
@@ -77,11 +87,38 @@ export default function Sales({ calls, sales = [], onAddSale, onDeleteSale, onEd
       })
   }
 
-  const stats = buildSalesStats(sales)
+  const saleDateOf = s => s.date || (s.created_at ? String(s.created_at).slice(0, 10) : '')
+  const portOptions = [...new Set(sales.map(s => s.port).filter(Boolean))].sort()
+  const traderOptions = isAdmin ? [...new Set(sales.map(s => s.trader_id).filter(Boolean))].map(id => ({ id, name: traderNames[id] || 'Trader' })).sort((a, b) => a.name.localeCompare(b.name)) : []
+  const activeFilters = [fProduct, fPort, fTrader, fFrom, fTo].filter(Boolean).length
+
+  const filteredSales = sales.filter(s => {
+    if (search) {
+      const q = search.toLowerCase()
+      const hay = [s.client, s.vessel, s.port, s.laycan, s.product, isAdmin ? traderNames[s.trader_id] : ''].map(x => (x || '').toLowerCase())
+      if (!hay.some(h => h.includes(q))) return false
+    }
+    if (fProduct && s.product !== fProduct) return false
+    if (fPort && s.port !== fPort) return false
+    if (fTrader && s.trader_id !== fTrader) return false
+    const d = saleDateOf(s)
+    if (fFrom && d < fFrom) return false
+    if (fTo && d > fTo) return false
+    return true
+  })
+  const filtersActive = Boolean(search) || activeFilters > 0
+  function clearFilters() { setSearch(''); setFProduct(''); setFPort(''); setFTrader(''); setFFrom(''); setFTo('') }
+
+  const stats = buildSalesStats(filteredSales)
+
+  const exportOpts = () => ({
+    isAdmin, traderNames,
+    filters: { search, product: fProduct, port: fPort, trader: fTrader ? (traderNames[fTrader] || 'Trader') : '', dateFrom: fFrom, dateTo: fTo },
+  })
 
   // Show newest deal first by deal date; fall back to created_at for any
   // legacy sale that predates the date field.
-  const sortedSales = [...sales].sort((a, b) => {
+  const sortedSales = [...filteredSales].sort((a, b) => {
     const da = a.date ? parseDate(a.date).getTime() : (a.created_at ? new Date(a.created_at).getTime() : 0)
     const db = b.date ? parseDate(b.date).getTime() : (b.created_at ? new Date(b.created_at).getTime() : 0)
     return db - da
@@ -256,10 +293,63 @@ export default function Sales({ calls, sales = [], onAddSale, onDeleteSale, onEd
       </section>
       )}
 
-      {/* Stats */}
+      {/* Search, filters, export */}
+      {sales.length > 0 && (
+        <section className={styles.section}>
+          <div className={styles.searchBar}>
+            <input className={styles.search} placeholder="Search client, vessel, port, laycan…" value={search} onChange={e => setSearch(e.target.value)} />
+            <button className={`${styles.filterToggle} ${activeFilters ? styles.filterToggleActive : ''}`} onClick={() => setShowFilters(v => !v)}>
+              ⚙ Filters{activeFilters > 0 && <span className={styles.filterBadge}>{activeFilters}</span>}
+            </button>
+            {filtersActive && <button className={styles.clearBtn} onClick={clearFilters}>✕ Clear</button>}
+            <span className={styles.showing}>showing {filteredSales.length} of {sales.length}</span>
+            <span className={styles.exportGroup}>
+              <button className={styles.exportBtn} disabled={!filteredSales.length} onClick={() => exportSalesXlsx(sortedSales, exportOpts())}>↓ Excel</button>
+              <button className={styles.exportBtn} disabled={!filteredSales.length} onClick={() => { if (!exportSalesPdf(sortedSales, exportOpts())) setError('Pop-up blocked — allow pop-ups for this site to export the PDF.') }}>↓ PDF</button>
+            </span>
+          </div>
+          {showFilters && (
+            <div className={styles.filterBar}>
+              <div className={styles.filterField}>
+                <label className={styles.filterLabel}>Product</label>
+                <select className={styles.filterSelect} value={fProduct} onChange={e => setFProduct(e.target.value)}>
+                  <option value="">All</option>
+                  {SALE_PRODUCTS.map(p => <option key={p} value={p}>{p}</option>)}
+                </select>
+              </div>
+              <div className={styles.filterField}>
+                <label className={styles.filterLabel}>Port</label>
+                <select className={styles.filterSelect} value={fPort} onChange={e => setFPort(e.target.value)}>
+                  <option value="">All</option>
+                  {portOptions.map(p => <option key={p} value={p}>{p}</option>)}
+                </select>
+              </div>
+              {isAdmin && (
+                <div className={styles.filterField}>
+                  <label className={styles.filterLabel}>Trader</label>
+                  <select className={styles.filterSelect} value={fTrader} onChange={e => setFTrader(e.target.value)}>
+                    <option value="">All</option>
+                    {traderOptions.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                  </select>
+                </div>
+              )}
+              <div className={styles.filterField}>
+                <label className={styles.filterLabel}>Deal date from</label>
+                <input type="date" className={styles.filterSelect} value={fFrom} onChange={e => setFFrom(e.target.value)} />
+              </div>
+              <div className={styles.filterField}>
+                <label className={styles.filterLabel}>Deal date to</label>
+                <input type="date" className={styles.filterSelect} value={fTo} onChange={e => setFTo(e.target.value)} />
+              </div>
+            </div>
+          )}
+        </section>
+      )}
+
+      {/* Stats (of the filtered set) */}
       {stats && (
         <section className={styles.section}>
-          <h2 className={styles.sectionTitle}>◎ Performance</h2>
+          <h2 className={styles.sectionTitle}>◎ Performance{filtersActive ? ' — filtered' : ''}</h2>
           <div className={styles.statsGrid}>
             <div className={styles.statCard}>
               <div className={styles.statNum}>{stats.totalDeals}</div>
@@ -295,6 +385,8 @@ export default function Sales({ calls, sales = [], onAddSale, onDeleteSale, onEd
         <h2 className={styles.sectionTitle}>◧ Recorded Sales</h2>
         {sales.length === 0 ? (
           <p className={styles.none}>No sales logged yet.</p>
+        ) : sortedSales.length === 0 ? (
+          <p className={styles.none}>No sales match the current search/filters.</p>
         ) : (
           <div className={styles.tableWrap}>
             <table className={styles.table}>
