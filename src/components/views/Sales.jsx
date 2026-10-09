@@ -61,7 +61,18 @@ export default function Sales({ calls, sales = [], onAddSale, onDeleteSale, onEd
   const [fTo, setFTo] = useState('')
   const [showFilters, setShowFilters] = useState(false)
 
-  const clientNames = [...new Set(calls.map(c => c.client).filter(Boolean))].sort()
+  // Known client spellings, most-used first, so normalization snaps to the
+  // spelling the desk actually uses (exact-match rule: trim/case/whitespace only).
+  const normKey = v => (v || '').trim().replace(/\s+/g, ' ').toLowerCase()
+  const clientCounts = {}
+  calls.forEach(c => { if (c.client) clientCounts[c.client] = (clientCounts[c.client] || 0) + 1 })
+  const clientNames = Object.keys(clientCounts).sort((a, b) => (clientCounts[b] - clientCounts[a]) || a.localeCompare(b))
+  const canonicalClient = name => {
+    const t = (name || '').trim().replace(/\s+/g, ' ')
+    if (!t) return t
+    const hit = clientNames.find(k => normKey(k) === normKey(t))
+    return hit || t
+  }
 
   // Build demand options for the selected client (to optionally link).
   // When editing, the sale's own linked demand must remain selectable.
@@ -71,7 +82,7 @@ export default function Sales({ calls, sales = [], onAddSale, onDeleteSale, onEd
   const clientDemands = []
   if (form.client) {
     calls
-      .filter(c => c.client === form.client)
+      .filter(c => normKey(c.client) === normKey(form.client))
       .sort((a, b) => parseDate(b.date) - parseDate(a.date))
       .forEach(c => {
         (c.demandRows || []).forEach((r, idx) => {
@@ -165,10 +176,12 @@ export default function Sales({ calls, sales = [], onAddSale, onDeleteSale, onEd
 
     setBusy(true)
     try {
+      // Normalized copy: covers save-by-Enter before the blur handler ran
+      const clean = { ...form, client: canonicalClient(form.client) }
       if (editingId) {
-        await onEditSale(editingId, form)
+        await onEditSale(editingId, clean)
       } else {
-        await onAddSale(form)
+        await onAddSale(clean)
       }
       setEditingId(null)
       setForm(emptyForm())
@@ -213,9 +226,9 @@ export default function Sales({ calls, sales = [], onAddSale, onDeleteSale, onEd
             </div>
             <div className={styles.field}>
               <label className={styles.label}>Client *</label>
-              <input className={styles.input} list="client-names" placeholder="Client" value={form.client} onChange={e => set('client', e.target.value)} onBlur={e => { const t = (e.target.value || '').trim().replace(/\s+/g, ' '); const hit = clientNames.find(k => k.toLowerCase() === t.toLowerCase()); set('client', hit || t) }} />
+              <input className={styles.input} list="client-names" placeholder="Client" value={form.client} onChange={e => set('client', e.target.value)} onBlur={e => set('client', canonicalClient(e.target.value))} />
               <datalist id="client-names">
-                {clientNames.map(n => <option key={n} value={n} />)}
+                {[...clientNames].sort((a, b) => a.localeCompare(b)).map(n => <option key={n} value={n} />)}
               </datalist>
             </div>
             <div className={styles.field}>
