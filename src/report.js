@@ -576,8 +576,21 @@ export async function generateWeeklyReport(calls, signals, dateFrom, dateTo, ana
     /* Force the dark theme through to PDF/print, which strips backgrounds by default */
     html, body, .page { background: var(--bg) !important; }
     body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-    .page { padding: 20px 24px; }
-    .ai-card, .bubble-card, .sales-stat, .demand-table tr { break-inside: avoid; }
+    @page { size: A4 portrait; margin: 12mm 10mm; }
+    .page { padding: 8px 12px; }
+    /* Page breaks: a section moves to the next page whole rather than splitting;
+       the two long sections (AI analysis, client demand table) may break, but
+       only between cards/rows, never inside one, and never right after a title. */
+    .section { break-inside: avoid; page-break-inside: avoid; margin-bottom: 24px; }
+    .section.flow { break-inside: auto; page-break-inside: auto; }
+    .section-title { break-after: avoid; page-break-after: avoid; }
+    .chart-wrap, .ai-card, .bubble-card, .sales-stat, .demand-table tr, .brief, .brief-none { break-inside: avoid; page-break-inside: avoid; }
+    .ai-grid { break-inside: auto; }
+    .chart-caption, .chart-legend { break-after: avoid; }
+    table { break-inside: auto; }
+    thead { display: table-header-group; }
+    .footer { break-before: avoid; }
+    .header { margin-bottom: 20px; }
   }
 </style>
 </head>
@@ -596,7 +609,7 @@ export async function generateWeeklyReport(calls, signals, dateFrom, dateTo, ana
   </div>
 
   ${(aiBrief || aiDeep || aiBriefNotice) ? `
-  <div class="section">
+  <div class="section flow">
     <div class="section-title">AI Market Analysis${aiWeekLabel ? ` — Week of ${escapeHtml(aiWeekLabel)}` : ''}</div>
     ${aiBrief
       ? `<p class="brief">${escapeHtml(aiBrief)}</p>`
@@ -666,7 +679,7 @@ export async function generateWeeklyReport(calls, signals, dateFrom, dateTo, ana
   </div>` : ''}
 
   ${demandList.length > 0 ? `
-  <div class="section">
+  <div class="section flow">
     <div class="section-title">Client Demand Status — Current Week (Mon–Fri)</div>
     <table class="demand-table">
       <thead>
