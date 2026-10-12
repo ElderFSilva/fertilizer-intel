@@ -2,6 +2,7 @@ import PortSelect from './PortSelect.jsx'
 import { useState } from 'react'
 import { PRODUCTS } from '../../data.js'
 import { findVolumeConflicts, findActiveIdentityLines, volumeNum, ACTIVE_DAYS } from '../../demands.js'
+import { checkPrice, priceReference } from '../../priceSanity.js'
 import styles from './Upload.module.css'
 
 const TREND_OPTIONS = ['up', 'stable', 'down', 'none']
@@ -70,7 +71,7 @@ function describeDemand(r) {
   return [formatVol(r.volume) + 't', r.product, r.port, r.laycan].filter(Boolean).join(' ')
 }
 
-function CompetitorOffersEditor({ offers, onChange }) {
+function CompetitorOffersEditor({ offers, onChange, warnFor = () => null }) {
   function addOffer() { onChange([...offers, emptyCompOffer()]) }
   function removeOffer(i) { onChange(offers.filter((_, idx) => idx !== i)) }
   function updateOffer(i, field, val) {
@@ -101,6 +102,7 @@ function CompetitorOffersEditor({ offers, onChange }) {
           <div className={styles.compFieldWrap}>
             <span className={styles.compFieldLabel}>Price</span>
             <input className={styles.compInput} placeholder="e.g. 255 CFR" value={o.price} onChange={e => updateOffer(i, 'price', e.target.value)} />
+            {warnFor(o.product, o.price) && <span className={styles.fieldWarn}>⚠ {warnFor(o.product, o.price)}</span>}
           </div>
           <div className={styles.compFieldWrap}>
             <span className={styles.compFieldLabel}>Port</span>
@@ -144,6 +146,9 @@ export default function Upload({ onAdd, calls = [] }) {
   function setPriceField(product, field, val) {
     setForm(f => ({ ...f, prices: { ...f.prices, [product]: { ...f.prices[product], [field]: val } } }))
   }
+  // Price sanity (warning only): malformed ranges and ±25% vs the desk's own
+  // logged prices for that product/grade in the last 30 days.
+  const warnFor = (label, val) => checkPrice(val, priceReference(calls, label, form.date))
 
   function setOffers(offers) {
     setForm(f => ({ ...f, competitorOffers: offers }))
@@ -294,6 +299,9 @@ export default function Upload({ onAdd, calls = [] }) {
                 <select className={styles.trendSelect} value={form.prices[p].trend} onChange={e => setPriceField(p, 'trend', e.target.value)}>
                   {TREND_OPTIONS.map(t => <option key={t} value={t}>{TREND_LABEL[t]}</option>)}
                 </select>
+                {warnFor(form.prices[p].grade || DEFAULT_GRADE[p] || p, form.prices[p].value) && (
+                  <span className={styles.priceWarn}>⚠ {warnFor(form.prices[p].grade || DEFAULT_GRADE[p] || p, form.prices[p].value)}</span>
+                )}
               </div>
             ))}
           </div>
@@ -347,6 +355,7 @@ export default function Upload({ onAdd, calls = [] }) {
                     }}
                     placeholder="e.g. 240 CFR"
                   />
+                  {warnFor(row.product, row.priceTarget) && <span className={styles.fieldWarn}>⚠ {warnFor(row.product, row.priceTarget)}</span>}
                 </div>
                 <div className={styles.demandField}>
                   <label className={styles.demandLabel}>Laycan</label>
@@ -376,7 +385,7 @@ export default function Upload({ onAdd, calls = [] }) {
           <textarea className={styles.textarea} rows={3} value={form.remarks} onChange={e => setField('remarks', e.target.value)} placeholder="Additional remarks..." />
         </div>
 
-        <CompetitorOffersEditor offers={form.competitorOffers || []} onChange={setOffers} />
+        <CompetitorOffersEditor offers={form.competitorOffers || []} onChange={setOffers} warnFor={warnFor} />
 
         {error && <p className={styles.error}>{error}</p>}
         <button className={styles.saveBtn} onClick={handleSave}>◈ Save Call</button>
