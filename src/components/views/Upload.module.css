@@ -287,3 +287,7 @@
 }
 .dupNewBtn:hover { border-color: var(--text3); color: var(--text); }
 .dupTip { font-size: 11px; color: var(--text3); font-style: italic; line-height: 1.4; }
+
+/* Price sanity warnings (non-blocking) */
+.priceWarn { grid-column: 1 / -1; color: var(--amber); font-size: 12px; font-family: 'DM Mono', monospace; margin-top: -8px; }
+.fieldWarn { display: block; color: var(--amber); font-size: 11px; font-family: 'DM Mono', monospace; margin-top: 4px; line-height: 1.35; }
