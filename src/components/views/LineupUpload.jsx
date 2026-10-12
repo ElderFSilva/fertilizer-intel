@@ -43,7 +43,7 @@ export default function LineupUpload({ onWritten }) {
       const buf = await f.arrayBuffer()
       const r = parseLineupFile(buf)
       if (r.headersMissing.length) { setError(`File is missing column(s): ${r.headersMissing.join(', ')}. Is this the Orion "Fertilizers_Base_ETBETS" export?`); return }
-      if (!r.parcels.length) { setError('No Amsul discharge rows found in this file.'); return }
+      if (!r.parcels.length && !r.badDates.length) { setError('No Amsul discharge rows found in this file.'); return }
       setParsed(r)
     } catch {
       setError('Could not read this file. It must be the Orion .xls/.xlsx export.')
@@ -52,13 +52,15 @@ export default function LineupUpload({ onWritten }) {
 
   const totals = parsed ? monthlyTotals(parsed.parcels) : []
   const future = parsed ? futureMonths(totals, snapshotDate) : []
+  const badDates = parsed?.badDates || []
+  const blocked = badDates.length > 0
   const partyKey = p => `${p.role}|${p.name.toLowerCase()}`
   const known = new Map(parties.map(p => [partyKey(p), p]))
   const inFile = parsed ? partiesIn(parsed.parcels) : []
   const unclassifiedInFile = inFile.filter(p => !known.get(partyKey(p)) || known.get(partyKey(p)).segment === 'unknown')
 
   async function handleConfirm() {
-    if (!parsed) return
+    if (!parsed || blocked) return
     setBusy(true); setError(''); setDone('')
     try {
       const n = await insertSnapshot(snapshotDate, parsed.parcels)
@@ -116,6 +118,14 @@ export default function LineupUpload({ onWritten }) {
             <p className={styles.hint}>
               {fileName}: {parsed.parcels.length} Amsul discharge parcels ({parsed.skipped} other rows ignored). Month key = ETB.
             </p>
+            {blocked && (
+              <p className={styles.error}>
+                ✕ {badDates.length} Amsul discharge row{badDates.length === 1 ? '' : 's'} have an ETB date the app cannot read
+                (e.g. row {badDates[0].row_no}: “{badDates[0].value}”
+                {badDates.length > 1 ? `, row ${badDates[1].row_no}: “${badDates[1].value}”` : ''}).
+                Storing is blocked so no month goes missing. Send this file for a parser update.
+              </p>
+            )}
             <table className={styles.table}>
               <thead><tr>
                 <th className={styles.th}>ETB month</th><th className={styles.th}>Total</th><th className={styles.th}>Vessels</th><th className={styles.th}>Parcels</th><th className={styles.th}>Line-up series</th>
@@ -144,8 +154,8 @@ export default function LineupUpload({ onWritten }) {
             )}
             <div className={styles.formActions} style={{ marginTop: 10 }}>
               <button className={styles.cancelBtn} onClick={() => { setParsed(null); setFileName('') }} disabled={busy}>Discard</button>
-              <button className={styles.saveBtn} onClick={handleConfirm} disabled={busy}>
-                {busy ? 'Storing…' : `◈ Store snapshot ${fmtDate(snapshotDate)}`}
+              <button className={styles.saveBtn} onClick={handleConfirm} disabled={busy || blocked} title={blocked ? 'Unreadable ETB dates — see message above' : undefined}>
+                {busy ? 'Storing…' : blocked ? '✕ Blocked — unreadable dates' : `◈ Store snapshot ${fmtDate(snapshotDate)}`}
               </button>
             </div>
           </div>
