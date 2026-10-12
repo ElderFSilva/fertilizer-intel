@@ -309,6 +309,8 @@ export default function Overview({ calls, sales, allCalls, allSales, role, scope
                   onCancel={() => { setPopupEdit(null); setPopupError('') }}
                   saving={popupSaving}
                   datalistId="overview-edit-client-names"
+                  calls={deskCalls}
+                  callId={popupEdit.call?.id ?? null}
                 />
               </div>
             )}
