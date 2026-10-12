@@ -319,6 +319,8 @@ export default function Calls({ calls, sales = [], onDelete, onEdit, role, trade
                     onSave={() => saveEdit(c.id)}
                     onCancel={cancelEdit}
                     datalistId="calls-edit-client-names"
+                    calls={calls}
+                    callId={c.id}
                   />
                 </div>
               )}
