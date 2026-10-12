@@ -7,6 +7,7 @@
 // Trader-only by desk ruling (2026-09-18): admin never edits or deletes calls.
 
 import { PRODUCTS } from '../../data.js'
+import { checkPrice, priceReference } from '../../priceSanity.js'
 import PortSelect from './PortSelect.jsx'
 import styles from './CallEditForm.module.css'
 
@@ -60,7 +61,7 @@ export function buildEditForm(c) {
   }
 }
 
-export default function CallEditForm({ form, setForm, knownClients = [], onSave, onCancel, saving = false, datalistId = 'call-edit-client-names' }) {
+export default function CallEditForm({ form, setForm, knownClients = [], onSave, onCancel, saving = false, datalistId = 'call-edit-client-names', calls = [], callId = null }) {
   const canonicalClient = name => {
     const t = (name || '').trim().replace(/\s+/g, ' ')
     if (!t) return t
@@ -82,6 +83,9 @@ export default function CallEditForm({ form, setForm, knownClients = [], onSave,
 
   const rows = form.demandRows?.length ? form.demandRows : [emptyDemandRow()]
   const offers = form.competitorOffers || []
+  // Price sanity (warning only): malformed ranges and ±25% vs the desk's own
+  // logged prices for that product/grade in the last 30 days (this call excluded).
+  const warnFor = (label, val) => checkPrice(val, priceReference(calls, label, form.date, callId))
 
   return (
     <div className={styles.form}>
@@ -114,6 +118,9 @@ export default function CallEditForm({ form, setForm, knownClients = [], onSave,
             <select className={styles.select} value={form.prices[p].trend} onChange={e => setPrice(p, 'trend', e.target.value)}>
               {TREND_OPTIONS.map(t => <option key={t} value={t}>{TREND_LABEL[t]}</option>)}
             </select>
+            {warnFor(form.prices[p].grade || DEFAULT_GRADE[p] || p, form.prices[p].value) && (
+              <span className={styles.priceWarn}>⚠ {warnFor(form.prices[p].grade || DEFAULT_GRADE[p] || p, form.prices[p].value)}</span>
+            )}
           </div>
         ))}
       </div>
@@ -143,6 +150,7 @@ export default function CallEditForm({ form, setForm, knownClients = [], onSave,
               <div className={styles.cell}>
                 <label className={styles.subLabel}>Price Target</label>
                 <input className={styles.input} value={row.priceTarget || ''} onChange={e => setRow(i, 'priceTarget', e.target.value)} placeholder="e.g. 240 CFR" />
+                {warnFor(row.product, row.priceTarget) && <span className={styles.fieldWarn}>⚠ {warnFor(row.product, row.priceTarget)}</span>}
               </div>
               <div className={styles.cell}>
                 <label className={styles.subLabel}>Laycan</label>
@@ -179,6 +187,7 @@ export default function CallEditForm({ form, setForm, knownClients = [], onSave,
               <div className={styles.cell}>
                 <label className={styles.subLabel}>Price</label>
                 <input className={styles.input} value={o.price || ''} onChange={e => setOffer(i, 'price', e.target.value)} placeholder="e.g. 255 CFR" />
+                {warnFor(o.product, o.price) && <span className={styles.fieldWarn}>⚠ {warnFor(o.product, o.price)}</span>}
               </div>
               <div className={styles.cell}>
                 <label className={styles.subLabel}>Port</label>
