@@ -92,3 +92,7 @@
   .demandGrid, .offerGrid { grid-template-columns: 1fr 1fr; }
   .priceRow { grid-template-columns: 80px 1fr 95px; }
 }
+
+/* Price sanity warnings (non-blocking) */
+.priceWarn { grid-column: 1 / -1; color: var(--amber); font-size: 12px; font-family: 'DM Mono', monospace; margin-top: -4px; }
+.fieldWarn { display: block; color: var(--amber); font-size: 11px; font-family: 'DM Mono', monospace; margin-top: 4px; line-height: 1.35; }
