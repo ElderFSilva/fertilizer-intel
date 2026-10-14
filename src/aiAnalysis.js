@@ -59,6 +59,53 @@ export function weekLabel(info = currentWeekInfo()) {
   return `${m1} ${mon.getDate()}–${fri.getDate()}, ${y2}`
 }
 
+// ── Stance window (desk ruling 2026-10-14) ──
+// The week's stance is taken ONLY on Friday from 17:00 through Sunday,
+// Brasília time: full week of calls, sales, Thursday publications and the
+// Monday line-up are in, and the grading baseline (Thursday's print) is
+// known. Runs outside the window refresh signals/analysis/report and show
+// the stance in force (the one taken at the last window); nothing is logged.
+// A missed window = no stance for that week - never carried forward.
+export const STANCE_TZ = 'America/Sao_Paulo'
+export const STANCE_OPEN_HOUR = 17
+export const STANCE_REGIME_FROM = '2026-10-16'   // first Friday window; earlier stances were Monday-made
+const STANCE_REGIME_START_ISO = '2026-10-16T20:00:00Z'   // Fri 2026-10-16 17:00 Brasília (UTC-3, no DST)
+const STANCE_REGIME_FIRST_THURSDAY = '2026-10-15'
+
+function brasiliaParts(now = new Date()) {
+  const parts = new Intl.DateTimeFormat('en-US', { timeZone: STANCE_TZ, weekday: 'short', hour: 'numeric', hour12: false })
+    .formatToParts(now)
+  const weekday = parts.find(p => p.type === 'weekday')?.value || ''
+  const hour = parseInt(parts.find(p => p.type === 'hour')?.value || '0', 10) % 24
+  return { weekday, hour }
+}
+
+export function stanceWindow(now = new Date()) {
+  const { weekday, hour } = brasiliaParts(now)
+  const open = weekday === 'Sat' || weekday === 'Sun' || (weekday === 'Fri' && hour >= STANCE_OPEN_HOUR)
+  return { open, weekday, hour }
+}
+
+const addDaysStr = (ymdStr, n) => {
+  const d = new Date(ymdStr + 'T12:00:00')
+  d.setDate(d.getDate() + n)
+  return d.toISOString().split('T')[0]
+}
+const fmtDay = ymdStr => new Date(ymdStr + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+
+// Which window the stance in force comes from: the current week's if that
+// window is open now, otherwise the previous week's (already closed).
+export function stanceInForceKey(week = currentWeekInfo(), now = new Date()) {
+  const open = stanceWindow(now).open
+  const thursday = open ? week.thursdayStr : addDaysStr(week.thursdayStr, -7)
+  const friday = addDaysStr(thursday, 1), sunday = addDaysStr(thursday, 3)
+  return { thursday, friday, sunday, open, nextFriday: open ? friday : addDaysStr(friday, 7) }
+}
+
+export function noStanceNote(key) {
+  return `No stance in force — the window ${fmtDay(key.friday)} ${STANCE_OPEN_HOUR}:00 → ${fmtDay(key.sunday)} (Brasília) was missed. Next window: ${fmtDay(key.nextFriday)} ${STANCE_OPEN_HOUR}:00.`
+}
+
 // Build a compact text summary. If weekOnly is true, restrict to current Mon–Fri
 // calls and the publication entry dated to this week's Thursday.
 function buildDataSummary(calls, weekOnly = false) {
@@ -295,25 +342,29 @@ async function buildLearningContext(scope) {
   const parts = []
   parts.push('### YOUR PAST STANCES, GRADED (computed, authoritative)')
   parts.push(trackRecordText(record))
+  parts.push(`Stance regime: from ${STANCE_REGIME_FROM} the weekly stance is taken Friday after ${STANCE_OPEN_HOUR}:00 Brasília with the full week's data and graded from that Thursday's print; earlier stances were taken Monday with less information. Grades are comparable but the two regimes are not pooled as equals.`)
   if (lessons) parts.push('### DESK LESSONS (taught by the admin - treat as established desk knowledge)\n' + lessons)
   return parts.join('\n')
 }
 
 
 // ── Weekly-definitive stance ──
-// The FIRST stance generated in a market week (the Monday run, after the
-// week's data is entered) is the desk's committed stance for that week.
-// Later generations refresh signals & analysis, but their positioning output
-// is discarded: the pinned stance is returned instead and nothing is logged.
+// One stance per week_thursday. Since 2026-10-16 it is the first run inside
+// the Friday 17:00 → Sunday window (see stanceWindow); before that it was the
+// first run of the week (Monday). Later generations refresh signals &
+// analysis, but their positioning output is discarded: the pinned stance is
+// returned instead and nothing is logged.
 async function getDefinitiveStance(scope, weekThursday) {
   try {
-    const { data, error } = await supabase
+    let q = supabase
       .from('positioning_log')
       .select('*')
       .eq('scope', scope || 'default')
       .eq('week_thursday', weekThursday)
-      .order('generated_at', { ascending: true })
-      .limit(1)
+    // Transition week: a Monday-regime stance logged for the first Friday-regime
+    // week does not count as pinned, so the Friday window still takes one.
+    if (weekThursday >= STANCE_REGIME_FIRST_THURSDAY) q = q.gte('generated_at', STANCE_REGIME_START_ISO)
+    const { data, error } = await q.order('generated_at', { ascending: true }).limit(1)
     if (error || !data || !data.length) return null
     return data[0]
   } catch { return null }
@@ -379,7 +430,14 @@ export async function runWeeklyAnalysis(calls, scope, sales = [], onStatus = nul
     weekThursday: week.thursdayStr,   // identifies which week this snapshot is for
     weekLabel: weekLabel(week),       // human label, e.g. "Jun 23–27, 2026"
   }
-  const pinned = await getDefinitiveStance(scope, week.thursdayStr)
+  // Stance in force = the one taken at the last window (this week's if open
+  // now, else last week's). Inside an open window with nothing pinned yet,
+  // this run's positioning becomes the week's stance. Outside the window
+  // with nothing pinned, there is NO stance - the model's positioning output
+  // is discarded, not shown, not logged.
+  const key = stanceInForceKey(week)
+  const pinned = await getDefinitiveStance(scope, key.thursday)
+  result.stanceWeekThursday = key.thursday
   if (pinned) {
     result.positioning = {
       bias: pinned.bias,
@@ -390,9 +448,16 @@ export async function runWeeklyAnalysis(calls, scope, sales = [], onStatus = nul
       exit_conditions: pinned.exit_conditions || null,
     }
     result.stanceLockedAt = pinned.generated_at
-  } else {
-    await logPositioning(parsed.positioning, scope, week.thursdayStr)
+    result.stanceStatus = 'pinned'
+  } else if (key.open) {
+    await logPositioning(parsed.positioning, scope, key.thursday)
     result.stanceLockedAt = new Date().toISOString()
+    result.stanceStatus = 'pinned'
+  } else {
+    result.positioning = null
+    result.stanceLockedAt = null
+    result.stanceStatus = 'none'
+    result.stanceNote = noStanceNote(key)
   }
   if (scope === 'global') {
     // Shared desk analysis: publish to the cloud for every user
