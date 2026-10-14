@@ -3,7 +3,7 @@ import { generateWeeklyReport } from '../../report.js'
 import { loadLatestAnalysisSnapshot } from '../../cloudAnalysis.js'
 import { weeklyReadiness } from '../../marketSignals.js'
 import { evaluateTriggers } from '../../triggerWatch.js'
-import { runWeeklyAnalysis, getCachedAnalysis, currentWeekInfo, weekLabel } from '../../aiAnalysis.js'
+import { runWeeklyAnalysis, getCachedAnalysis, currentWeekInfo, weekLabel, STANCE_TZ, STANCE_OPEN_HOUR } from '../../aiAnalysis.js'
 import { PRODUCTS, buildDemandSummary } from '../../data.js'
 import { canonicalDemands } from '../../demands.js'
 import CallEditForm, { buildEditForm } from './CallEditForm.jsx'
@@ -487,7 +487,7 @@ export default function Overview({ calls, sales, allCalls, allSales, role, scope
                   }}>
                     ⚠ EXIT CONDITION HIT — {triggerEval.results.filter(r => r.breached).map(r =>
                       `${r.metric} ${r.op} ${r.level} (current ${r.current != null ? r.current.toFixed(1) : '?'})`).join('; ')}.
-                    {' '}This stance's own logic no longer holds — treat with caution until the next Monday stance.
+                    {' '}This stance's own logic no longer holds — treat with caution until the next stance window (Fri 17:00).
                   </p>
                 )}
                 {analysis.positioning.action_summary && (
@@ -503,7 +503,8 @@ export default function Overview({ calls, sales, allCalls, allSales, role, scope
                 )}
                 {analysis.stanceLockedAt && (
                   <p style={{ color: 'var(--text3)', fontSize: 11, marginTop: 4, fontFamily: "'DM Mono', monospace" }}>
-                    ◆ Definitive stance for this week — locked {new Date(analysis.stanceLockedAt).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })} · later regenerations update signals & analysis only
+                    ◆ Stance taken {new Date(analysis.stanceLockedAt).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: STANCE_TZ })} (Brasília)
+                    {' '}· in force until the next window, Fri {STANCE_OPEN_HOUR}:00 → Sun · regenerations in between update signals & analysis only
                   </p>
                 )}
                 {analysis.trackRecord && analysis.trackRecord.overall.total > 0 && (
@@ -513,6 +514,17 @@ export default function Overview({ calls, sales, allCalls, allSales, role, scope
                   </p>
                 )}
               </div>
+            </div>
+          </div>
+        )}
+        {analysis && analysis.stanceStatus === 'none' && (
+          <div className={styles.signal} style={{ borderColor: 'var(--text3)', marginTop: 10 }}>
+            <div style={{ flex: 1 }}>
+              <p style={{ color: 'var(--text2)', fontWeight: 700, fontFamily: "'DM Mono', monospace", fontSize: 13 }}>◇ NO STANCE IN FORCE</p>
+              <p style={{ color: 'var(--text3)', fontSize: 12, marginTop: 4, fontFamily: "'DM Mono', monospace" }}>{analysis.stanceNote}</p>
+              <p style={{ color: 'var(--text3)', fontSize: 11, marginTop: 4 }}>
+                The stance is taken only inside the window so it is made with the full week's data and graded from a known price. A missed week is recorded as a gap, never carried forward.
+              </p>
             </div>
           </div>
         )}
