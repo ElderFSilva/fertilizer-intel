@@ -30,6 +30,26 @@ const saleDate = s => ymd(s.dealDate || s.deal_date || s.date || s.created_at ||
 const callDate = c => ymd(c.date || '')
 const pct = (n, d = 1) => n == null || isNaN(n) ? 'n/a' : `${n >= 0 ? '+' : ''}${n.toFixed(d)}%`
 
+// ── Breadth windows: current market week to date vs the same span in prior weeks ──
+const localYmd = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+const shift = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x }
+const DOW = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri']
+export function breadthWindows(calls, today = new Date()) {
+  const dow = today.getDay()                       // 0=Sun..6=Sat
+  const sinceMonday = dow === 0 ? 6 : dow - 1
+  const monday = shift(today, -sinceMonday); monday.setHours(0, 0, 0, 0)
+  const span = Math.min(sinceMonday, 4)            // Sat/Sun -> the full Mon-Fri week
+  const count = (startD) => {
+    const a = localYmd(startD), b = localYmd(shift(startD, span))
+    return new Set(calls.filter(c => { const d = callDate(c); return d >= a && d <= b }).map(c => c.client)).size
+  }
+  const current = count(monday)
+  const prior = [1, 2, 3, 4].map(w => count(shift(monday, -7 * w)))
+  const priorAvg = prior.reduce((s, v) => s + v, 0) / prior.length
+  const label = span === 4 ? 'full week Mon–Fri' : span === 0 ? 'week to date, Monday only' : `week to date Mon–${DOW[span]}`
+  return { current, prior, priorAvg, span, label, weekStart: localYmd(monday) }
+}
+
 // ── Client intelligence from ALL calls ──
 function clientBlock(calls, soldDemandIds) {
   const valid = calls.filter(c => c.client && callDate(c))
@@ -40,16 +60,13 @@ function clientBlock(calls, soldDemandIds) {
   })
   Object.values(byClient).forEach(list => list.sort((a, b) => callDate(b).localeCompare(callDate(a))))
 
-  // Breadth: distinct clients active in the last 7 days vs the prior 4-week weekly average
-  const now = Date.now()
-  const inWindow = (c, fromD, toD) => {
-    const t = new Date(callDate(c) + 'T00:00:00').getTime()
-    return t > now - fromD * dayMs && t <= now - toD * dayMs
-  }
-  const activeNow = new Set(valid.filter(c => inWindow(c, 7, 0)).map(c => c.client)).size
-  const prior4w = [1, 2, 3, 4].map(w =>
-    new Set(valid.filter(c => inWindow(c, (w + 1) * 7, w * 7)).map(c => c.client)).size)
-  const avgPrior = prior4w.reduce((s, v) => s + v, 0) / 4
+  // Breadth (ruling 2026-10-15): market-week aligned, like-for-like.
+  // "This week" = Monday -> today of the current Mon-Fri week; the prior four
+  // weeks are measured over the SAME weekday span (Mon-Wed vs Mon-Wed), so a
+  // Monday-morning run never compares a weekend against full weeks.
+  const bw = breadthWindows(valid)
+  const activeNow = bw.current
+  const avgPrior = bw.priorAvg
 
   // Open (unsold) demand - ACTIVE window only (last 45 days). Demand lines
   // older than that are stale interest, not the live book; they are counted
@@ -78,7 +95,7 @@ function clientBlock(calls, soldDemandIds) {
 
   const lines = [
     `Full call history: ${valid.length} calls across ${Object.keys(byClient).length} clients.`,
-    `Client breadth: ${activeNow} distinct clients active in the last 7 days vs a prior 4-week average of ${avgPrior.toFixed(1)}/week (${avgPrior > 0 ? pct(((activeNow - avgPrior) / avgPrior) * 100) : 'n/a'}). Rising breadth = broadening demand; THIS COMPUTED COMPARISON IS AUTHORITATIVE.`,
+    `Client breadth (${bw.label}): ${activeNow} distinct clients called vs a prior 4-week average of ${avgPrior.toFixed(1)} over the same ${bw.label} span (${avgPrior > 0 ? pct(((activeNow - avgPrior) / avgPrior) * 100) : 'n/a'}). Like-for-like market-week comparison; rising breadth = broadening demand; THIS COMPUTED COMPARISON IS AUTHORITATIVE.`,
   ]
   const fmtLine = d => `${d.client} ${d.volume ? d.volume + 't' : '?t'}${d.port ? ' ' + d.port : ''}${d.target ? ' target ' + d.target : ''} (${d.date}${d.occurrences > 1 ? `, repeated on ${d.occurrences} calls` : ''})`
   if (activeGR.length) {
