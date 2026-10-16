@@ -73,8 +73,6 @@ export default function TrackRecord({ scope }) {
             <Tile label="LONG calls" value={rate(s.byBias.LONG)} sub={frac(s.byBias.LONG)} />
             <Tile label="SHORT calls" value={rate(s.byBias.SHORT)} sub={frac(s.byBias.SHORT)} />
             <Tile label="NEUTRAL calls" value={rate(s.byBias.NEUTRAL)} sub={frac(s.byBias.NEUTRAL)} />
-            <Tile label="At high confidence" value={rate(s.byConf.high)} sub={frac(s.byConf.high)} />
-            <Tile label="At moderate" value={rate(s.byConf.moderate)} sub={frac(s.byConf.moderate)} />
           </div>
 
           <section className={styles.section}>
@@ -88,7 +86,6 @@ export default function TrackRecord({ scope }) {
                     <tr>
                       <th className={styles.th}>Week</th>
                       <th className={styles.th}>Call</th>
-                      <th className={styles.th}>Confidence</th>
                       <th className={styles.th}>Mid then</th>
                       <th className={styles.th}>Mid +2wks</th>
                       <th className={styles.th}>Move</th>
@@ -100,7 +97,6 @@ export default function TrackRecord({ scope }) {
                       <tr key={i} className={styles.tr}>
                         <td className={styles.td}>{fmtDate(r.week)}</td>
                         <td className={styles.td} style={{ color: BIAS_COLOR[r.bias] || 'var(--text)', fontWeight: 700 }}>{r.bias}</td>
-                        <td className={styles.td}>{r.confidence || '—'}</td>
                         <td className={styles.td} title={r.srcThen || ''}>{r.priceThen != null ? r.priceThen.toFixed(0) : '—'}</td>
                         <td className={styles.td} title={r.srcAfter || ''}>{r.priceAfter != null ? r.priceAfter.toFixed(0) : '—'}</td>
                         <td className={styles.td}>{r.changePct != null ? `${r.changePct >= 0 ? '+' : ''}${r.changePct.toFixed(1)}%` : '—'}</td>
