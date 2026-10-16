@@ -149,7 +149,7 @@ export async function evaluateTriggers(scope = 'global') {
 export function triggerStatusText(evaluation) {
   if (!evaluation || !evaluation.stance) return ''
   const s = evaluation.stance
-  const head = `Standing stance (week of ${ymd(s.week_thursday || s.generated_at)}): ${s.bias} / ${s.confidence}.`
+  const head = `Standing stance (week of ${ymd(s.week_thursday || s.generated_at)}): ${s.bias}.`
   if (!evaluation.monitored) return `${head} Its exit conditions were prose-only (not machine-monitored).`
   const lines = evaluation.results.map(r =>
     `  ${r.metric} ${r.op} ${r.level} -> current ${r.current != null ? r.current.toFixed(1) : 'no data'} = ${r.breached ? 'BREACHED' : 'not breached'}`)
