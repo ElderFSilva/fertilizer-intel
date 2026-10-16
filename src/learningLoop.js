@@ -4,7 +4,7 @@
 //    ~2 weeks. Nothing is stored — outcomes are recomputed from source data on
 //    every run, so the scorecard can never drift from the evidence.
 // 2) buildTrackRecord: the scorecard, as data (for the UI) and as text (for the
-//    AI prompt, so confidence is calibrated by the record, not by feeling).
+//    AI prompt, so the stance is disciplined by the record, not by feeling).
 // 3) buildLessonsText: desk-taught lessons, injected into every analysis.
 //
 // Scoring rule (documented, fixed): over the following 2 weeks,
@@ -105,7 +105,7 @@ export function scoreStances(log, pubs) {
       else result = Math.abs(changePct) < THRESHOLD_PCT ? 'correct' : 'wrong'
     }
     rows.push({
-      week, bias: r.bias, confidence: r.confidence,
+      week, bias: r.bias,
       priceThen: start ? start.mid : null,
       priceAfter: end ? end.mid : null,
       srcThen: start ? start.sources : null,
@@ -128,9 +128,7 @@ export function summarize(rows) {
   const pending = rows.filter(r => r.result === 'pending').length
   const byBias = {}
   ;['LONG', 'SHORT', 'NEUTRAL'].forEach(b => { byBias[b] = tally(rows, r => r.bias === b) })
-  const byConf = {}
-  ;['low', 'moderate', 'high'].forEach(c => { byConf[c] = tally(rows, r => (r.confidence || '').toLowerCase() === c) })
-  return { overall, pending, byBias, byConf }
+  return { overall, pending, byBias }
 }
 
 export async function buildTrackRecord(scope) {
@@ -146,7 +144,7 @@ export async function buildTrackRecord(scope) {
 
 // Compact text for the AI prompt
 export function trackRecordText(record) {
-  if (!record || !record.rows.length) return 'No stance history yet - this is an early call; keep confidence at low or moderate.'
+  if (!record || !record.rows.length) return 'No stance history yet - this is an early call; the record is thin.'
   const { summary, rows } = record
   const o = summary.overall
   const parts = [
@@ -155,11 +153,8 @@ export function trackRecordText(record) {
   const biasBits = Object.entries(summary.byBias).filter(([, v]) => v.total > 0)
     .map(([b, v]) => `${b} ${v.correct}/${v.total}`)
   if (biasBits.length) parts.push(`By bias: ${biasBits.join(', ')}.`)
-  const confBits = Object.entries(summary.byConf).filter(([, v]) => v.total > 0)
-    .map(([c, v]) => `${c} ${v.correct}/${v.total}`)
-  if (confBits.length) parts.push(`By stated confidence: ${confBits.join(', ')}.`)
   const recent = rows.filter(r => r.result !== 'pending').slice(0, 4)
-    .map(r => `${r.week}: ${r.bias}/${r.confidence} -> market ${r.changePct >= 0 ? '+' : ''}${r.changePct.toFixed(1)}% -> ${r.result.toUpperCase()}`)
+    .map(r => `${r.week}: ${r.bias} -> market ${r.changePct >= 0 ? '+' : ''}${r.changePct.toFixed(1)}% -> ${r.result.toUpperCase()}`)
   if (recent.length) parts.push(`Most recent scored: ${recent.join('; ')}.`)
   if (o.total < 6) parts.push(`[only ${o.total} scored stances - the record itself is weak evidence; do not over-adjust on it]`)
   return parts.join('\n')
