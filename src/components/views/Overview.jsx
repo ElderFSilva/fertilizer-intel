@@ -477,7 +477,7 @@ export default function Overview({ calls, sales, allCalls, allSales, role, scope
                   : analysis.positioning.bias === 'SHORT' ? 'var(--red)' : '#d4a72c',
                 fontSize: 13, fontFamily: "'DM Mono', monospace", fontWeight: 700, whiteSpace: 'nowrap',
               }}>
-                ◆ {analysis.positioning.bias} · {String(analysis.positioning.confidence || '').toUpperCase()}
+                ◆ {analysis.positioning.bias}
               </span>
               <div style={{ flex: 1 }}>
                 {triggerEval?.anyBreached && (
