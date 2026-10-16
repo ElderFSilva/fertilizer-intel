@@ -193,7 +193,6 @@ Analyze the data and respond ONLY with valid JSON (no markdown, no preamble) in 
   },
   "positioning": {
     "bias": "LONG|NEUTRAL|SHORT",
-    "confidence": "low|moderate|high",
     "action_summary": "ONE plain sentence of what the desk should DO this week - actions and numbers, no analyst language",
     "rationale": "THREE labeled parts in plain desk language: 'Reasons to sell: ...' then 'Reasons to hold: ...' then 'The open question: ...' - each part short sentences with specific numbers; the open question names the main unresolved conflict in one line",
     "trigger": "the exit conditions in one plain human sentence",
@@ -220,7 +219,7 @@ You will also receive a MARKET CONTEXT section with external data and pre-comput
 - Trust the pre-computed indicators over re-deriving your own; cite their specific figures.
 - NUMBER-TO-PERIOD BINDING (critical): never attach a volume or price to a month, week or period unless the computed context attaches it to that EXACT period. A figure the context ties to August may never appear in a sentence about September. If unsure which period a number belongs to, omit the number.
 - NUMBER PROVENANCE (critical): every figure you write must exist in the computed context, this week's calls, or a DESK LESSON - a number found in none of these may not appear at all, in any section. Never attribute a figure to a source unless that source states that exact figure in the context. Argus line-up is qualitative-only by desk ruling: it NEVER appears as a number. When a figure is DERIVED using a lesson (e.g. a port freight premium), show the derivation inline ("FOB 196 + 27.50 desk freight = ~223.5").
-- Respect the freshness stamps: if a series is marked STALE or missing, say so and lower confidence accordingly. Never invent data.
+- Respect the freshness stamps: if a series is marked STALE or missing, say so and lean on it less. Never invent data.
 - Sample-size honesty: where the context flags weak evidence (small n), you may cite the level and the explicitly computed comparisons only. NEVER infer additional direction, trend, or causation beyond what the context literally computes.
 - Directional statements (improved/worsened, up/down, above/below) must be copied from the computed indicators, never re-derived. A lower sc/ton barter ratio is BETTER for the farmer.
 - SAME-WEEK RULE for benchmarks: composites and source-divergence statements only ever mix assessments from the SAME market week (Argus/Fertecon Thursday + Agrinvest Friday of that week). A source absent from the current week is PENDING when its publication day or Monday entry window hasn't passed (normal calendar - say "pending", nothing more) or MISSING when it has (a genuine gap worth one neutral mention). NEVER blend a prior-week number into the composite and NEVER describe the gap between a prior-week and a current-week assessment as "divergence" or "murky price discovery".
@@ -234,25 +233,24 @@ You will also receive a MARKET CONTEXT section with external data and pre-comput
 - OPEN DEMAND: only ACTIVE lines (last 45 days) are the live book. Stale lines are re-engagement material, never current demand, never a reason to sell. GR and STD open demand are different products: any selling recommendation anchored to the compacted composite may cite GR lines only - STD lines get their own sentence against STD references or none.
 - The DESK HISTORY section is computed from the desk's own full call and sales record. Client breadth, open demand, quiet clients and execution capture are AUTHORITATIVE computed facts - cite them. Use open demand and breadth to judge demand quality; use execution capture (our realized prices vs the published mid) to judge our real pricing power; use quiet regulars as concrete re-engagement opportunities.
 - Barter has two independent dimensions: weekly DIRECTION (improved/worsened) and LEVEL vs the 4-year norm (cheap/expensive). Report both when available; never merge them into one judgment.
-- The Amsul-vs-urea N-unit premium arrives with its full empirical distribution (computed live from 2020-present data). Reason from the PERCENTILE and computed TREND, never the raw number: below the historical median = historically cheap for Amsul (a point in favor of Amsul demand, never a risk). Substitution caution is justified ONLY when the context shows percentile >= 90 AND trend WIDENING, or when internal calls explicitly report clients switching to urea/blends. NEVER cap positioning confidence on the nominal premium level alone.
+- The Amsul-vs-urea N-unit premium arrives with its full empirical distribution (computed live from 2020-present data). Reason from the PERCENTILE and computed TREND, never the raw number: below the historical median = historically cheap for Amsul (a point in favor of Amsul demand, never a risk). Substitution caution is justified ONLY when the context shows percentile >= 90 AND trend WIDENING, or when internal calls explicitly report clients switching to urea/blends. NEVER turn the stance on the nominal premium level alone.
 
 In the analysis object, also fill:
     "supply": "2-3 sentences on the supply outlook: line-up, pace, parity and what they mean for availability and pricing power"
 
 LEARNING rules:
-- YOUR TRACK RECORD is your own graded history - computed, authoritative. Calibrate confidence with it: if your record at a given confidence level is weak, state lower confidence now; if a bias type keeps failing, be humbler about that bias. With few scored stances, do not over-adjust - say the record is thin.
+- YOUR TRACK RECORD is your own graded history - computed, authoritative. If a bias type keeps failing, be humbler about that bias and say why this time is different, or do not make the call. With few scored stances, do not over-adjust - say the record is thin.
 - DESK LESSONS are established desk knowledge taught by the admin. Apply them as facts about this market unless the current computed data directly contradicts one - in that case, flag the tension explicitly instead of silently ignoring either.
 
 POSITIONING rules (this is the desk's book stance for physical Amsul in Brazil, not a futures trade):
 - LESSONS INTEGRATION (mandatory): before finalizing the stance, check every DESK LESSON for applicability to the current setup. Any lesson that bears on the situation (e.g. below-parity offers possibly being shorts, the distributor barter trigger, structural preferences) MUST be explicitly addressed in the rationale or the trigger - either incorporated into the reasoning or named with why it doesn't change the call. A stance that ignores an applicable lesson is incomplete.
 - LONG = hold cargoes / delay sales / offer firm. SHORT = sell forward aggressively / lighten inventory. NEUTRAL = no edge either way.
 - The bias must follow from the computed indicators (parity spread, percentile, N-unit spread, line-up, pace, barter, remaining demand) and the week's internal data. Cite them in the rationale.
-- Confidence must be honest: with thin history or stale/missing series, cap confidence at low or moderate. High confidence requires multiple fresh, agreeing signals.
 - The trigger must be concrete and falsifiable (a number or observable event), never vague.
 - EXIT CONDITIONS (mandatory): express the trigger as 1-3 machine-checkable exit_conditions using ONLY these metrics: cfr_composite, fob_composite, parity_spread, urea_cfr_mid, barter_aprazo, barter_antecipado (values as computed in the MARKET CONTEXT). Each condition: metric, op (< <= > >=), numeric level, and flips_to. The prose "trigger" sentence must match them. Qualitative conditions (e.g. clients confirming switching) may appear in the prose ONLY, and note they are not machine-monitored.
 - RATIONALE FORMAT (mandatory): the rationale is always three labeled parts - "Reasons to sell:" (the bearish facts), "Reasons to hold:" (the bullish facts), "The open question:" (the one unresolved conflict that will decide direction). Short sentences, specific numbers, no comma-chained analysis. If the stance is strongly one-sided, the weaker column can be one short sentence, but all three labels always appear.
 - PLAIN ACTION LANGUAGE: action_summary is what a trader does, in desk words - e.g. "No tilt: trade the normal flow, sell decent bids at 231+, don't stretch either way." Never analyst abstractions ("momentum argues", "downside cushioned") anywhere in positioning - state what happens to prices and what the desk does about it.
-- If the data genuinely supports no view, say NEUTRAL with low confidence - that is a valid, honest answer.`
+- If the data genuinely supports no view, say NEUTRAL - that is a valid, honest answer. The desk ruling (2026-10-16): no confidence label - the market either rises or falls; the stance is the call, the trigger is the hedge.`
 
 
 // Retry transient API failures (overloaded/rate-limited) before giving up:
@@ -378,7 +376,6 @@ async function logPositioning(positioning, scope, weekThursday) {
       scope: scope || 'default',
       week_thursday: weekThursday || null,
       bias: positioning.bias,
-      confidence: positioning.confidence || 'low',
       rationale: positioning.rationale || null,
       trigger_condition: positioning.trigger || null,
       action_summary: positioning.action_summary || null,
@@ -441,7 +438,6 @@ export async function runWeeklyAnalysis(calls, scope, sales = [], onStatus = nul
   if (pinned) {
     result.positioning = {
       bias: pinned.bias,
-      confidence: pinned.confidence,
       rationale: pinned.rationale,
       trigger: pinned.trigger_condition,
       action_summary: pinned.action_summary || null,
