@@ -48,7 +48,7 @@ function PriceTooltip({ active, payload }) {
       {p.repl != null && <div><span className={styles.tipKey} style={{ color: C.repl }}>Replacement</span> {fmt1(p.repl)}</div>}
       {s && (
         <div className={styles.tipStance}>
-          <b>{s.bias}</b> · {s.confidence || '—'} · <span style={{ color: s.result === 'correct' ? C.correct : s.result === 'wrong' ? C.wrong : C.pending }}>{s.result}</span>
+          <b>{s.bias}</b> · <span style={{ color: s.result === 'correct' ? C.correct : s.result === 'wrong' ? C.wrong : C.pending }}>{s.result}</span>
           <div>then {fmt1(s.priceThen)} → after {GRADE_HORIZON_DAYS}d {fmt1(s.priceAfter)} ({s.changePct == null ? 'pending' : `${s.changePct >= 0 ? '+' : ''}${s.changePct.toFixed(1)}%`})</div>
         </div>
       )}
