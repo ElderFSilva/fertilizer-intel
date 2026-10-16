@@ -111,7 +111,7 @@ export async function buildHistory() {
       cfr: r.mid,
       fob: fob[r.date] ?? null,
       repl: fob[r.date] != null && frt != null ? fob[r.date] + frt : null,
-      stance: st ? { bias: st.bias, confidence: st.confidence, result: st.result, priceThen: st.priceThen, priceAfter: st.priceAfter, changePct: st.changePct } : null,
+      stance: st ? { bias: st.bias, result: st.result, priceThen: st.priceThen, priceAfter: st.priceAfter, changePct: st.changePct } : null,
     }
   })
 
