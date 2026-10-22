@@ -3,11 +3,9 @@ import { buildMarketSignals } from '../data.js'
 import { cloudLoadCalls, cloudAddCall, cloudEditCall, cloudDeleteCall, cloudLoadSales, cloudAddSale, cloudEditSale, cloudDeleteSale, cloudLoadProfiles, runWeeklyBackupIfDue } from '../cloudData.js'
 import Sidebar from './Sidebar.jsx'
 import Overview from './views/Overview.jsx'
-import History from './views/History.jsx'
 import Calls from './views/Calls.jsx'
 import Upload from './views/Upload.jsx'
 import Sales from './views/Sales.jsx'
-import PriceTrends from './views/PriceTrends.jsx'
 import Publication from './views/Publication.jsx'
 import styles from './Dashboard.module.css'
 import DataBackup from './views/DataBackup.jsx'
@@ -229,12 +227,10 @@ export default function Dashboard({ onLogout, user, profile, role }) {
         {view === 'overview' && <Overview calls={visibleCalls} sales={visibleSales} allCalls={calls} allSales={sales} role={role} scope={aiScope} scopeLabel={aiScopeLabel} onEdit={handleEdit} />}
         {view === 'upload' && !isAdmin && <Upload onAdd={handleAdd} calls={calls} />}
         {view === 'calls' && <Calls calls={visibleCalls} sales={visibleSales} onDelete={handleDelete} onEdit={handleEdit} role={role} traderNames={traderNames} />}
-        {view === 'prices' && <PriceTrends calls={visibleCalls} sales={visibleSales} />}
         {view === 'argus' && <Publication calls={visibleCalls} sales={visibleSales} role={role} />}
         {view === 'sales' && <Sales calls={visibleCalls} sales={visibleSales} onAddSale={handleAddSale} onDeleteSale={handleDeleteSale} onEditSale={handleEditSale} role={role} traderNames={traderNames} />}
         {view === 'market' && <MarketData role={role} />}
         {view === 'record' && <TrackRecord scope={'global'} />}
-        {view === 'history' && <History />}
         {view === 'advisor' && <Advisor role={role} calls={calls} sales={sales} scope={'global'} />}
         {view === 'backup' && <DataBackup traderId={traderId} role={role} onImport={reloadAll} />}
       </main>
