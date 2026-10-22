@@ -14,7 +14,6 @@
 
 import { loadMarketRows } from './cloudMarketData.js'
 import { supabase } from './supabaseClient.js'
-import { loadScorecard, scorecardText } from './scorecard.js'
 
 const N_CONTENT = { amsul: 21, urea: 46 } // % nitrogen
 
@@ -581,14 +580,6 @@ export async function buildMarketContext() {
     progressBlock(progress),
     fxBlock(fx),
   ].filter(Boolean)
-
-  // Indicator scorecard: each indicator's graded record next to its reading
-  // (ruling 2026-10-22). Best-effort - a failure here never blocks the analysis.
-  try {
-    const sc = await loadScorecard()
-    const txt = scorecardText(sc)
-    if (txt) blocks.push(txt)
-  } catch { /* scorecard optional */ }
 
   if (!blocks.length) return 'No external market data available yet.'
   const calendarNote = `### PUBLICATION CALENDAR (dating convention - treat as fact)
