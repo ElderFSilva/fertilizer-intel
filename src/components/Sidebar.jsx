@@ -5,11 +5,9 @@ const NAV = [
   { id: 'upload', icon: '⊕', label: 'Upload Call' },
   { id: 'calls', icon: '◧', label: 'All Calls' },
   { id: 'sales', icon: '✓', label: 'Sales Log' },
-  { id: 'prices', icon: '◎', label: 'Price Trends' },
   { id: 'argus', icon: '📰', label: 'Publication vs Mrkt' },
   { id: 'market', icon: '⇅', label: 'Market Data' },
   { id: 'record', icon: '◆', label: 'Track Record' },
-  { id: 'history', icon: '∿', label: 'History' },
   { id: 'advisor', icon: '❯', label: 'Ask the Desk', adminOnly: true },
   { id: 'backup', icon: '⊞', label: 'Data Backup' },
 ]
