@@ -13,6 +13,7 @@ import styles from './Dashboard.module.css'
 import DataBackup from './views/DataBackup.jsx'
 import MarketData from './views/MarketData.jsx'
 import TrackRecord from './views/TrackRecord.jsx'
+import Scorecard from './views/Scorecard.jsx'
 import Advisor from './views/Advisor.jsx'
 
 export default function Dashboard({ onLogout, user, profile, role }) {
@@ -235,6 +236,7 @@ export default function Dashboard({ onLogout, user, profile, role }) {
         {view === 'market' && <MarketData role={role} />}
         {view === 'record' && <TrackRecord scope={'global'} />}
         {view === 'history' && <History />}
+        {view === 'scorecard' && isAdmin && <Scorecard />}
         {view === 'advisor' && <Advisor role={role} calls={calls} sales={sales} scope={'global'} />}
         {view === 'backup' && <DataBackup traderId={traderId} role={role} onImport={reloadAll} />}
       </main>
