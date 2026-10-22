@@ -17,8 +17,8 @@ import { supabase } from './supabaseClient.js'
 import { loadMarketRows } from './cloudMarketData.js'
 
 const ymd = v => String(v).slice(0, 10)
-export const THRESHOLD_PCT = 1.5
-export const HORIZON_DAYS = 14
+const THRESHOLD_PCT = 1.5
+const HORIZON_DAYS = 14
 
 function addDays(dateStr, n) {
   const d = new Date(ymd(dateStr) + 'T00:00:00')
@@ -46,7 +46,7 @@ function weekThuOf(dateStr) {
   return `${y}-${m}-${dd}`
 }
 
-export function benchSeries(pubs) {
+function benchSeries(pubs) {
   const weeks = {}
   pubs
     .filter(r => r.frequency === 'weekly' && r.product === 'amsul'
