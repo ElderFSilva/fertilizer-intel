@@ -10,7 +10,6 @@ const NAV = [
   { id: 'market', icon: '⇅', label: 'Market Data' },
   { id: 'record', icon: '◆', label: 'Track Record' },
   { id: 'history', icon: '∿', label: 'History' },
-  { id: 'scorecard', icon: '⊟', label: 'Scorecard', adminOnly: true },
   { id: 'advisor', icon: '❯', label: 'Ask the Desk', adminOnly: true },
   { id: 'backup', icon: '⊞', label: 'Data Backup' },
 ]
