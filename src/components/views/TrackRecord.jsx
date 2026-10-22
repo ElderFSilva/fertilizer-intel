@@ -32,7 +32,27 @@ function Tile({ label, value, sub }) {
 const rate = t => t.total ? `${Math.round(t.correct / t.total * 100)}%` : '—'
 const frac = t => t.total ? `${t.correct}/${t.total}` : 'no data'
 
-export default function TrackRecord({ scope }) {
+// ── Sales of the stance week (ruling 2026-10-22) ──
+// Amsul GR deals (the benchmark is compacted CFR) dated inside the market
+// week of the stance (Mon→Sun around its Thursday). Avg done price is
+// volume-weighted. "Sold vs mkt +2wks" = avg done minus the composite mid two
+// weeks later: positive = the desk sold above where the market went (good
+// timing), negative = it would have fetched more by waiting.
+const num = v => { if (v == null || v === '') return null; const n = parseFloat(String(v).replace(/[^0-9.\-]/g, '')); return isNaN(n) ? null : n }
+const saleDate = s => String(s.dealDate || s.deal_date || s.date || s.created_at || '').slice(0, 10)
+const shiftDays = (ymd, n) => { const d = new Date(ymd + 'T00:00:00'); d.setDate(d.getDate() + n); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` }
+function weekSales(sales, weekThu) {
+  const from = shiftDays(weekThu, -3), to = shiftDays(weekThu, 3)
+  const rows = (sales || []).filter(s => (s.product || '').trim().toLowerCase() === 'amsul gr' && num(s.donePrice) != null && num(s.volume) > 0)
+    .filter(s => { const d = saleDate(s); return d >= from && d <= to })
+  if (!rows.length) return null
+  const vol = rows.reduce((a, s) => a + num(s.volume), 0)
+  const avg = rows.reduce((a, s) => a + num(s.donePrice) * num(s.volume), 0) / vol
+  return { avg, vol, deals: rows.length }
+}
+const fmtKt = v => v >= 1000 ? `${(v / 1000).toFixed(1)}kt` : `${Math.round(v)}t`
+
+export default function TrackRecord({ scope, sales = [] }) {
   const [record, setRecord] = useState(null)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
@@ -59,7 +79,7 @@ export default function TrackRecord({ scope }) {
       <header className={styles.header}>
         <div>
           <h1 className={styles.title}>Track Record</h1>
-          <p className={styles.sub}>Every stance, graded against what the market actually did (same-week composite CFR mid — Argus/Fertecon/Agrinvest as available, following 2 weeks, ±1.5% threshold; hover a mid to see which sources formed it)</p>
+          <p className={styles.sub}>Every stance, graded against what the market actually did (same-week composite CFR mid — Argus/Fertecon/Agrinvest as available, following 2 weeks, ±1.5% threshold; hover a mid to see which sources formed it). Avg sold = volume-weighted Amsul GR done price in the stance week; Sold vs mkt +2wks = that price minus the mid two weeks later, USD/t — positive means the desk sold above where the market went.</p>
         </div>
       </header>
 
@@ -90,10 +110,15 @@ export default function TrackRecord({ scope }) {
                       <th className={styles.th}>Mid +2wks</th>
                       <th className={styles.th}>Move</th>
                       <th className={styles.th}>Result</th>
+                      <th className={styles.th}>Avg sold (Amsul GR)</th>
+                      <th className={styles.th}>Sold vs mkt +2wks</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {record.rows.map((r, i) => (
+                    {record.rows.map((r, i) => {
+                      const ws = weekSales(sales, r.week)
+                      const perf = ws && r.priceAfter != null ? ws.avg - r.priceAfter : null
+                      return (
                       <tr key={i} className={styles.tr}>
                         <td className={styles.td}>{fmtDate(r.week)}</td>
                         <td className={styles.td} style={{ color: BIAS_COLOR[r.bias] || 'var(--text)', fontWeight: 700 }}>{r.bias}</td>
@@ -101,8 +126,15 @@ export default function TrackRecord({ scope }) {
                         <td className={styles.td} title={r.srcAfter || ''}>{r.priceAfter != null ? r.priceAfter.toFixed(0) : '—'}</td>
                         <td className={styles.td}>{r.changePct != null ? `${r.changePct >= 0 ? '+' : ''}${r.changePct.toFixed(1)}%` : '—'}</td>
                         <td className={styles.td} style={{ color: RESULT_COLOR[r.result] }}>{RESULT_ICON[r.result]} {r.result}</td>
+                        <td className={styles.td} title={ws ? `${ws.deals} deal${ws.deals === 1 ? '' : 's'}, ${Math.round(ws.vol).toLocaleString('en-US')} t` : 'no Amsul GR sales that week'}>
+                          {ws ? <>{ws.avg.toFixed(1)} <span style={{ color: 'var(--text3)', fontSize: 11 }}>· {fmtKt(ws.vol)}</span></> : '—'}
+                        </td>
+                        <td className={styles.td} style={{ fontWeight: 700, color: perf == null ? 'var(--text3)' : perf >= 0 ? 'var(--accent)' : 'var(--red)' }} title={perf != null ? `avg done ${ws.avg.toFixed(1)} vs mid +2wks ${r.priceAfter.toFixed(1)}` : ws ? 'mid +2wks not published yet' : ''}>
+                          {perf != null ? `${perf >= 0 ? '+' : ''}${perf.toFixed(1)}` : ws ? '⏳' : '—'}
+                        </td>
                       </tr>
-                    ))}
+                      )
+                    })}
                   </tbody>
                 </table>
               </div>
