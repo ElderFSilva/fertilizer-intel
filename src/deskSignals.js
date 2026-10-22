@@ -161,6 +161,33 @@ function executionBlock(sales, pubs) {
 }
 
 // ── Main entry ──
+// ── Sales this week and last, by client (ruling 2026-10-22) ──
+// The AI reads every call in full, so it sees "Fertimaxi firm bid 258" - but
+// it never saw that Fertimaxi then BOUGHT at 265 on Oct 20, and wrote a
+// counter-strategy for a closed deal. This block lists the deals by name so
+// a sold negotiation is a fact, not an open bid.
+export function recentSalesBlock(sales, today = new Date()) {
+  const dow = today.getDay()
+  const monday = new Date(today); monday.setDate(today.getDate() - (dow === 0 ? 6 : dow - 1)); monday.setHours(0, 0, 0, 0)
+  const lastMonday = new Date(monday); lastMonday.setDate(monday.getDate() - 7)
+  const thisWk = localYmd(monday), lastWk = localYmd(lastMonday)
+  const rows = sales.filter(s => saleDate(s) && saleDate(s) >= lastWk)
+    .sort((a, b) => saleDate(b).localeCompare(saleDate(a)))
+  const fmt = s => {
+    const vol = num(s.volume)
+    return `[${saleDate(s)}] ${s.client || '?'}: ${s.product || '?'} ${vol != null ? Math.round(vol).toLocaleString('en-US') + 't' : '?t'}${s.port ? ' ' + s.port : ''}${s.laycan ? ' ' + s.laycan : ''} DONE at ${s.donePrice || '?'}${s.offerPrice ? ` (offer ${s.offerPrice}${s.bidPrice ? `, bid ${s.bidPrice}` : ''})` : ''}`
+  }
+  const cur = rows.filter(s => saleDate(s) >= thisWk)
+  const prev = rows.filter(s => saleDate(s) < thisWk)
+  const lines = [
+    `SALES THIS WEEK (from ${thisWk}): ${cur.length ? cur.map(fmt).join('; ') : 'none logged yet'}.`,
+    `SALES LAST WEEK (from ${lastWk}): ${prev.length ? prev.map(fmt).join('; ') : 'none'}.`,
+  ]
+  const closed = [...new Set(cur.map(s => (s.client || '').trim()).filter(Boolean))]
+  if (closed.length) lines.push(`CLOSED NEGOTIATIONS THIS WEEK: ${closed.join(', ')} - their bids/targets in the calls above are history; the done price is the fact.`)
+  return `### SALES BY CLIENT (computed from the sales log - authoritative)\n${lines.join('\n')}`
+}
+
 export async function buildDeskContext(calls, sales) {
   const safeCalls = Array.isArray(calls) ? calls : []
   const safeSales = Array.isArray(sales) ? sales : []
@@ -168,6 +195,7 @@ export async function buildDeskContext(calls, sales) {
   let pubs = []
   try { pubs = await loadMarketRows('intl_publications', 800) } catch { pubs = [] }
   const blocks = [
+    recentSalesBlock(safeSales),
     clientBlock(safeCalls, soldDemandIds),
     executionBlock(safeSales, pubs),
   ].filter(Boolean)
