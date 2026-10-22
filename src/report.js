@@ -3,6 +3,7 @@ import { loadAnalysisSnapshotForWeek, saveBriefToSnapshot } from './cloudAnalysi
 import { generateBriefFromAnalysis } from './aiAnalysis.js'
 import { canonicalDemands } from './demands.js'
 import { buildHistory, addDays as histAddDays, GRADE_BAND_PCT, GRADE_HORIZON_DAYS } from './history.js'
+import { loadScorecard } from './scorecard.js'
 
 function formatDate(dateStr) {
   if (!dateStr) return '—'
@@ -448,6 +449,38 @@ export async function generateWeeklyReport(calls, signals, dateFrom, dateTo, ana
     historySVG = buildHistorySVG(hist)
     historyNow = hist.cfrNow
   } catch { /* history is optional in the report */ }
+  let scorecard = null
+  try { scorecard = await loadScorecard() } catch { scorecard = null }
+  const scOrd = n => { const s = ['th', 'st', 'nd', 'rd'], v = n % 100; return n + (s[(v - 20) % 10] || s[v] || s[0]) }
+  const scNow = r => {
+    const v = r.now?.value
+    if (v == null) return 'n/a'
+    if (r.unit === 'pct') return `${scOrd(v)} pct`
+    if (r.unit === 'kt') return `${Math.round(v).toLocaleString('en-US')}k`
+    if (r.unit === 'pts') return `${v >= 0 ? '+' : ''}${v.toFixed(1)} pts`
+    return `${v >= 0 ? '+' : ''}${Number(v).toFixed(1)}%`
+  }
+  const scPct = v => v == null ? '—' : `${v}%`
+  const scColor = { EARNED: '#c8f060', FAILED: '#ff6b5b', UNPROVEN: '#9a9b93' }
+  const scorecardHTML = scorecard && scorecard.rows.length ? `
+  <div class="section">
+    <div class="section-title">Indicator Scorecard — graded on the forward ${scorecard.yardstick.horizonDays}-day CFR move, ±${scorecard.yardstick.thresholdPct}%</div>
+    <div class="chart-caption" style="margin-bottom:8px">${scorecard.base.n ? `${scorecard.base.n} weeks scored (${escapeHtml(scorecard.base.from)} → ${escapeHtml(scorecard.base.to)}); base rate UP ${Math.round(scorecard.base.up / scorecard.base.n * 100)}% / DOWN ${Math.round(scorecard.base.down / scorecard.base.n * 100)}% / FLAT ${Math.round(scorecard.base.flat / scorecard.base.n * 100)}%.` : 'No outcomes yet.'} Status needs ${scorecard.minWeeks} scored weeks and ${scorecard.edgePts} points over the better baseline. Failed indicators are excluded from the stance.</div>
+    <table class="demand-table">
+      <thead><tr><th>Indicator</th><th>Status</th><th>Now</th><th>Hit rate</th><th>Weeks</th><th>Baseline L / S</th></tr></thead>
+      <tbody>
+        ${[...scorecard.rows, scorecard.stanceRow].map(r => `
+        <tr>
+          <td>${escapeHtml(r.label)}</td>
+          <td style="color:${scColor[r.status] || '#9a9b93'};font-weight:700">${r.status}</td>
+          <td>${r.key === 'ai_stance' ? '—' : escapeHtml(scNow(r))}${r.now?.signal ? ` <b style="color:${r.now.signal === 'SELL' ? '#ff6b5b' : '#c8f060'}">${r.now.signal}</b>` : ''}</td>
+          <td><b>${scPct(r.rate)}</b></td>
+          <td>${r.n || 0}</td>
+          <td>${scPct(r.baseLong)} / ${scPct(r.baseShort)}</td>
+        </tr>`).join('')}
+      </tbody>
+    </table>
+  </div>` : ''
 
   const salesPerf = buildSalesPerformance(sales, fromStr, toStr)
   const soldDemandIds = salesPerf.soldDemandIds || new Set()
@@ -647,6 +680,8 @@ export async function generateWeeklyReport(calls, signals, dateFrom, dateTo, ana
       ${historySVG}
     </div>
   </div>` : ''}
+
+  ${scorecardHTML}
 
   ${priceBubbles.length > 0 ? `
   <div class="section">
