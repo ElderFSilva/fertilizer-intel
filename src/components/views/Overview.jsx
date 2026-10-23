@@ -415,19 +415,25 @@ export default function Overview({ calls, sales, allCalls, allSales, role, scope
           </div>
         </div>
 
-        {isAdmin && readiness?.items && (
-          <p style={{
-            fontFamily: "'DM Mono', monospace", fontSize: 11, color: 'var(--text3)',
-            margin: '2px 0 12px', letterSpacing: '0.02em',
-          }}>
-            Data through {new Date(readiness.through + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}:{' '}
-            {readiness.items.map((r, i) => (
-              <span key={r.label} style={{ color: r.ok ? 'var(--accent)' : 'var(--text3)', whiteSpace: 'nowrap' }}>
-                {r.label} {r.ok ? '✓' : '○'}{i < readiness.items.length - 1 ? '  ·  ' : ''}
-              </span>
-            ))}
-          </p>
-        )}
+        {isAdmin && readiness?.friday && (() => {
+          const fd = d => d ? new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'none'
+          const line = (group, head) => (
+            <span style={{ display: 'block' }}>
+              <span style={{ color: 'var(--text3)' }}>{head}:</span>{' '}
+              {group.items.map((r, i) => (
+                <span key={r.label} style={{ color: r.ok ? 'var(--accent)' : 'var(--text3)', whiteSpace: 'nowrap' }}>
+                  {r.label} {r.ok ? '✓' : '○'} <span style={{ opacity: 0.75 }}>{fd(r.date)}</span>{i < group.items.length - 1 ? '  ·  ' : ''}
+                </span>
+              ))}
+            </span>
+          )
+          return (
+            <p style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, color: 'var(--text3)', margin: '2px 0 12px', letterSpacing: '0.02em', lineHeight: 1.7 }}>
+              {line(readiness.friday, `Friday prices, week of ${fd(readiness.weekThursday)}`)}
+              {line(readiness.monday, `Monday datasets, last entered ${fd(readiness.monday.lastEntered)} (next ${fd(readiness.monday.next)})`)}
+            </p>
+          )
+        })()}
 
         {!snapshotIsCurrent && analysis?.weekLabel && !aiLoading && (
           <p className={styles.staleNote}>
