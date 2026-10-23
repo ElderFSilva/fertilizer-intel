@@ -100,7 +100,8 @@ export function scoreStances(log, pubs) {
     let changePct = null
     if (start && end && end.date > start.date) {
       changePct = ((end.mid - start.mid) / start.mid) * 100
-      if (r.bias === 'LONG') result = changePct >= THRESHOLD_PCT ? 'correct' : 'wrong'
+      if (r.bias === 'COIN_FLIP') result = 'coin_flip'   // logged, never graded (ruling 2026-10-23)
+      else if (r.bias === 'LONG') result = changePct >= THRESHOLD_PCT ? 'correct' : 'wrong'
       else if (r.bias === 'SHORT') result = changePct <= -THRESHOLD_PCT ? 'correct' : 'wrong'
       else result = Math.abs(changePct) < THRESHOLD_PCT ? 'correct' : 'wrong'
     }
@@ -124,11 +125,21 @@ function tally(rows, pred) {
 }
 
 export function summarize(rows) {
-  const overall = tally(rows, () => true)
-  const pending = rows.filter(r => r.result === 'pending').length
+  const graded = rows.filter(r => r.bias !== 'COIN_FLIP')
+  const overall = tally(graded, () => true)
+  const pending = graded.filter(r => r.result === 'pending').length
+  const coinFlips = rows.filter(r => r.bias === 'COIN_FLIP').length
   const byBias = {}
-  ;['LONG', 'SHORT', 'NEUTRAL'].forEach(b => { byBias[b] = tally(rows, r => r.bias === b) })
-  return { overall, pending, byBias }
+  ;['LONG', 'SHORT', 'NEUTRAL'].forEach(b => { byBias[b] = tally(graded, r => r.bias === b) })
+  // Baselines on the SAME scored weeks: what always-LONG / always-SHORT would have scored
+  const scored = graded.filter(r => r.result === 'correct' || r.result === 'wrong')
+  const n = scored.length
+  const baseline = n ? {
+    n,
+    alwaysLong: Math.round(scored.filter(r => r.changePct >= THRESHOLD_PCT).length / n * 100),
+    alwaysShort: Math.round(scored.filter(r => r.changePct <= -THRESHOLD_PCT).length / n * 100),
+  } : null
+  return { overall, pending, coinFlips, byBias, baseline }
 }
 
 export async function buildTrackRecord(scope) {
@@ -150,10 +161,12 @@ export function trackRecordText(record) {
   const parts = [
     `Scored stances: ${o.correct} of ${o.total} correct (${o.total ? Math.round(o.correct / o.total * 100) + '%' : 'n/a'}), ${summary.pending} pending. Scoring rule: same-week COMPOSITE CFR mid (argus/fertecon/agrinvest as available) move over the following 2 weeks, +/-${THRESHOLD_PCT}% threshold.`,
   ]
+  if (summary.baseline) parts.push(`Baselines on the same ${summary.baseline.n} weeks: always-LONG would have scored ${summary.baseline.alwaysLong}%, always-SHORT ${summary.baseline.alwaysShort}%. A hit rate below the better baseline is no edge.`)
+  if (summary.coinFlips) parts.push(`Coin flips (no call, not graded): ${summary.coinFlips}.`)
   const biasBits = Object.entries(summary.byBias).filter(([, v]) => v.total > 0)
     .map(([b, v]) => `${b} ${v.correct}/${v.total}`)
   if (biasBits.length) parts.push(`By bias: ${biasBits.join(', ')}.`)
-  const recent = rows.filter(r => r.result !== 'pending').slice(0, 4)
+  const recent = rows.filter(r => r.result === 'correct' || r.result === 'wrong').slice(0, 4)
     .map(r => `${r.week}: ${r.bias} -> market ${r.changePct >= 0 ? '+' : ''}${r.changePct.toFixed(1)}% -> ${r.result.toUpperCase()}`)
   if (recent.length) parts.push(`Most recent scored: ${recent.join('; ')}.`)
   if (o.total < 6) parts.push(`[only ${o.total} scored stances - the record itself is weak evidence; do not over-adjust on it]`)
