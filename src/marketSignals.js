@@ -476,6 +476,42 @@ function describeSpread(name, series, formula) {
   return parts.join('; ') + '.'
 }
 
+// ── Basis validation (ruling 2026-10-23) ──
+// Hypothesis: a COMPRESSING basis is followed by a CFR fall within two weeks,
+// a WIDENING one by a rise. Tested on the data as it accumulates: each week
+// the 4-week basis direction (±BASIS_DIR_USD) against the CFR composite move
+// over the following HORIZON (same yardstick as the stances). Too few weeks
+// to trust before BASIS_MIN_WEEKS. One sentence, nothing stored.
+const BASIS_DIR_USD = 5
+const BASIS_MIN_WEEKS = 30
+const BASIS_HORIZON_DAYS = 14
+const BASIS_THRESHOLD_PCT = 1.5
+export function validateBasis(series, cfr) {
+  // series: [{ wk, value }] ascending, complete weeks; cfr: { wk: { mid } }
+  const byWk = Object.fromEntries(series.map(x => [x.wk, x.value]))
+  const cfrWeeks = Object.keys(cfr).sort()
+  const shiftWk = (wk, days) => { const d = new Date(wk + 'T00:00:00'); d.setDate(d.getDate() + days); return ymd(d.toISOString().slice(0, 10)) }
+  const midFrom = d => { const k = cfrWeeks.find(w => w >= d); return k ? cfr[k].mid : null }
+  let compN = 0, compHit = 0, widN = 0, widHit = 0
+  series.forEach(x => {
+    const v4 = byWk[shiftWk(x.wk, -28)]
+    const start = cfr[x.wk]?.mid, end = midFrom(shiftWk(x.wk, BASIS_HORIZON_DAYS))
+    if (v4 == null || start == null || end == null) return
+    const futureKey = cfrWeeks.find(w => w >= shiftWk(x.wk, BASIS_HORIZON_DAYS))
+    if (!futureKey || futureKey <= x.wk) return
+    const dir = x.value - v4 >= BASIS_DIR_USD ? 'WIDENING' : x.value - v4 <= -BASIS_DIR_USD ? 'COMPRESSING' : 'FLAT'
+    const move = ((end - start) / start) * 100
+    if (dir === 'COMPRESSING') { compN++; if (move <= -BASIS_THRESHOLD_PCT) compHit++ }
+    if (dir === 'WIDENING') { widN++; if (move >= BASIS_THRESHOLD_PCT) widHit++ }
+  })
+  const n = compN + widN
+  const since = series.length ? series[0].wk : null
+  const text = n
+    ? `compressing was followed by a CFR fall in ${compHit} of ${compN} week${compN === 1 ? '' : 's'}; widening by a rise in ${widHit} of ${widN}${since ? ` (since ${since}` : ''}${n < BASIS_MIN_WEEKS ? ` — ${n} tested week${n === 1 ? '' : 's'}, too few to trust before ${BASIS_MIN_WEEKS})` : ')'}`
+    : 'no week can be tested yet (needs a 4-week-earlier basis and a CFR print two weeks later)'
+  return { compN, compHit, widN, widHit, n, since, trusted: n >= BASIS_MIN_WEEKS, text }
+}
+
 function inlandBlock(pubs, benchRows) {
   const fcaRows = pubs.filter(r => r.product === 'amsul' && r.price_point === 'fca_paranagua')
   const rondoRows = pubs.filter(r => r.product === 'amsul' && r.price_point === 'fob_rondonopolis')
@@ -504,7 +540,27 @@ function inlandBlock(pubs, benchRows) {
 Latest levels: ${levels.join('; ')}.
 ${describeSpread('Port basis', port, 'FCA Paranaguá minus CFR compacted composite, same market week')}
 ${describeSpread('Inland basis', inland, 'FOB Rondonópolis minus FCA Paranaguá, same market week')}${gaps.length ? `\nGaps: ${gaps.join('; ')}.` : ''}
+Validation so far - port basis: ${validateBasis(port, cfr).text}. Inland basis: ${validateBasis(inland, cfr).text}.
 Reading: a COMPRESSING basis means distributors cannot pass CFR prices on and tend to stop bidding within weeks; a WIDENING basis means room to buy. This relationship is a hypothesis under test, not a fact: cite the computed level and direction words only, never infer a stance from it alone.`
+}
+
+// Basis validation lines for the Market Data view (same computation as the AI block).
+export async function basisValidationLines() {
+  const loadBench = async () => {
+    const { data, error } = await supabase.from('publications').select('source, pub_date, low, high').order('pub_date', { ascending: false }).limit(600)
+    return error ? [] : (data || [])
+  }
+  const [pubs, benchRows] = await Promise.all([loadMarketRows('intl_publications', 2000).catch(() => []), loadBench().catch(() => [])])
+  const fca = weeklyMids(pubs.filter(r => r.product === 'amsul' && r.price_point === 'fca_paranagua'))
+  const rondo = weeklyMids(pubs.filter(r => r.product === 'amsul' && r.price_point === 'fob_rondonopolis'))
+  const cfr = weeklyComposite(pubs, benchRows)
+  const weeks = [...new Set([...Object.keys(fca), ...Object.keys(rondo)])].sort()
+  const port = weeks.filter(wk => fca[wk] != null && cfr[wk]).map(wk => ({ wk, value: fca[wk] - cfr[wk].mid }))
+  const inland = weeks.filter(wk => fca[wk] != null && rondo[wk] != null).map(wk => ({ wk, value: rondo[wk] - fca[wk] }))
+  return [
+    { label: 'Port basis (FCA Paranaguá − CFR)', ...validateBasis(port, cfr) },
+    { label: 'Inland basis (FOB Rondonópolis − FCA)', ...validateBasis(inland, cfr) },
+  ]
 }
 
 // ── Main entry: build the full market context text for the AI prompt ──
