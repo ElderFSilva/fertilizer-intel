@@ -474,16 +474,18 @@ export default function Overview({ calls, sales, allCalls, allSales, role, scope
         {analysis?.positioning?.bias && (
           <div className={styles.signal} style={{
             borderColor: (analysis.positioning.bias === 'LONG' ? 'var(--accent)'
-              : analysis.positioning.bias === 'SHORT' ? 'var(--red)' : '#d4a72c') + '66',
+              : analysis.positioning.bias === 'SHORT' ? 'var(--red)'
+              : analysis.positioning.bias === 'COIN_FLIP' ? 'var(--text3)' : '#d4a72c') + '66',
             marginTop: 10,
           }}>
             <div className={styles.signalRow}>
               <span style={{
                 color: analysis.positioning.bias === 'LONG' ? 'var(--accent)'
-                  : analysis.positioning.bias === 'SHORT' ? 'var(--red)' : '#d4a72c',
+                  : analysis.positioning.bias === 'SHORT' ? 'var(--red)'
+                  : analysis.positioning.bias === 'COIN_FLIP' ? 'var(--text2)' : '#d4a72c',
                 fontSize: 13, fontFamily: "'DM Mono', monospace", fontWeight: 700, whiteSpace: 'nowrap',
               }}>
-                ◆ {analysis.positioning.bias}
+                ◆ {analysis.positioning.bias === 'COIN_FLIP' ? 'COIN FLIP · not graded' : analysis.positioning.bias}
               </span>
               <div style={{ flex: 1 }}>
                 {triggerEval?.anyBreached && (
