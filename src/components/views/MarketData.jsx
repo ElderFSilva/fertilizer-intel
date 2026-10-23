@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import LineupUpload from './LineupUpload.jsx'
 import styles from './MarketData.module.css'
 import { evaluateTriggers } from '../../triggerWatch.js'
+import { basisValidationLines } from '../../marketSignals.js'
 import { loadMarketRows, insertMarketRow, updateMarketRow, deleteMarketRow } from '../../cloudMarketData.js'
 
 // ─────────────────────────────────────────────────────────────
@@ -310,6 +311,14 @@ export default function MarketData({ role }) {
   const [error, setError] = useState('')
   const [saved, setSaved] = useState(false)
   const [triggerNote, setTriggerNote] = useState('')
+  const [basisLines, setBasisLines] = useState(null)
+
+  useEffect(() => {
+    if (tabId !== 'intl') return
+    let active = true
+    basisValidationLines().then(l => { if (active) setBasisLines(l) }).catch(() => {})
+    return () => { active = false }
+  }, [tabId, rows])
 
   async function reload(t = tab) {
     setLoading(true)
@@ -421,6 +430,17 @@ export default function MarketData({ role }) {
       </div>
 
       <p className={styles.hint}>{tab.hint}</p>
+
+      {/* Inland basis validation (ruling 2026-10-23): is the hypothesis holding? */}
+      {tab.id === 'intl' && basisLines && (
+        <p className={styles.hint} style={{ marginTop: -4 }}>
+          {basisLines.map(b => (
+            <span key={b.label} style={{ display: 'block', color: b.trusted ? 'var(--text2)' : 'var(--text3)' }}>
+              ◇ {b.label}: {b.text}.
+            </span>
+          ))}
+        </p>
+      )}
 
       {/* Line-up tab: Orion file upload + parties (admin only). The manual
           form below stays for corrections and non-Orion sources. */}
