@@ -12,9 +12,11 @@ function fmtDate(v) {
   return isNaN(d.getTime()) ? v : d.toLocaleDateString('en-US', { year: '2-digit', month: 'short', day: 'numeric' })
 }
 
-const BIAS_COLOR = { LONG: 'var(--accent)', SHORT: 'var(--red)', NEUTRAL: '#d4a72c' }
-const RESULT_ICON = { correct: '✓', wrong: '✗', pending: '⏳' }
-const RESULT_COLOR = { correct: 'var(--accent)', wrong: 'var(--red)', pending: 'var(--text3)' }
+const BIAS_COLOR = { LONG: 'var(--accent)', SHORT: 'var(--red)', NEUTRAL: '#d4a72c', COIN_FLIP: 'var(--text3)' }
+const BIAS_LABEL = { COIN_FLIP: 'COIN FLIP' }
+const RESULT_ICON = { correct: '✓', wrong: '✗', pending: '⏳', coin_flip: '○' }
+const RESULT_LABEL = { coin_flip: 'not graded' }
+const RESULT_COLOR = { correct: 'var(--accent)', wrong: 'var(--red)', pending: 'var(--text3)', coin_flip: 'var(--text3)' }
 
 function Tile({ label, value, sub }) {
   return (
@@ -89,7 +91,9 @@ export default function TrackRecord({ scope, sales = [] }) {
       {!loading && record && (
         <>
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-            <Tile label="Overall hit rate" value={rate(s.overall)} sub={`${frac(s.overall)} scored · ${s.pending} pending`} />
+            <Tile label="Overall hit rate" value={rate(s.overall)} sub={`${frac(s.overall)} scored · ${s.pending} pending${s.coinFlips ? ` · ${s.coinFlips} coin flip${s.coinFlips === 1 ? '' : 's'}` : ''}`} />
+            <Tile label="Same weeks, always LONG" value={s.baseline ? `${s.baseline.alwaysLong}%` : '—'} sub={s.baseline ? `baseline on ${s.baseline.n} scored weeks` : 'no scored weeks'} />
+            <Tile label="Same weeks, always SHORT" value={s.baseline ? `${s.baseline.alwaysShort}%` : '—'} sub="the hit rate must beat the better of these two" />
             <Tile label="LONG calls" value={rate(s.byBias.LONG)} sub={frac(s.byBias.LONG)} />
             <Tile label="SHORT calls" value={rate(s.byBias.SHORT)} sub={frac(s.byBias.SHORT)} />
             <Tile label="NEUTRAL calls" value={rate(s.byBias.NEUTRAL)} sub={frac(s.byBias.NEUTRAL)} />
@@ -121,11 +125,11 @@ export default function TrackRecord({ scope, sales = [] }) {
                       return (
                       <tr key={i} className={styles.tr}>
                         <td className={styles.td}>{fmtDate(r.week)}</td>
-                        <td className={styles.td} style={{ color: BIAS_COLOR[r.bias] || 'var(--text)', fontWeight: 700 }}>{r.bias}</td>
+                        <td className={styles.td} style={{ color: BIAS_COLOR[r.bias] || 'var(--text)', fontWeight: 700 }}>{BIAS_LABEL[r.bias] || r.bias}</td>
                         <td className={styles.td} title={r.srcThen || ''}>{r.priceThen != null ? r.priceThen.toFixed(0) : '—'}</td>
                         <td className={styles.td} title={r.srcAfter || ''}>{r.priceAfter != null ? r.priceAfter.toFixed(0) : '—'}</td>
                         <td className={styles.td}>{r.changePct != null ? `${r.changePct >= 0 ? '+' : ''}${r.changePct.toFixed(1)}%` : '—'}</td>
-                        <td className={styles.td} style={{ color: RESULT_COLOR[r.result] }}>{RESULT_ICON[r.result]} {r.result}</td>
+                        <td className={styles.td} style={{ color: RESULT_COLOR[r.result] }}>{RESULT_ICON[r.result]} {RESULT_LABEL[r.result] || r.result}</td>
                         <td className={styles.td} title={ws ? `${ws.deals} deal${ws.deals === 1 ? '' : 's'}, ${Math.round(ws.vol).toLocaleString('en-US')} t` : 'no Amsul GR sales that week'}>
                           {ws ? <>{ws.avg.toFixed(1)} <span style={{ color: 'var(--text3)', fontSize: 11 }}>· {fmtKt(ws.vol)}</span></> : '—'}
                         </td>
