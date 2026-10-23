@@ -4,7 +4,7 @@ import { buildDeskContext } from './deskSignals.js'
 import { buildTrackRecord, trackRecordText, buildLessonsText } from './learningLoop.js'
 import { saveAnalysisSnapshot } from './cloudAnalysis.js'
 import { evaluateTriggers, triggerStatusText } from './triggerWatch.js'
-import { supabase } from './supabaseClient.js'
+import { supabase, authHeaders } from './supabaseClient.js'
 
 const ARGUS_KEY = 'fertintel_argus_amsul'
 const FERTECON_KEY = 'fertintel_fertecon_amsul'
@@ -266,7 +266,8 @@ async function fetchWithRetry(url, options, retries = 2, onStatus = null) {
   for (let attempt = 0; ; attempt++) {
     let response
     try {
-      response = await fetch(url, options)
+      const auth = await authHeaders()
+      response = await fetch(url, { ...options, headers: { ...(options.headers || {}), ...auth } })
     } catch (e) {
       if (attempt >= retries) throw e
       await wait(delays[Math.min(attempt, delays.length - 1)], 'connection problem')

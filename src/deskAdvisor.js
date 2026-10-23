@@ -3,7 +3,7 @@
 // track record and lessons — shaped for questions instead of reports.
 // Advises only; never writes data. Every Q&A is logged to advisor_log.
 
-import { supabase } from './supabaseClient.js'
+import { supabase, authHeaders } from './supabaseClient.js'
 import { buildMarketContext } from './marketSignals.js'
 import { buildDeskContext } from './deskSignals.js'
 import { buildTrackRecord, trackRecordText, buildLessonsText } from './learningLoop.js'
@@ -87,7 +87,8 @@ async function fetchWithRetry(url, options, retries = 2, onStatus = null) {
   for (let attempt = 0; ; attempt++) {
     let response
     try {
-      response = await fetch(url, options)
+      const auth = await authHeaders()
+      response = await fetch(url, { ...options, headers: { ...(options.headers || {}), ...auth } })
     } catch (e) {
       if (attempt >= retries) throw e
       await wait(delays[Math.min(attempt, delays.length - 1)], 'connection problem')

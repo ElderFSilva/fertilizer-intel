@@ -25,6 +25,13 @@ export async function getSession() {
   return data.session
 }
 
+// Headers that prove to our own API routes (/api/analyze) who is calling.
+// The server verifies the token with Supabase before touching the AI key.
+export async function authHeaders() {
+  const session = await getSession()
+  return session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}
+}
+
 // Load the logged-in user's profile row (role + display name)
 export async function getProfile(userId) {
   const { data, error } = await supabase
