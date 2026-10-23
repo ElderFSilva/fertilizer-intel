@@ -192,12 +192,12 @@ Analyze the data and respond ONLY with valid JSON (no markdown, no preamble) in 
     "supply": "2-3 sentences on supply outlook (line-up, pace, parity)"
   },
   "positioning": {
-    "bias": "LONG|NEUTRAL|SHORT",
+    "bias": "LONG|NEUTRAL|SHORT|COIN_FLIP",
     "action_summary": "ONE plain sentence of what the desk should DO this week - actions and numbers, no analyst language",
     "rationale": "THREE labeled parts in plain desk language: 'Reasons to sell: ...' then 'Reasons to hold: ...' then 'The open question: ...' - each part short sentences with specific numbers; the open question names the main unresolved conflict in one line",
     "trigger": "the exit conditions in one plain human sentence",
     "exit_conditions": [
-      { "metric": "cfr_composite|fob_composite|parity_spread|urea_cfr_mid|barter_aprazo|barter_antecipado", "op": "<|<=|>|>=", "level": 231, "flips_to": "LONG|NEUTRAL|SHORT" }
+      { "metric": "cfr_composite|fob_composite|parity_spread|urea_cfr_mid|barter_aprazo|barter_antecipado", "op": "<|<=|>|>=", "level": 231, "flips_to": "LONG|NEUTRAL|SHORT|COIN_FLIP" }
     ]
   }
 }
@@ -245,13 +245,13 @@ LEARNING rules:
 
 POSITIONING rules (this is the desk's book stance for physical Amsul in Brazil, not a futures trade):
 - LESSONS INTEGRATION (mandatory): before finalizing the stance, check every DESK LESSON for applicability to the current setup. Any lesson that bears on the situation (e.g. below-parity offers possibly being shorts, the distributor barter trigger, structural preferences) MUST be explicitly addressed in the rationale or the trigger - either incorporated into the reasoning or named with why it doesn't change the call. A stance that ignores an applicable lesson is incomplete.
-- LONG = hold cargoes / delay sales / offer firm. SHORT = sell forward aggressively / lighten inventory. NEUTRAL = no edge either way.
+- LONG = hold cargoes / delay sales / offer firm. SHORT = sell forward aggressively / lighten inventory. NEUTRAL = you expect the market to stay within +/-1.5% for two weeks (a prediction, graded like the others). COIN_FLIP = the evidence pulls both ways and you will not pretend otherwise - logged, NOT graded, and counted (desk ruling 2026-10-23). A COIN_FLIP must name the two forces in conflict in "The open question" and give the concrete observation that would turn it into LONG or SHORT; its exit_conditions may be empty. Use COIN_FLIP honestly, never as a hiding place: a LONG or SHORT is owed whenever you can name the reason and what would prove it wrong.
 - The bias must follow from the computed indicators (parity spread, percentile, N-unit spread, line-up, pace, barter, remaining demand) and the week's internal data. Cite them in the rationale.
 - The trigger must be concrete and falsifiable (a number or observable event), never vague.
 - EXIT CONDITIONS (mandatory): express the trigger as 1-3 machine-checkable exit_conditions using ONLY these metrics: cfr_composite, fob_composite, parity_spread, urea_cfr_mid, barter_aprazo, barter_antecipado (values as computed in the MARKET CONTEXT). Each condition: metric, op (< <= > >=), numeric level, and flips_to. The prose "trigger" sentence must match them. Qualitative conditions (e.g. clients confirming switching) may appear in the prose ONLY, and note they are not machine-monitored.
 - RATIONALE FORMAT (mandatory): the rationale is always three labeled parts - "Reasons to sell:" (the bearish facts), "Reasons to hold:" (the bullish facts), "The open question:" (the one unresolved conflict that will decide direction). Short sentences, specific numbers, no comma-chained analysis. If the stance is strongly one-sided, the weaker column can be one short sentence, but all three labels always appear.
 - PLAIN ACTION LANGUAGE: action_summary is what a trader does, in desk words - e.g. "No tilt: trade the normal flow, sell decent bids at 231+, don't stretch either way." Never analyst abstractions ("momentum argues", "downside cushioned") anywhere in positioning - state what happens to prices and what the desk does about it.
-- If the data genuinely supports no view, say NEUTRAL - that is a valid, honest answer. The desk ruling (2026-10-16): no confidence label - the market either rises or falls; the stance is the call, the trigger is the hedge.`
+- If the data genuinely supports no view either way, say COIN_FLIP - that is a valid, honest answer. Say NEUTRAL only when you expect a flat market. The desk ruling (2026-10-16): no confidence label - the market either rises or falls; the stance is the call, the trigger is the hedge.`
 
 
 // Retry transient API failures (overloaded/rate-limited) before giving up:
