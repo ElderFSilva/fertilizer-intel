@@ -54,7 +54,7 @@ function weekSales(sales, weekThu) {
 }
 const fmtKt = v => v >= 1000 ? `${(v / 1000).toFixed(1)}kt` : `${Math.round(v)}t`
 
-export default function TrackRecord({ scope, sales = [] }) {
+export default function TrackRecord({ scope, sales = [], salesLabel = '' }) {
   const [record, setRecord] = useState(null)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
@@ -114,8 +114,8 @@ export default function TrackRecord({ scope, sales = [] }) {
                       <th className={styles.th}>Mid +2wks</th>
                       <th className={styles.th}>Move</th>
                       <th className={styles.th}>Result</th>
-                      <th className={styles.th}>Avg sold (Amsul GR)</th>
-                      <th className={styles.th}>Sold vs mkt +2wks</th>
+                      <th className={styles.th}>Avg sold (Amsul GR){salesLabel ? ` · ${salesLabel}` : ''}</th>
+                      <th className={styles.th}>Sold vs mkt +2wks{salesLabel ? ` · ${salesLabel}` : ''}</th>
                     </tr>
                   </thead>
                   <tbody>
