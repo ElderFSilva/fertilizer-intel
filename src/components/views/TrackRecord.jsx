@@ -92,12 +92,32 @@ export default function TrackRecord({ scope, sales = [], salesLabel = '' }) {
         <>
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
             <Tile label="Overall hit rate" value={rate(s.overall)} sub={`${frac(s.overall)} scored · ${s.pending} pending${s.coinFlips ? ` · ${s.coinFlips} coin flip${s.coinFlips === 1 ? '' : 's'}` : ''}`} />
-            <Tile label="Same weeks, always LONG" value={s.baseline ? `${s.baseline.alwaysLong}%` : '—'} sub={s.baseline ? `baseline on ${s.baseline.n} scored weeks` : 'no scored weeks'} />
-            <Tile label="Same weeks, always SHORT" value={s.baseline ? `${s.baseline.alwaysShort}%` : '—'} sub="the hit rate must beat the better of these two" />
+            <Tile label="If we had just held" value={s.baseline ? `${s.baseline.alwaysLong}%` : '—'} sub={s.baseline ? `LONG every one of the ${s.baseline.n} weeks` : 'no scored weeks'} />
+            <Tile label="If we had just sold" value={s.baseline ? `${s.baseline.alwaysShort}%` : '—'} sub={s.baseline ? `SHORT every one of the ${s.baseline.n} weeks` : 'no scored weeks'} />
             <Tile label="LONG calls" value={rate(s.byBias.LONG)} sub={frac(s.byBias.LONG)} />
             <Tile label="SHORT calls" value={rate(s.byBias.SHORT)} sub={frac(s.byBias.SHORT)} />
             <Tile label="NEUTRAL calls" value={rate(s.byBias.NEUTRAL)} sub={frac(s.byBias.NEUTRAL)} />
           </div>
+
+          {s.baseline && (() => {
+            const n = s.baseline.n
+            const aiRight = s.overall.correct, aiPct = Math.round(aiRight / n * 100)
+            const holdRight = Math.round(s.baseline.alwaysLong / 100 * n), sellRight = Math.round(s.baseline.alwaysShort / 100 * n)
+            const best = Math.max(s.baseline.alwaysLong, s.baseline.alwaysShort)
+            const bestName = s.baseline.alwaysLong >= s.baseline.alwaysShort ? 'holding' : 'selling'
+            const edge = aiPct - best
+            const verdict = n < 10 ? `Too few weeks to judge (${n}); the bar is ${best}%.`
+              : edge >= 5 ? `The stance beats the simplest rule by ${edge} points — it is adding something.`
+              : edge >= 0 ? `The stance matches the simplest rule (${edge >= 0 ? '+' : ''}${edge} points) — no edge yet.`
+              : `The stance is ${-edge} points BELOW just ${bestName} every week — no edge yet.`
+            const color = n < 10 ? 'var(--text3)' : edge >= 5 ? 'var(--accent)' : edge >= 0 ? 'var(--text2)' : 'var(--red)'
+            return (
+              <p style={{ fontSize: 13, lineHeight: 1.6, color: 'var(--text2)', margin: '14px 0 4px', maxWidth: 900 }}>
+                Over the {n} graded weeks the AI was right <b>{aiRight}</b> times ({aiPct}%). Simply holding every week would have been right <b>{holdRight}</b> times ({s.baseline.alwaysLong}%), because the market rose more than ±1.5% in {holdRight} of those {n} two-week windows; selling every week, <b>{sellRight}</b> times ({s.baseline.alwaysShort}%).
+                {' '}<b style={{ color }}>{verdict}</b>
+              </p>
+            )
+          })()}
 
           <section className={styles.section}>
             <h2 className={styles.sectionTitle}>◧ Stance History</h2>
