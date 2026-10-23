@@ -509,44 +509,51 @@ Reading: a COMPRESSING basis means distributors cannot pass CFR prices on and te
 
 // ── Main entry: build the full market context text for the AI prompt ──
 
-// ── Weekly readiness: is this week's data batch in? ──
-// Shown above the Generate button so the Monday definitive stance is never
-// accidentally generated on half-entered data. Display only - never gates.
+// ── Weekly readiness: which of this week's data is in? ──
+// Two batches, by the desk calendar (ruling 2026-10-23):
+//   Friday prices  - Argus & Fertecon (Thu), Agrinvest (Fri): "in" when an entry
+//                    falls in the current market week.
+//   Monday datasets - line-up, pace, barter, FX, purchase %: dated Friday and
+//                    entered Monday, so "in" when the latest entry is on/after
+//                    the Friday before this week's Monday. Each item carries the
+//                    date of its latest entry so a ○ reads as stale, not missing.
+// Display only - never gates anything.
 export async function weeklyReadiness() {
-  const [pubs, snaps, barter, fx] = await Promise.all([
+  const [pubs, snaps, barter, fx, progress] = await Promise.all([
     loadMarketRows('intl_publications', 120).catch(() => []),
-    loadMarketRows('supply_snapshots', 120).catch(() => []),
+    loadMarketRows('supply_snapshots', 200).catch(() => []),
     loadMarketRows('barter_ratios', 60).catch(() => []),
     loadMarketRows('fx_rates', 30).catch(() => []),
+    loadMarketRows('purchase_progress', 60).catch(() => []),
   ])
-  // The batch is "in" when data covers the most recent completed publication
-  // cycle: the most recent Friday on/before today (prices publish Thu/Fri,
-  // weekly datasets are dated Friday and entered Monday).
-  const now = new Date()
-  const lastFriday = new Date(now)
-  lastFriday.setDate(now.getDate() - ((now.getDay() + 2) % 7))
-  const y = lastFriday.getFullYear()
-  const m = String(lastFriday.getMonth() + 1).padStart(2, '0')
-  const d = String(lastFriday.getDate()).padStart(2, '0')
-  const throughStr = `${y}-${m}-${d}`
-  const targetWeek = weekKeyOf(throughStr)
-  const covers = dateVal => {
-    const wk = weekKeyOf(dateVal)
-    return wk != null && wk >= targetWeek
+  const localYmd = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  const shift = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x }
+  const now = new Date(); now.setHours(0, 0, 0, 0)
+  const dow = now.getDay()
+  const monday = shift(now, -(dow === 0 ? 6 : dow - 1))
+  const thisThu = weekKeyOf(localYmd(now))
+  const mondayStr = localYmd(monday)
+  const fridayBefore = localYmd(shift(monday, -3))
+  const nextMonday = localYmd(shift(monday, 7))
+  const latest = (rows, dateKey, pred = () => true) => rows.filter(pred).map(r => ymd(r[dateKey])).filter(Boolean).sort().reverse()[0] || null
+
+  const priceItem = (label, src) => {
+    const d = latest(pubs, 'pub_date', r => r.source === src && r.product === 'amsul' && r.price_point === 'cfr_brazil')
+    return { label, date: d, ok: d != null && weekKeyOf(d) >= thisThu }
   }
-  const hasPub = src => pubs.some(r => r.source === src && r.product === 'amsul'
-    && r.price_point === 'cfr_brazil' && covers(r.pub_date))
+  const mondayItem = (label, d) => ({ label, date: d, ok: d != null && d >= fridayBefore })
+  const mondayItems = [
+    mondayItem('Line-up', latest(snaps, 'report_date', r => r.series === 'lineup')),
+    mondayItem('Pace', latest(snaps, 'report_date', r => r.series === 'ytd_pace')),
+    mondayItem('Barter', latest(barter, 'ratio_date')),
+    mondayItem('FX', latest(fx, 'rate_date')),
+    mondayItem('Purchase %', latest(progress, 'report_date')),
+  ]
+  const lastEntered = mondayItems.map(i => i.date).filter(Boolean).sort().reverse()[0] || null
   return {
-    through: throughStr,
-    items: [
-      { label: 'Argus', ok: hasPub('argus') },
-      { label: 'Fertecon', ok: hasPub('fertecon') },
-      { label: 'Agrinvest', ok: hasPub('agrinvest') },
-      { label: 'Line-up', ok: snaps.some(r => r.series === 'lineup' && covers(r.report_date)) },
-      { label: 'Pace', ok: snaps.some(r => r.series === 'ytd_pace' && covers(r.report_date)) },
-      { label: 'Barter', ok: barter.some(r => covers(r.ratio_date)) },
-      { label: 'FX', ok: fx.some(r => covers(r.rate_date)) },
-    ],
+    weekThursday: thisThu,
+    friday: { label: 'Friday prices', items: [priceItem('Argus', 'argus'), priceItem('Fertecon', 'fertecon'), priceItem('Agrinvest', 'agrinvest')] },
+    monday: { label: 'Monday datasets', items: mondayItems, lastEntered, expected: mondayStr, next: nextMonday },
   }
 }
 
