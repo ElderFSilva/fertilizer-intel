@@ -565,15 +565,14 @@ export async function basisValidationLines() {
 
 // ── Main entry: build the full market context text for the AI prompt ──
 
-// ── Weekly readiness: which of this week's data is in? ──
-// Two batches, by the desk calendar (ruling 2026-10-23):
-//   Friday prices  - Argus & Fertecon (Thu), Agrinvest (Fri): "in" when an entry
-//                    falls in the current market week.
+// ── Weekly readiness: is the data set for the stance complete? ──
+// Ruling 2026-10-25: the stance for the week of today's Monday is taken only
+// once the data of the week just closed is all in -
+//   Friday prices  - Argus & Fertecon (Thu), Agrinvest (Fri) of the closed week;
 //   Monday datasets - line-up, pace, barter, FX, purchase %: dated Friday and
-//                    entered Monday, so "in" when the latest entry is on/after
-//                    the Friday before this week's Monday. Each item carries the
-//                    date of its latest entry so a ○ reads as stale, not missing.
-// Display only - never gates anything.
+//                    entered Monday, so "in" when dated on/after that Friday.
+// Each item carries the date of its latest entry so a ○ reads as stale, not
+// missing. `complete` and `missing` drive the stance; display never gates.
 export async function weeklyReadiness() {
   const [pubs, snaps, barter, fx, progress] = await Promise.all([
     loadMarketRows('intl_publications', 120).catch(() => []),
@@ -586,18 +585,19 @@ export async function weeklyReadiness() {
   const shift = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x }
   const now = new Date(); now.setHours(0, 0, 0, 0)
   const dow = now.getDay()
+  // Week just closed: previous Mon–Fri on Mon–Thu; the current one from Friday.
   const monday = shift(now, -(dow === 0 ? 6 : dow - 1))
-  const thisThu = weekKeyOf(localYmd(now))
-  const mondayStr = localYmd(monday)
-  const fridayBefore = localYmd(shift(monday, -3))
-  const nextMonday = localYmd(shift(monday, 7))
+  if (dow >= 1 && dow <= 4) monday.setDate(monday.getDate() - 7)
+  const closedThu = localYmd(shift(monday, 3))
+  const closedFri = localYmd(shift(monday, 4))
   const latest = (rows, dateKey, pred = () => true) => rows.filter(pred).map(r => ymd(r[dateKey])).filter(Boolean).sort().reverse()[0] || null
 
   const priceItem = (label, src) => {
     const d = latest(pubs, 'pub_date', r => r.source === src && r.product === 'amsul' && r.price_point === 'cfr_brazil')
-    return { label, date: d, ok: d != null && weekKeyOf(d) >= thisThu }
+    return { label, date: d, ok: d != null && weekKeyOf(d) >= closedThu }
   }
-  const mondayItem = (label, d) => ({ label, date: d, ok: d != null && d >= fridayBefore })
+  const mondayItem = (label, d) => ({ label, date: d, ok: d != null && d >= closedFri })
+  const fridayItems = [priceItem('Argus', 'argus'), priceItem('Fertecon', 'fertecon'), priceItem('Agrinvest', 'agrinvest')]
   const mondayItems = [
     mondayItem('Line-up', latest(snaps, 'report_date', r => r.series === 'lineup')),
     mondayItem('Pace', latest(snaps, 'report_date', r => r.series === 'ytd_pace')),
@@ -605,11 +605,13 @@ export async function weeklyReadiness() {
     mondayItem('FX', latest(fx, 'rate_date')),
     mondayItem('Purchase %', latest(progress, 'report_date')),
   ]
-  const lastEntered = mondayItems.map(i => i.date).filter(Boolean).sort().reverse()[0] || null
+  const missing = [...fridayItems, ...mondayItems].filter(i => !i.ok).map(i => i.label)
   return {
-    weekThursday: thisThu,
-    friday: { label: 'Friday prices', items: [priceItem('Argus', 'argus'), priceItem('Fertecon', 'fertecon'), priceItem('Agrinvest', 'agrinvest')] },
-    monday: { label: 'Monday datasets', items: mondayItems, lastEntered, expected: mondayStr, next: nextMonday },
+    closedWeek: { monday: localYmd(monday), friday: closedFri, thursday: closedThu },
+    friday: { label: 'Friday prices', items: fridayItems },
+    monday: { label: 'Monday datasets', items: mondayItems },
+    complete: missing.length === 0,
+    missing,
   }
 }
 

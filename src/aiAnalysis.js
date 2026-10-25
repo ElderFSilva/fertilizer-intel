@@ -1,5 +1,5 @@
 // AI market intelligence analysis using Claude Fable 5 (Stage 6.3)
-import { buildMarketContext } from './marketSignals.js'
+import { buildMarketContext, weeklyReadiness } from './marketSignals.js'
 import { buildDeskContext } from './deskSignals.js'
 import { buildTrackRecord, trackRecordText, buildLessonsText } from './learningLoop.js'
 import { saveAnalysisSnapshot } from './cloudAnalysis.js'
@@ -47,6 +47,26 @@ export function currentWeekInfo() {
   return { monday, friday, thursdayStr: fmt(thursday), mondayStr: fmt(monday), fridayStr: fmt(friday) }
 }
 
+// ── Analysis week = the market week just closed (ruling 2026-10-25) ──
+// The weekly analysis and the stance read the calls, sales and publications
+// of the LAST COMPLETED Mon–Fri week. Mon–Thu that is the previous week; from
+// Friday (the week's last trading day, report day) through Sunday it is the
+// current week.
+export function analysisWeekInfo(now = new Date()) {
+  const day = now.getDay() // 0=Sun ... 6=Sat
+  const monday = new Date(now)
+  monday.setDate(now.getDate() - (day === 0 ? 6 : day - 1))
+  monday.setHours(0, 0, 0, 0)
+  if (day >= 1 && day <= 4) monday.setDate(monday.getDate() - 7)   // Mon–Thu: previous week
+  const friday = new Date(monday)
+  friday.setDate(monday.getDate() + 4)
+  friday.setHours(23, 59, 59, 999)
+  const thursday = new Date(monday)
+  thursday.setDate(monday.getDate() + 3)
+  const fmt = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  return { monday, friday, thursdayStr: fmt(thursday), mondayStr: fmt(monday), fridayStr: fmt(friday) }
+}
+
 // Human label like "Jun 23–27, 2026" — or "Aug 31 – Sep 4, 2026" when the
 // week straddles two months (and the year when it straddles two years).
 export function weekLabel(info = currentWeekInfo()) {
@@ -59,57 +79,20 @@ export function weekLabel(info = currentWeekInfo()) {
   return `${m1} ${mon.getDate()}–${fri.getDate()}, ${y2}`
 }
 
-// ── Stance window (desk ruling 2026-10-14) ──
-// The week's stance is taken ONLY on Friday from 17:00 through Sunday,
-// Brasília time: full week of calls, sales, Thursday publications and the
-// Monday line-up are in, and the grading baseline (Thursday's print) is
-// known. Runs outside the window refresh signals/analysis/report and show
-// the stance in force (the one taken at the last window); nothing is logged.
-// A missed window = no stance for that week - never carried forward.
-export const STANCE_TZ = 'America/Sao_Paulo'
-export const STANCE_OPEN_HOUR = 17
-export const STANCE_REGIME_FROM = '2026-10-16'   // first Friday window; earlier stances were Monday-made
-const STANCE_REGIME_START_ISO = '2026-10-16T20:00:00Z'   // Fri 2026-10-16 17:00 Brasília (UTC-3, no DST)
-const STANCE_REGIME_FIRST_THURSDAY = '2026-10-15'
-
-function brasiliaParts(now = new Date()) {
-  const parts = new Intl.DateTimeFormat('en-US', { timeZone: STANCE_TZ, weekday: 'short', hour: 'numeric', hour12: false })
-    .formatToParts(now)
-  const weekday = parts.find(p => p.type === 'weekday')?.value || ''
-  const hour = parseInt(parts.find(p => p.type === 'hour')?.value || '0', 10) % 24
-  return { weekday, hour }
-}
-
-export function stanceWindow(now = new Date()) {
-  const { weekday, hour } = brasiliaParts(now)
-  const open = weekday === 'Sat' || weekday === 'Sun' || (weekday === 'Fri' && hour >= STANCE_OPEN_HOUR)
-  return { open, weekday, hour }
-}
-
-const addDaysStr = (ymdStr, n) => {
-  const d = new Date(ymdStr + 'T12:00:00')
-  d.setDate(d.getDate() + n)
-  return d.toISOString().split('T')[0]
-}
+// ── Stance rule (desk ruling 2026-10-25) ──
+// The stance for the week of a given Monday is taken by the FIRST run of that
+// week made after the full data set is in: Friday prices (Argus, Fertecon,
+// Agrinvest) and the Monday datasets (line-up, pace, barter, FX, purchase %).
+// No clock: a run with anything missing refreshes signals and analysis but
+// takes no stance and names what is missing. Calls and sales fed to it are
+// the week just closed. Stance and analysis are two different things.
+export const STANCE_REGIME_FROM = '2026-10-26'   // Monday-after-data rule; Oct 16–23 were Friday 17:00 stances; earlier ones Monday without the full set
 const fmtDay = ymdStr => new Date(ymdStr + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
 
-// Which window the stance in force comes from: the current week's if that
-// window is open now, otherwise the previous week's (already closed).
-export function stanceInForceKey(week = currentWeekInfo(), now = new Date()) {
-  const open = stanceWindow(now).open
-  const thursday = open ? week.thursdayStr : addDaysStr(week.thursdayStr, -7)
-  const friday = addDaysStr(thursday, 1), sunday = addDaysStr(thursday, 3)
-  return { thursday, friday, sunday, open, nextFriday: open ? friday : addDaysStr(friday, 7) }
-}
-
-export function noStanceNote(key) {
-  return `No stance in force — the window ${fmtDay(key.friday)} ${STANCE_OPEN_HOUR}:00 → ${fmtDay(key.sunday)} (Brasília) was missed. Next window: ${fmtDay(key.nextFriday)} ${STANCE_OPEN_HOUR}:00.`
-}
-
-// Build a compact text summary. If weekOnly is true, restrict to current Mon–Fri
-// calls and the publication entry dated to this week's Thursday.
+// Build a compact text summary. If weekOnly is true, restrict to the analysis
+// week's Mon–Fri calls (the week just closed) and its Thursday publications.
 function buildDataSummary(calls, weekOnly = false) {
-  const week = currentWeekInfo()
+  const week = analysisWeekInfo()
 
   let useCalls = calls
   let argus = loadStorage(ARGUS_KEY)
@@ -342,29 +325,25 @@ async function buildLearningContext(scope) {
   const parts = []
   parts.push('### YOUR PAST STANCES, GRADED (computed, authoritative)')
   parts.push(trackRecordText(record))
-  parts.push(`Stance regime: from ${STANCE_REGIME_FROM} the weekly stance is taken Friday after ${STANCE_OPEN_HOUR}:00 Brasília with the full week's data and graded from that Thursday's print; earlier stances were taken Monday with less information. Grades are comparable but the two regimes are not pooled as equals.`)
+  parts.push(`Stance regime: from ${STANCE_REGIME_FROM} the weekly stance is taken on Monday after the complete prior-week data set is in (prices, line-up, pace, barter, FX, purchase %) and graded from that week's Thursday print; stances dated 2026-10-15 to 2026-10-22 were taken Friday after the close; earlier ones on Monday without the full set. Grades are comparable but the regimes are not pooled as equals.`)
   if (lessons) parts.push('### DESK LESSONS (taught by the admin - treat as established desk knowledge)\n' + lessons)
   return parts.join('\n')
 }
 
 
 // ── Weekly-definitive stance ──
-// One stance per week_thursday. Since 2026-10-16 it is the first run inside
-// the Friday 17:00 → Sunday window (see stanceWindow); before that it was the
-// first run of the week (Monday). Later generations refresh signals &
-// analysis, but their positioning output is discarded: the pinned stance is
-// returned instead and nothing is logged.
+// One stance per week_thursday: the first one logged for that week stands.
+// Later generations refresh signals & analysis, but their positioning output
+// is discarded: the pinned stance is returned instead and nothing is logged.
 async function getDefinitiveStance(scope, weekThursday) {
   try {
-    let q = supabase
+    const { data, error } = await supabase
       .from('positioning_log')
       .select('*')
       .eq('scope', scope || 'default')
       .eq('week_thursday', weekThursday)
-    // Transition week: a Monday-regime stance logged for the first Friday-regime
-    // week does not count as pinned, so the Friday window still takes one.
-    if (weekThursday >= STANCE_REGIME_FIRST_THURSDAY) q = q.gte('generated_at', STANCE_REGIME_START_ISO)
-    const { data, error } = await q.order('generated_at', { ascending: true }).limit(1)
+      .order('generated_at', { ascending: true })
+      .limit(1)
     if (error || !data || !data.length) return null
     return data[0]
   } catch { return null }
@@ -406,9 +385,10 @@ export async function runAIAnalysis(calls, scope, sales = []) {
   return result
 }
 
-// ── Weekly snapshot: Mon–Fri calls + this week's publications, locked & stamped ──
+// ── Weekly analysis: the week just closed, plus this week's stance when the data is complete ──
 export async function runWeeklyAnalysis(calls, scope, sales = [], onStatus = null) {
-  const week = currentWeekInfo()
+  const week = analysisWeekInfo()          // calls/sales/publications: the week just closed
+  const stanceWeek = currentWeekInfo()     // the stance is for the week of today's Monday
   const market = await buildMarketContext().catch(() => 'Market data unavailable (load error).')
   const desk = await buildDeskContext(calls, sales).catch(() => 'Desk history unavailable (load error).')
   let learning = await buildLearningContext(scope).catch(() => '')
@@ -426,17 +406,15 @@ export async function runWeeklyAnalysis(calls, scope, sales = [], onStatus = nul
     trackRecord: (await buildTrackRecord(scope).catch(() => null))?.summary || null,
     generatedAt: new Date().toISOString(),
     callCount: calls.length,
-    weekThursday: week.thursdayStr,   // identifies which week this snapshot is for
-    weekLabel: weekLabel(week),       // human label, e.g. "Jun 23–27, 2026"
+    weekThursday: week.thursdayStr,   // the week this analysis is about (calls, sales, prints)
+    weekLabel: weekLabel(week),       // e.g. "Oct 19–23, 2026"
   }
-  // Stance in force = the one taken at the last window (this week's if open
-  // now, else last week's). Inside an open window with nothing pinned yet,
-  // this run's positioning becomes the week's stance. Outside the window
-  // with nothing pinned, there is NO stance - the model's positioning output
-  // is discarded, not shown, not logged.
-  const key = stanceInForceKey(week)
-  const pinned = await getDefinitiveStance(scope, key.thursday)
-  result.stanceWeekThursday = key.thursday
+  // Stance: pinned for this week already -> show it. Not yet -> take it now
+  // only if the full data set is in; otherwise no stance, and say what is missing.
+  const key = stanceWeek.thursdayStr
+  result.stanceWeekThursday = key
+  result.stanceWeekLabel = weekLabel(stanceWeek)
+  const pinned = await getDefinitiveStance(scope, key)
   if (pinned) {
     result.positioning = {
       bias: pinned.bias,
@@ -447,15 +425,21 @@ export async function runWeeklyAnalysis(calls, scope, sales = [], onStatus = nul
     }
     result.stanceLockedAt = pinned.generated_at
     result.stanceStatus = 'pinned'
-  } else if (key.open) {
-    await logPositioning(parsed.positioning, scope, key.thursday)
-    result.stanceLockedAt = new Date().toISOString()
-    result.stanceStatus = 'pinned'
   } else {
-    result.positioning = null
-    result.stanceLockedAt = null
-    result.stanceStatus = 'none'
-    result.stanceNote = noStanceNote(key)
+    let readiness = null
+    try { readiness = await weeklyReadiness() } catch { readiness = null }
+    const missing = readiness ? readiness.missing : ['data check unavailable']
+    if (readiness && readiness.complete) {
+      await logPositioning(parsed.positioning, scope, key)
+      result.stanceLockedAt = new Date().toISOString()
+      result.stanceStatus = 'pinned'
+    } else {
+      result.positioning = null
+      result.stanceLockedAt = null
+      result.stanceStatus = 'none'
+      result.stanceMissing = missing
+      result.stanceNote = `No stance for the week of ${weekLabel(stanceWeek)} — the stance is taken only when the full data set is in. Missing: ${missing.join(', ')}. Enter it and regenerate.`
+    }
   }
   if (scope === 'global') {
     // Shared desk analysis: publish to the cloud for every user
@@ -522,7 +506,7 @@ export function getCachedAnalysis(scope) {
 export function isCurrentWeekSnapshot(scope) {
   const cached = getCachedAnalysis(scope)
   if (!cached || !cached.weekThursday) return false
-  return cached.weekThursday === currentWeekInfo().thursdayStr
+  return cached.weekThursday === analysisWeekInfo().thursdayStr
 }
 
 // Legacy auto-refresh check (no longer used for weekly snapshot flow)
