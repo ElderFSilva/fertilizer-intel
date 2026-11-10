@@ -544,7 +544,62 @@ Validation so far - port basis: ${validateBasis(port, cfr).text}. Inland basis: 
 Reading: a COMPRESSING basis means distributors cannot pass CFR prices on and tend to stop bidding within weeks; a WIDENING basis means room to buy. This relationship is a hypothesis under test, not a fact: cite the computed level and direction words only, never infer a stance from it alone.`
 }
 
-// Basis validation lines for the Market Data view (same computation as the AI block).
+// ── Delivered N premium: Amsul vs urea per unit of N at CFR, port and interior ──
+// Ruling 2026-11-10. We sell CFR, but buyers resell delivered, so their
+// decision is made on the farm-gate comparison. Moving one tonne of N takes
+// ~4.8 t of Amsul (21% N) against ~2.2 t of urea (46% N), so the premium
+// widens with every inland leg. Same market week for both products at each
+// point: CFR = Amsul compacted composite vs urea CFR; port and interior =
+// Agrinvest FCA Paranaguá and FOB Rondonópolis for both. Described only -
+// not a stance driver until it has a record.
+export function deliveredPremium(pubs, benchRows) {
+  const wkMids = (product, point) => weeklyMids(pubs.filter(r => r.product === product && r.price_point === point && (r.frequency || 'weekly') === 'weekly'))
+  const amCfr = weeklyComposite(pubs, benchRows)
+  const am = { cfr: Object.fromEntries(Object.entries(amCfr).map(([wk, v]) => [wk, v.mid])), port: wkMids('amsul', 'fca_paranagua'), interior: wkMids('amsul', 'fob_rondonopolis') }
+  const ur = { cfr: wkMids('urea', 'cfr_brazil'), port: wkMids('urea', 'fca_paranagua'), interior: wkMids('urea', 'fob_rondonopolis') }
+  const prem = (a, u) => (a == null || u == null || !u) ? null : ((a / N_CONTENT.amsul) / (u / N_CONTENT.urea) - 1) * 100
+  const POINTS = [['cfr', 'CFR'], ['port', 'Paranaguá'], ['interior', 'Rondonópolis']]
+  // weeks where an inland premium can be computed (that is what this block adds)
+  const weeks = Object.keys(am.interior).filter(wk => ur.interior[wk] != null)
+    .concat(Object.keys(am.port).filter(wk => ur.port[wk] != null))
+  const inlandWeeks = [...new Set(weeks)].sort()
+  const amsulInlandWeeks = [...new Set([...Object.keys(am.port), ...Object.keys(am.interior)])].sort()
+  if (!inlandWeeks.length) {
+    return amsulInlandWeeks.length
+      ? { ok: false, reason: 'urea FCA Paranaguá / FOB Rondonópolis not entered yet - enter the two Agrinvest urea rows each week' }
+      : null
+  }
+  const latest = inlandWeeks[inlandWeeks.length - 1]
+  const shiftWk = (wk, days) => { const d = new Date(wk + 'T12:00:00'); d.setDate(d.getDate() + days); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` }
+  const prevWk = shiftWk(latest, -28)
+  const at = wk => Object.fromEntries(POINTS.map(([k]) => [k, prem(am[k][wk], ur[k][wk])]))
+  const now = at(latest), prev = at(prevWk)
+  const word = (a, b) => (a == null || b == null) ? null : Math.abs(a - b) < 1 ? 'STABLE' : a > b ? 'WIDENING' : 'NARROWING'
+  const lagging = amsulInlandWeeks.length && amsulInlandWeeks[amsulInlandWeeks.length - 1] > latest
+  return {
+    ok: true, latest, prevWk, since: inlandWeeks[0], n: inlandWeeks.length, lagging,
+    points: POINTS.map(([k, label]) => ({ key: k, label, now: now[k], prev: prev[k], dir: word(now[k], prev[k]), amsul: am[k][latest] ?? null, urea: ur[k][latest] ?? null })),
+  }
+}
+
+export function deliveredPremiumBlock(pubs, benchRows) {
+  const p = deliveredPremium(pubs, benchRows)
+  if (!p) return null
+  if (!p.ok) return `### DELIVERED N PREMIUM (Amsul vs urea per unit of N - CFR, port, interior)\nNot computable: ${p.reason}.`
+  const cur = p.points.map(x => `${x.label} ${pct(x.now, 0)}${x.amsul != null && x.urea != null ? ` (Amsul ${fmt(x.amsul)} vs urea ${fmt(x.urea)})` : ''}`).join('; ')
+  const prev = p.points.some(x => x.prev != null)
+    ? `Four weeks earlier (week of ${p.prevWk}): ${p.points.map(x => `${x.label} ${pct(x.prev, 0)}`).join('; ')}. Direction: ${p.points.filter(x => x.dir).map(x => `${x.label} ${x.dir}`).join(', ')}.`
+    : 'Four weeks earlier: not available yet.'
+  const cfr = p.points[0].now, inner = p.points[2].now
+  const amp = cfr != null && inner != null ? ` The interior premium is ${Math.round(inner - cfr)} points above the CFR one.` : ''
+  return `### DELIVERED N PREMIUM (Amsul vs urea per unit of N, same market week - computed; describe only)
+Week of ${p.latest}: ${cur}.${amp}
+${prev}
+History: ${p.n} weeks since ${p.since}.${p.lagging ? ' Urea FCA/FOB not yet entered for the latest Amsul week - figures above are the last complete week.' : ''}
+Reading: we sell CFR only, but our buyers resell delivered, so they compare Amsul and urea at the farm gate. Delivering one tonne of N takes ~4.8 t of Amsul against ~2.2 t of urea, so the premium widens with each inland leg and the CFR premium alone UNDERSTATES the substitution pressure buyers face. Use this to read WHICH buyers soften first when the interior premium is high or widening: N-only interior demand (MT/GO blenders, safrinha corn) first; coastal buyers and those whose customers need the sulphur last. It has no graded record yet: never a stance driver on its own. The long-history percentile reading of the CFR premium is the Argus block above; this block compares the three delivery points.`
+}
+
+// Lines for the Market Data view (same computations as the AI blocks).
 export async function basisValidationLines() {
   const loadBench = async () => {
     const { data, error } = await supabase.from('publications').select('source, pub_date, low, high').order('pub_date', { ascending: false }).limit(600)
@@ -557,10 +612,23 @@ export async function basisValidationLines() {
   const weeks = [...new Set([...Object.keys(fca), ...Object.keys(rondo)])].sort()
   const port = weeks.filter(wk => fca[wk] != null && cfr[wk]).map(wk => ({ wk, value: fca[wk] - cfr[wk].mid }))
   const inland = weeks.filter(wk => fca[wk] != null && rondo[wk] != null).map(wk => ({ wk, value: rondo[wk] - fca[wk] }))
-  return [
+  const lines = [
     { label: 'Port basis (FCA Paranaguá − CFR)', ...validateBasis(port, cfr) },
     { label: 'Inland basis (FOB Rondonópolis − FCA)', ...validateBasis(inland, cfr) },
   ]
+  const p = deliveredPremium(pubs, benchRows)
+  if (p) {
+    const f = v => v == null ? 'n/a' : `${v >= 0 ? '+' : ''}${Math.round(v)}%`
+    const fd = wk => new Date(wk + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    lines.unshift({
+      label: 'N premium, Amsul vs urea per unit of N',
+      trusted: !!p.ok,
+      text: p.ok
+        ? `${p.points.map(x => `${x.label} ${f(x.now)}`).join(' · ')} (week of ${fd(p.latest)}; 4 weeks earlier: ${p.points.map(x => f(x.prev)).join(' · ')}) — ${p.n} weeks since ${fd(p.since)}${p.lagging ? '; urea FCA/FOB not yet entered for the latest week' : ''}`
+        : p.reason,
+    })
+  }
+  return lines
 }
 
 // ── Main entry: build the full market context text for the AI prompt ──
@@ -640,6 +708,7 @@ export async function buildMarketContext() {
     parityBlock(pubs, freights, benchRows),
     nUnitBlock(pubs),
     inlandBlock(pubs, benchRows),
+    deliveredPremiumBlock(pubs, benchRows),
     supplyBlock(snaps),
     barterBlock(barter),
     progressBlock(progress),
