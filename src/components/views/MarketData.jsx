@@ -20,6 +20,58 @@ function todayYMD() {
   return `${y}-${m}-${day}`
 }
 
+// ── Auto-date rule (desk ruling 2026-11-10) ──
+// A row's date is set by what is being entered, not by the day it is typed:
+//   Argus / Fertecon      -> the most recent Thursday (print day)
+//   Agrinvest data        -> the most recent Friday (the week it refers to;
+//                            the full report only arrives the Monday after)
+//   Orion line-up, others -> today
+// Applies to NEW rows only and stays editable; a manual date is kept until
+// the source or the tab changes. Editing an existing row never re-dates it.
+function lastWeekdayYMD(dow) {
+  const d = new Date()
+  d.setHours(12, 0, 0, 0)
+  d.setDate(d.getDate() - ((d.getDay() - dow + 7) % 7))
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+const THU = 4, FRI = 5
+function autoDateRule(tabId, form) {
+  if (tabId === 'intl') {
+    if (form.source === 'argus' || form.source === 'fertecon') return { date: lastWeekdayYMD(THU), why: `Thursday, ${form.source === 'argus' ? 'Argus' : 'Fertecon'} print` }
+    if (form.source === 'agrinvest') return { date: lastWeekdayYMD(FRI), why: 'Friday of the report week' }
+    return null
+  }
+  if (tabId === 'barter' || tabId === 'progress') return { date: lastWeekdayYMD(FRI), why: 'Friday of the report week' }
+  if (tabId === 'pace' || tabId === 'fx') {
+    return (form.source || 'agrinvest') === 'agrinvest'
+      ? { date: lastWeekdayYMD(FRI), why: 'Friday of the report week' }
+      : null
+  }
+  return null
+}
+const dateFieldOf = tab => tab.fields.find(f => f.type === 'date')
+function withAutoDate(tab, form, fallbackToday = false) {
+  const rule = autoDateRule(tab.id, form), df = dateFieldOf(tab)
+  if (!df) return form
+  if (rule) return { ...form, [df.key]: rule.date }
+  return fallbackToday ? { ...form, [df.key]: todayYMD() } : form   // sources with no rule: today
+}
+const freshFormFor = tab => withAutoDate(tab, emptyFormFor(tab))
+
+// ── Barter: 4-year average carried forward (ruling 2026-11-10) ──
+// The Agrinvest 4-year average rarely changes, so the form pre-fills it from
+// the last row saved for the same crop + product + condition + region. Still
+// editable; a new value becomes the pre-fill from then on.
+const normKey = v => String(v ?? '').trim().toLowerCase()
+function lastBarterAvg(rows, form) {
+  const match = rows
+    .filter(r => normKey(r.crop) === normKey(form.crop) && normKey(r.product) === normKey(form.product)
+      && normKey(r.condition) === normKey(form.condition) && normKey(r.region) === normKey(form.region)
+      && r.ref_avg_4y != null && r.ref_avg_4y !== '')
+    .sort((a, b) => String(b.ratio_date).localeCompare(String(a.ratio_date)))
+  return match.length ? String(match[0].ref_avg_4y) : ''
+}
+
 function fmtDate(v) {
   if (!v) return '—'
   const d = new Date(String(v).slice(0, 10) + 'T00:00:00')
@@ -304,8 +356,10 @@ export default function MarketData({ role }) {
   const tab = TABS.find(t => t.id === tabId)
 
   const [rows, setRows] = useState([])
-  const [form, setForm] = useState(() => emptyFormFor(TABS[0]))
+  const [form, setForm] = useState(() => freshFormFor(TABS[0]))
   const [editingId, setEditingId] = useState(null)
+  const [dateTouched, setDateTouched] = useState(false)   // user set the date by hand
+  const [avgTouched, setAvgTouched] = useState(false)     // user set the barter 4y avg by hand
   const [busy, setBusy] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -334,8 +388,10 @@ export default function MarketData({ role }) {
   }
 
   useEffect(() => {
-    setForm(emptyFormFor(tab))
+    setForm(freshFormFor(tab))
     setEditingId(null)
+    setDateTouched(false)
+    setAvgTouched(false)
     setSaved(false)
     reload(tab)
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -362,8 +418,10 @@ export default function MarketData({ role }) {
         const inserted = await insertMarketRow(tab.table, values)
         setRows(prev => [inserted, ...prev])
       }
-      setForm(emptyFormFor(tab))
+      setForm(freshFormFor(tab))
       setEditingId(null)
+      setDateTouched(false)
+      setAvgTouched(false)
       setSaved(true)
       setTimeout(() => setSaved(false), 2500)
       // Trigger-watch: does this fresh data point breach the standing stance?
@@ -391,10 +449,35 @@ export default function MarketData({ role }) {
   }
 
   function cancelEdit() {
-    setForm(emptyFormFor(tab))
+    setForm(freshFormFor(tab))
     setEditingId(null)
+    setDateTouched(false)
+    setAvgTouched(false)
     setError('')
   }
+
+  // One place for every field change, so the date and 4y-average rules apply.
+  function changeField(fl, value) {
+    const df = dateFieldOf(tab)
+    if (df && fl.key === df.key) { setDateTouched(true); setForm(f => ({ ...f, [fl.key]: value })); return }
+    if (tab.id === 'barter' && fl.key === 'ref_avg_4y') { setAvgTouched(true); setForm(f => ({ ...f, [fl.key]: value })); return }
+    if (!editingId && fl.key === 'source') {
+      // a new source re-dates the row (and drops any manual date)
+      setDateTouched(false)
+      setForm(f => withAutoDate(tab, { ...f, source: value }, true))
+      return
+    }
+    if (!editingId && tab.id === 'barter' && ['crop', 'product', 'condition', 'region'].includes(fl.key)) setAvgTouched(false)
+    setForm(f => ({ ...f, [fl.key]: value }))
+  }
+
+  // Barter: pre-fill the 4-year average from the last row of the same series.
+  useEffect(() => {
+    if (tabId !== 'barter' || editingId || avgTouched) return
+    const v = lastBarterAvg(rows, form)
+    if (v !== (form.ref_avg_4y ?? '')) setForm(f => ({ ...f, ref_avg_4y: v }))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tabId, editingId, avgTouched, rows, form.crop, form.product, form.condition, form.region])
 
   async function handleDelete(id) {
     setBusy(true)
@@ -452,7 +535,7 @@ export default function MarketData({ role }) {
           <h2 className={styles.sectionTitle}>{editingId ? '✎ Edit Entry' : (tab.id === 'lineup' ? '⊕ Add Entry (manual)' : '⊕ Add Entry')}</h2>
           <div className={styles.formWrap}>
             {tab.fields.map(fl => (
-              <div key={fl.key} className={styles.formField}>
+              <div key={fl.key} className={styles.formField} style={{ position: 'relative' }}>
                 <label className={styles.label}>
                   {fl.label}{fl.required ? ' *' : ''}
                 </label>
@@ -460,7 +543,7 @@ export default function MarketData({ role }) {
                   <select
                     className={styles.input}
                     value={form[fl.key]}
-                    onChange={e => setForm(f => ({ ...f, [fl.key]: e.target.value }))}
+                    onChange={e => changeField(fl, e.target.value)}
                   >
                     {fl.options.map(o => <option key={o.v} value={o.v}>{o.l}</option>)}
                   </select>
@@ -471,8 +554,23 @@ export default function MarketData({ role }) {
                     step={fl.type === 'number' ? 'any' : undefined}
                     placeholder={fl.ph || ''}
                     value={form[fl.key]}
-                    onChange={e => setForm(f => ({ ...f, [fl.key]: e.target.value }))}
+                    onChange={e => changeField(fl, e.target.value)}
                   />
+                )}
+                {!editingId && fl.type === 'date' && fl.key === dateFieldOf(tab)?.key && (() => {
+                  const rule = autoDateRule(tab.id, form)
+                  if (!rule) return null
+                  const manual = dateTouched && form[fl.key] !== rule.date
+                  return (
+                    <span style={{ position: 'absolute', top: '100%', left: 0, marginTop: 2, whiteSpace: 'nowrap', fontSize: 10, color: manual ? 'var(--amber)' : 'var(--text3)', fontFamily: "'DM Mono', monospace" }}>
+                      {manual ? `manual · rule: ${fmtDate(rule.date)}` : `auto · ${rule.why}`}
+                    </span>
+                  )
+                })()}
+                {!editingId && tab.id === 'barter' && fl.key === 'ref_avg_4y' && form.ref_avg_4y !== '' && !avgTouched && (
+                  <span style={{ position: 'absolute', top: '100%', left: 0, marginTop: 2, whiteSpace: 'nowrap', fontSize: 10, color: 'var(--text3)', fontFamily: "'DM Mono', monospace" }}>
+                    from last entry
+                  </span>
                 )}
               </div>
             ))}
