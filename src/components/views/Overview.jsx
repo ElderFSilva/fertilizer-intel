@@ -340,7 +340,7 @@ export default function Overview({ calls, sales, allCalls, allSales, role, scope
                       )}
                       {row.priceTarget && (
                         <div className={styles.popupDemandCell}>
-                          <span className={styles.popupDemandCellLabel}>Price Target</span>
+                          <span className={styles.popupDemandCellLabel}>{row.priceKind === 'bid' ? 'Firm Bid' : 'Price Target'}</span>
                           <span className={styles.popupDemandCellValue} style={{ color: 'var(--accent)' }}>{row.priceTarget}</span>
                         </div>
                       )}
@@ -634,7 +634,10 @@ export default function Overview({ calls, sales, allCalls, allSales, role, scope
                       <span className={styles.demandListCell}>{row.product || '—'}</span>
                       <span className={styles.demandListCell}>{row.volume ? formatVolume(row.volume) : '—'}</span>
                       <span className={styles.demandListCell}>{row.port || '—'}</span>
-                      <span className={styles.demandListCell} style={{ color: row.priceTarget ? 'var(--accent)' : 'var(--text3)' }}>{row.priceTarget || '—'}</span>
+                      <span className={styles.demandListCell} style={{ color: row.priceTarget ? 'var(--accent)' : 'var(--text3)' }}>
+                        {row.priceKind === 'bid' && <span title="Firm bid" style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.06em', border: '1px solid var(--accent)', borderRadius: 4, padding: '0 4px', marginRight: 5, fontFamily: "'DM Mono', monospace" }}>BID</span>}
+                        {row.priceTarget || '—'}
+                      </span>
                       <span className={styles.demandListCell}>{row.laycan || '—'}</span>
                     </div>
                   ))}

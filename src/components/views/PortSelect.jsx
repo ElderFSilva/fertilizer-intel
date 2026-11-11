@@ -12,6 +12,20 @@ const PORTS = [
   { code: 'Vitória', label: 'Vitória' },
 ]
 
+// The list spelling for whatever was typed: "santarem" -> "Santarém",
+// "pgua" -> "Paranaguá". A port that is not on the list is returned trimmed,
+// as typed. Used when the field loses focus and when demands are compared,
+// so the same port can never count as two.
+const stripAccents = s => String(s ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().replace(/\s+/g, ' ').toLowerCase()
+const PORT_ALIASES = { pgua: 'Paranaguá', png: 'Paranaguá', sfs: 'São Francisco do Sul', 'sao francisco': 'São Francisco do Sul' }
+export function canonicalPort(text) {
+  const t = String(text ?? '').trim().replace(/\s+/g, ' ')
+  if (!t) return ''
+  const k = stripAccents(t)
+  const hit = PORTS.find(p => stripAccents(p.code) === k)
+  return hit ? hit.code : (PORT_ALIASES[k] || t)
+}
+
 export default function PortSelect({ value, onChange }) {
   const [query, setQuery] = useState(value || '')
   const [open, setOpen] = useState(false)
@@ -83,6 +97,11 @@ export default function PortSelect({ value, onChange }) {
         value={query}
         onChange={handleChange}
         onFocus={() => setOpen(true)}
+        onBlur={() => {
+          const fixed = canonicalPort(query)
+          if (fixed !== query) { setQuery(fixed); onChange(fixed) }
+          setOpen(false)
+        }}
         onKeyDown={handleKeyDown}
         placeholder="Type port name..."
         autoComplete="off"

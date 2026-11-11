@@ -1,4 +1,5 @@
 import PortSelect from './PortSelect.jsx'
+import LaycanSelect from './LaycanSelect.jsx'
 import { useState } from 'react'
 import { PRODUCTS } from '../../data.js'
 import { findVolumeConflicts, findActiveIdentityLines, volumeNum, ACTIVE_DAYS } from '../../demands.js'
@@ -42,7 +43,7 @@ function emptyDemandRow() {
 function emptyForm() {
   return {
     client: '', date: new Date().toISOString().split('T')[0],
-    demandRows: [emptyDemandRow()],
+    demandRows: [emptyDemandRow()], noDemand: false,
     demand: '', remarks: '', prices: emptyPrices(), competitorOffers: []
   }
 }
@@ -71,7 +72,7 @@ function describeDemand(r) {
   return [formatVol(r.volume) + 't', r.product, r.port, r.laycan].filter(Boolean).join(' ')
 }
 
-function CompetitorOffersEditor({ offers, onChange, warnFor = () => null }) {
+function CompetitorOffersEditor({ offers, onChange, warnFor = () => null, refDate }) {
   function addOffer() { onChange([...offers, emptyCompOffer()]) }
   function removeOffer(i) { onChange(offers.filter((_, idx) => idx !== i)) }
   function updateOffer(i, field, val) {
@@ -110,7 +111,7 @@ function CompetitorOffersEditor({ offers, onChange, warnFor = () => null }) {
           </div>
           <div className={styles.compFieldWrap}>
             <span className={styles.compFieldLabel}>Laycan</span>
-            <input className={styles.compInput} placeholder="e.g. Oct 15-30" value={o.laycan || ''} onChange={e => updateOffer(i, 'laycan', e.target.value)} />
+            <LaycanSelect className={styles.compSelect} value={o.laycan || ''} refDate={refDate} onChange={val => updateOffer(i, 'laycan', val)} />
           </div>
           <button type="button" className={styles.removeOfferBtn} title="Remove offer" onClick={() => removeOffer(i)}>✕</button>
         </div>
@@ -167,6 +168,9 @@ export default function Upload({ onAdd, calls = [] }) {
     if (!form.client.trim()) { setError('Client name is required.'); return }
 
     const client = form.client.trim()
+    // "No demand this call": the client said he is not buying. Stored as a
+    // fact on the call, with no demand rows.
+    if (form.noDemand) { finalizeSave({ ...form, demandRows: [] }); return }
     const currentRows = (form.demandRows || []).filter(r => r.product && r.volume)
 
     // Every row whose identity is already active with a different volume
@@ -310,9 +314,22 @@ export default function Upload({ onAdd, calls = [] }) {
         <div className={styles.demandSection}>
           <div className={styles.demandSectionHeader}>
             <label className={styles.label}>Demand</label>
-            <button type="button" className={styles.addDemandBtn} onClick={() => setField('demandRows', [...(form.demandRows || []), emptyDemandRow()])}>+ Add Demand</button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+              {(() => {
+                const filled = (form.demandRows || []).some(r => r.product || r.volume)
+                return (
+                  <label className={styles.noDemand} title={filled ? 'Remove the demand rows first' : 'The client said he has no demand. Leave unticked if demand was simply not discussed.'}>
+                    <input type="checkbox" checked={!!form.noDemand} disabled={filled && !form.noDemand}
+                      onChange={e => setForm(f => ({ ...f, noDemand: e.target.checked, demandRows: e.target.checked ? [] : [emptyDemandRow()] }))} />
+                    No demand this call
+                  </label>
+                )
+              })()}
+              {!form.noDemand && <button type="button" className={styles.addDemandBtn} onClick={() => setField('demandRows', [...(form.demandRows || []), emptyDemandRow()])}>+ Add Demand</button>}
+            </div>
           </div>
-          {(form.demandRows || [emptyDemandRow()]).map((row, i) => (
+          {form.noDemand && <p className={styles.noDemandNote}>Recorded as: client declared no demand on this call.</p>}
+          {!form.noDemand && (form.demandRows || [emptyDemandRow()]).map((row, i) => (
             <div key={row.id || i} className={styles.demandRowWrap}>
               <div className={styles.demandGrid}>
                 <div className={styles.demandField}>
@@ -346,7 +363,16 @@ export default function Upload({ onAdd, calls = [] }) {
                   }} />
                 </div>
                 <div className={styles.demandField}>
-                  <label className={styles.demandLabel}>Price Target</label>
+                  <select className={styles.kindSelect} value={row.priceKind === 'bid' ? 'bid' : 'target'} title="Indication = where he might buy. Firm bid = a committed buying price."
+                    onChange={e => {
+                      const rows = [...(form.demandRows || [])]
+                      const { priceKind, ...rest } = rows[i]
+                      rows[i] = e.target.value === 'bid' ? { ...rest, priceKind: 'bid' } : rest
+                      setField('demandRows', rows)
+                    }}>
+                    <option value="target">Price target ▾</option>
+                    <option value="bid">Firm bid ▾</option>
+                  </select>
                   <input className={styles.input} value={row.priceTarget || ''}
                     onChange={e => {
                       const rows = [...(form.demandRows || [])]
@@ -359,14 +385,12 @@ export default function Upload({ onAdd, calls = [] }) {
                 </div>
                 <div className={styles.demandField}>
                   <label className={styles.demandLabel}>Laycan</label>
-                  <input className={styles.input} value={row.laycan || ''}
-                    onChange={e => {
+                  <LaycanSelect className={styles.input} value={row.laycan || ''} refDate={form.date}
+                    onChange={val => {
                       const rows = [...(form.demandRows || [])]
-                      rows[i] = { ...rows[i], laycan: e.target.value }
+                      rows[i] = { ...rows[i], laycan: val }
                       setField('demandRows', rows)
-                    }}
-                    placeholder="e.g. Jun 15-30"
-                  />
+                    }} />
                 </div>
               </div>
               {(form.demandRows || []).length > 1 && (
@@ -377,7 +401,7 @@ export default function Upload({ onAdd, calls = [] }) {
               )}
             </div>
           ))}
-          <textarea className={styles.textarea} rows={2} value={form.demand} onChange={e => setField('demand', e.target.value)} placeholder="Additional demand notes, laycan..." />
+          <textarea className={styles.textarea} rows={2} value={form.demand} onChange={e => setField('demand', e.target.value)} placeholder={form.noDemand ? 'Why no demand? (optional)' : 'Additional demand notes...'} />
         </div>
 
         <div className={styles.field}>
@@ -385,7 +409,7 @@ export default function Upload({ onAdd, calls = [] }) {
           <textarea className={styles.textarea} rows={3} value={form.remarks} onChange={e => setField('remarks', e.target.value)} placeholder="Additional remarks..." />
         </div>
 
-        <CompetitorOffersEditor offers={form.competitorOffers || []} onChange={setOffers} warnFor={warnFor} />
+        <CompetitorOffersEditor offers={form.competitorOffers || []} onChange={setOffers} warnFor={warnFor} refDate={form.date} />
 
         {error && <p className={styles.error}>{error}</p>}
         <button className={styles.saveBtn} onClick={handleSave}>◈ Save Call</button>

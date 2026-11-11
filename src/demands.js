@@ -17,6 +17,8 @@
 // Append-only: nothing here ever edits a stored row. A superseding row
 // carries `supersedesDemandId`; the superseded row simply stops counting.
 
+import { laycanKey } from './laycan.js'
+
 export const ACTIVE_DAYS = 45
 
 const dayMs = 86400000
@@ -34,14 +36,23 @@ function toDate(dateStr) {
   return isNaN(d.getTime()) ? null : d
 }
 
+// Port and laycan are compared in their canonical form (ruling 2026-11-11):
+// accents and case never split a port ("santarem" = "Santarém"), and any text
+// naming one month is that month ("Nov", "Nov 15-30", "Nov 2026" are the same
+// laycan; a missing year comes from the call's own date). Stored text is
+// never changed - this only decides what counts as the same demand.
+const PORT_ALIASES = { pgua: 'paranagua', png: 'paranagua', sfs: 'sao francisco do sul', 'sao francisco': 'sao francisco do sul' }
+const portKey = v => { const k = norm(v).normalize('NFD').replace(/[\u0300-\u036f]/g, ''); return PORT_ALIASES[k] || k }
+
 // Identity WITHOUT volume: the thing a volume change is an update OF.
-export function demandIdentity(client, r) {
-  return [norm(client), norm(r.product), norm(r.port), norm(r.laycan)].join('|')
+// `refDate` is the call date for a row that does not carry one yet (the form).
+export function demandIdentity(client, r, refDate = null) {
+  return [norm(client), norm(r.product), portKey(r.port), laycanKey(r.laycan, r.callDate || refDate)].join('|')
 }
 
 // Full key: identity + volume. Two rows with the same key are the same demand.
-export function demandKey(client, r) {
-  return demandIdentity(client, r) + '|' + String(volumeNum(r.volume))
+export function demandKey(client, r, refDate = null) {
+  return demandIdentity(client, r, refDate) + '|' + String(volumeNum(r.volume))
 }
 
 // Every demand row across the calls, flattened, with its call's client/date/id.
@@ -126,7 +137,7 @@ export function findActiveIdentityLines(calls, client, row, dateStr) {
   if (!client || !row || !row.product) return []
   const ref = toDate(dateStr) || new Date()
   const from = new Date(ref.getTime() - ACTIVE_DAYS * dayMs)
-  const identity = demandIdentity(client, row)
+  const identity = demandIdentity(client, row, dateStr)
   return canonicalDemands(calls, { from, to: ref })
     .filter(d => demandIdentity(d.client, d) === identity)
     .sort((a, b) => b.callDate.localeCompare(a.callDate))

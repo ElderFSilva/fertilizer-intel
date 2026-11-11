@@ -77,7 +77,7 @@ function clientBlock(calls, soldDemandIds) {
   const ACTIVE_DAYS = DEMAND_ACTIVE_DAYS
   const openDemand = canonicalDemands(valid, { soldDemandIds }).map(d => ({
     client: d.client, date: d.callDate, product: d.product || '?', port: d.port || '',
-    volume: num(d.volume), target: priceNum(d.priceTarget), occurrences: d.occurrences,
+    volume: num(d.volume), target: priceNum(d.priceTarget), bid: d.priceKind === 'bid', occurrences: d.occurrences,
   }))
   const isGR = d => { const pr = (d.product || '').toLowerCase(); return pr === 'amsul gr' || pr === 'amsul' }
   const isSTD = d => (d.product || '').toLowerCase() === 'amsul std'
@@ -97,7 +97,7 @@ function clientBlock(calls, soldDemandIds) {
     `Full call history: ${valid.length} calls across ${Object.keys(byClient).length} clients.`,
     `Client breadth (${bw.label}): ${activeNow} distinct clients called vs a prior 4-week average of ${avgPrior.toFixed(1)} over the same ${bw.label} span (${avgPrior > 0 ? pct(((activeNow - avgPrior) / avgPrior) * 100) : 'n/a'}). Like-for-like market-week comparison; rising breadth = broadening demand; THIS COMPUTED COMPARISON IS AUTHORITATIVE.`,
   ]
-  const fmtLine = d => `${d.client} ${d.volume ? d.volume + 't' : '?t'}${d.port ? ' ' + d.port : ''}${d.target ? ' target ' + d.target : ''} (${d.date}${d.occurrences > 1 ? `, repeated on ${d.occurrences} calls` : ''})`
+  const fmtLine = d => `${d.client} ${d.volume ? d.volume + 't' : '?t'}${d.port ? ' ' + d.port : ''}${d.target ? (d.bid ? ' FIRM BID ' : ' target ') + d.target : (d.bid ? ' FIRM BID (price not stated)' : '')} (${d.date}${d.occurrences > 1 ? `, repeated on ${d.occurrences} calls` : ''})`
   if (activeGR.length) {
     lines.push(`ACTIVE open Amsul GR/compacted demand (logged within ${ACTIVE_DAYS}d, not yet converted; each standing demand counted ONCE even when repeated on several calls): ~${Math.round(volOf(activeGR))}t across ${activeGR.length} lines. Most recent: ${activeGR.slice(0, 6).map(fmtLine).join('; ')}.`)
   } else {
@@ -109,6 +109,13 @@ function clientBlock(calls, soldDemandIds) {
   if (staleAmsul.length) {
     lines.push(`Stale unconverted Amsul demand older than ${ACTIVE_DAYS}d: ~${Math.round(volOf(staleAmsul))}t across ${staleAmsul.length} lines - historical interest only, NOT the live book; use for re-engagement ideas, never as current demand.`)
   }
+  // Clients who SAID they have no demand (tick on the call form) in the last
+  // 14 days - latest statement per client; dropped if a later call logs demand.
+  const noDemand = Object.entries(byClient).map(([client, list]) => {
+    const last = list[0]   // newest first
+    return last && last.noDemand && daysAgo(callDate(last)) <= 14 ? `${client} (${callDate(last)})` : null
+  }).filter(Boolean)
+  if (noDemand.length) lines.push(`Declared NO DEMAND on their latest call (last 14 days) - a stated fact, not an absence of data: ${noDemand.join('; ')}.`)
   if (quiet.length) lines.push(`Gone quiet (regulars with no contact 21+ days - re-engagement candidates): ${quiet.join('; ')}.`)
   return `### CLIENT INTELLIGENCE (computed from the full call history)\n${lines.join('\n')}`
 }

@@ -626,7 +626,7 @@ export async function generateWeeklyReport(calls, signals, dateFrom, dateTo, ana
           <td>${escapeHtml(r.product) || '—'}</td>
           <td>${r.volume ? fmtVol(r.volume) : '—'}</td>
           <td>${escapeHtml(r.port) || '—'}</td>
-          <td class="demand-target">${escapeHtml(r.priceTarget) || '—'}</td>
+          <td class="demand-target">${r.priceKind === 'bid' ? '<span style="font-size:8px;font-weight:700;letter-spacing:.06em;border:1px solid currentColor;border-radius:3px;padding:0 3px;margin-right:4px">BID</span>' : ''}${escapeHtml(r.priceTarget) || '—'}</td>
           <td>${escapeHtml(r.laycan) || '—'}</td>
         </tr>`).join('')).join('')}
       </tbody>

@@ -267,16 +267,17 @@ export default function Calls({ calls, sales = [], onDelete, onEdit, role, trade
                       )
                     })}
                   </div>
-                  {((c.demandRows?.length && c.demandRows.some(r => r.product || r.volume || r.port || r.priceTarget)) || c.demand) && (
+                  {(c.noDemand || (c.demandRows?.length && c.demandRows.some(r => r.product || r.volume || r.port || r.priceTarget)) || c.demand) && (
                     <div className={styles.block}>
                       <span className={styles.blockLabel}>Demand</span>
+                      {c.noDemand && <p className={styles.blockText} style={{ color: 'var(--text3)' }}>Client declared no demand on this call.</p>}
                       {(c.demandRows || []).map((row, i) => (
                         (row.product || row.volume || row.port || row.priceTarget || row.laycan) ? (
                           <div key={i} className={styles.demandTags} style={{ marginBottom: 4 }}>
                             {row.product && <span className={styles.demandTag}><span className={styles.demandTagLabel}>Product</span> {row.product}</span>}
                             {row.volume && <span className={styles.demandTag}><span className={styles.demandTagLabel}>Vol</span> {formatVolume(row.volume)}</span>}
                             {row.port && <span className={styles.demandTag}><span className={styles.demandTagLabel}>Port</span> {row.port}</span>}
-                            {row.priceTarget && <span className={styles.demandTag}><span className={styles.demandTagLabel}>Target</span> {row.priceTarget}</span>}
+                            {row.priceTarget && <span className={styles.demandTag}><span className={styles.demandTagLabel}>{row.priceKind === 'bid' ? 'Firm bid' : 'Target'}</span> {row.priceTarget}</span>}
                             {row.laycan && <span className={styles.demandTag}><span className={styles.demandTagLabel}>Laycan</span> {row.laycan}</span>}
                           </div>
                         ) : null

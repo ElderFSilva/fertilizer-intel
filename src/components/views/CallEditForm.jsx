@@ -9,6 +9,7 @@
 import { PRODUCTS } from '../../data.js'
 import { checkPrice, priceReference } from '../../priceSanity.js'
 import PortSelect from './PortSelect.jsx'
+import LaycanSelect from './LaycanSelect.jsx'
 import styles from './CallEditForm.module.css'
 
 const TREND_OPTIONS = ['up', 'stable', 'down', 'none']
@@ -49,7 +50,8 @@ export function buildEditForm(c) {
       ? c.demandRows.map(r => r.id ? r : { ...r, id: newDemandId() })
       : (c.demandProduct || c.demandVolume || c.demandPort || c.demandPriceTarget)
         ? [{ id: newDemandId(), product: c.demandProduct || '', volume: c.demandVolume || '', port: c.demandPort || '', priceTarget: c.demandPriceTarget || '', laycan: '' }]
-        : [emptyDemandRow()],
+        : c.noDemand ? [] : [emptyDemandRow()],
+    noDemand: !!c.noDemand,
     demand: c.demand || '',
     remarks: c.remarks || '',
     competitorOffers: (c.competitorOffers || []).map(o => ({ ...emptyCompOffer(), ...o })),
@@ -81,7 +83,7 @@ export default function CallEditForm({ form, setForm, knownClients = [], onSave,
     return { ...f, competitorOffers: offers }
   })
 
-  const rows = form.demandRows?.length ? form.demandRows : [emptyDemandRow()]
+  const rows = form.noDemand ? [] : (form.demandRows?.length ? form.demandRows : [emptyDemandRow()])
   const offers = form.competitorOffers || []
   // Price sanity (warning only): malformed ranges and ±25% vs the desk's own
   // logged prices for that product/grade in the last 30 days (this call excluded).
@@ -128,8 +130,21 @@ export default function CallEditForm({ form, setForm, knownClients = [], onSave,
       <div className={styles.field}>
         <div className={styles.sectionHeader}>
           <label className={styles.label}>Demand</label>
-          <button type="button" className={styles.addBtn} onClick={() => set('demandRows', [...rows, emptyDemandRow()])}>+ Add Demand</button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+            {(() => {
+              const filled = (form.demandRows || []).some(r => r.product || r.volume)
+              return (
+                <label className={styles.noDemand} title={filled ? 'Remove the demand rows first' : 'The client said he has no demand. Leave unticked if demand was simply not discussed.'}>
+                  <input type="checkbox" checked={!!form.noDemand} disabled={filled && !form.noDemand}
+                    onChange={e => setForm(f => ({ ...f, noDemand: e.target.checked, demandRows: e.target.checked ? [] : [emptyDemandRow()] }))} />
+                  No demand this call
+                </label>
+              )
+            })()}
+            {!form.noDemand && <button type="button" className={styles.addBtn} onClick={() => set('demandRows', [...rows, emptyDemandRow()])}>+ Add Demand</button>}
+          </div>
         </div>
+        {form.noDemand && <p className={styles.noDemandNote}>Recorded as: client declared no demand on this call.</p>}
         {rows.map((row, i) => (
           <div key={row.id || i} className={styles.lineWrap}>
             <div className={styles.demandGrid}>
@@ -148,13 +163,17 @@ export default function CallEditForm({ form, setForm, knownClients = [], onSave,
                 <PortSelect value={row.port || ''} onChange={val => setRow(i, 'port', val)} />
               </div>
               <div className={styles.cell}>
-                <label className={styles.subLabel}>Price Target</label>
+                <select className={styles.kindSelect} value={row.priceKind === 'bid' ? 'bid' : 'target'} title="Indication = where he might buy. Firm bid = a committed buying price."
+                  onChange={e => setRow(i, 'priceKind', e.target.value === 'bid' ? 'bid' : undefined)}>
+                  <option value="target">Price target ▾</option>
+                  <option value="bid">Firm bid ▾</option>
+                </select>
                 <input className={styles.input} value={row.priceTarget || ''} onChange={e => setRow(i, 'priceTarget', e.target.value)} placeholder="e.g. 240 CFR" />
                 {warnFor(row.product, row.priceTarget) && <span className={styles.fieldWarn}>⚠ {warnFor(row.product, row.priceTarget)}</span>}
               </div>
               <div className={styles.cell}>
                 <label className={styles.subLabel}>Laycan</label>
-                <input className={styles.input} value={row.laycan || ''} onChange={e => setRow(i, 'laycan', e.target.value)} placeholder="e.g. Jun 15-30" />
+                <LaycanSelect className={styles.input} value={row.laycan || ''} refDate={form.date} onChange={val => setRow(i, 'laycan', val)} />
               </div>
             </div>
             {rows.length > 1 && (
@@ -162,7 +181,7 @@ export default function CallEditForm({ form, setForm, knownClients = [], onSave,
             )}
           </div>
         ))}
-        <textarea className={styles.textarea} rows={2} value={form.demand} onChange={e => set('demand', e.target.value)} placeholder="Additional demand notes..." />
+        <textarea className={styles.textarea} rows={2} value={form.demand} onChange={e => set('demand', e.target.value)} placeholder={form.noDemand ? 'Why no demand? (optional)' : 'Additional demand notes...'} />
       </div>
 
       <div className={styles.field}>
@@ -195,7 +214,7 @@ export default function CallEditForm({ form, setForm, knownClients = [], onSave,
               </div>
               <div className={styles.cell}>
                 <label className={styles.subLabel}>Laycan</label>
-                <input className={styles.input} value={o.laycan || ''} onChange={e => setOffer(i, 'laycan', e.target.value)} placeholder="e.g. Oct 15-30" />
+                <LaycanSelect className={styles.input} value={o.laycan || ''} refDate={form.date} onChange={val => setOffer(i, 'laycan', val)} />
               </div>
             </div>
             <button type="button" className={styles.removeBtn} title="Remove offer" onClick={() => set('competitorOffers', offers.filter((_, idx) => idx !== i))}>✕</button>
