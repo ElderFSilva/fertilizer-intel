@@ -127,9 +127,13 @@ function buildDataSummary(calls, weekOnly = false) {
         : `price target ${r.priceTarget || '?'} (indication, not a bid)`}`)
       .join('; ')
 
-    const comp = (c.competitorOffers || [])
-      .filter(o => o.competitor || o.price)
+    const compRows = (c.competitorOffers || []).filter(o => o.competitor || o.price)
+    const comp = compRows.filter(o => o.kind !== 'deal')
       .map(o => `${o.competitor || '?'} offering ${o.product || '?'} at ${o.price || '?'} ${o.port || ''}${o.laycan ? ` shipment ${o.laycan}` : ' (shipment not stated)'}`)
+      .join('; ')
+    // Done deals: business a competitor closed, as the client reported it.
+    const compDeals = compRows.filter(o => o.kind === 'deal')
+      .map(o => `${o.competitor || '?'} SOLD ${o.product || '?'} at ${o.price || '?'} ${o.port || ''}${o.laycan ? ` shipment ${o.laycan}` : ' (shipment not stated)'}`)
       .join('; ')
 
     const parts = [`[${c.date}] ${c.client}`]
@@ -137,6 +141,7 @@ function buildDataSummary(calls, weekOnly = false) {
     if (c.noDemand) parts.push('Demand: NONE - client DECLARED NO DEMAND on this call')
     else if (demand) parts.push(`Demand: ${demand}`)
     if (comp) parts.push(`Competitor offers: ${comp}`)
+    if (compDeals) parts.push(`Competitor DONE DEALS (reported by the client): ${compDeals}`)
     if (c.demand) parts.push(`Notes: ${c.demand}`)
     if (c.remarks) parts.push(`Remarks: ${c.remarks}`)
     return parts.join(' | ')
@@ -214,6 +219,7 @@ You will also receive a MARKET CONTEXT section with external data and pre-comput
 - GRADE EQUIVALENCE (established desk fact): "Amsul GR" (the desk's label in calls and sales) and "Amsul compacted" (the label in Argus/Fertecon/Agrinvest assessments) are THE SAME product - treat them as identical everywhere: GR offers, targets and sales compare directly against compacted benchmarks, parity and percentiles. "Amsul STD" / "standard" is a DIFFERENT product.
 - GRADE DISCIPLINE (critical): Amsul COMPACTED/GR and STANDARD are different products at different prices. NEVER compare a price of one grade against a benchmark of another. Competitor offers and client targets whose grade is not stated must be treated as GRADE-UNKNOWN and flagged as such - never assumed comparable to the compacted benchmark. Before calling any offer "workable" or "below market", confirm the grades match; if unknown, say the comparison is unconfirmed.
 - SOURCE NAMING (critical): name every data series exactly as the computed context labels it (e.g. "line-up, source: orion"). Never substitute or add a provider name (Wilson Sons, Argus, Orion or any other) unless that exact name is the source label in the context or a DESK LESSON explicitly maps the label to it. A retired provider named in an older lesson is never applied to newer rows.
+- COMPETITOR DONE DEALS: a call may list "Competitor DONE DEALS" - business a competitor already closed at that price, as the client reported it. It is a traded level, stronger price evidence than an offer or a price idea, but reported and not verified - say "reported". It is NOT an open offer: never write a counter or reaction to it as if it were still on the table.
 - OFFER SHIPMENT WINDOW: a competitor offer may carry a shipment/laycan. Read it against the desk lesson on below-parity offers: forward shipment windows are the tell of a SHORT (cargo not yet owned), prompt cargo the tell of a destocker. Only reason from the window when it is stated; "shipment not stated" means the reading is unconfirmed - say so, never assume.
 - TARGET IS NOT A BID (critical): in Demand lines, a price TARGET is the client's indicated price level - where he might buy if a bid is presented. It is NOT a bid. A BID is a firm buying intention at a stated price and volume. It exists when a Demand line is marked FIRM BID (the trader recorded it as a committed buying price), or when the call's Remarks or Notes state it explicitly. A line marked FIRM BID is a bid: treat it as executable interest at that price, subject to the CLOSED NEGOTIATIONS rule. A call marked "DECLARED NO DEMAND" is a fact about that client this week - he said he is not buying - and is different from a call where demand was simply not discussed. Never describe a target as a bid, never write "hitting the bid" or "bidding" about a target, and never compute a captured margin against a target as if it were executable. Targets are compared against replacement and parity only as indications of where demand sits.
 - OPEN DEMAND: only ACTIVE lines (last 45 days) are the live book. Stale lines are re-engagement material, never current demand, never a reason to sell. GR and STD open demand are different products: any selling recommendation anchored to the compacted composite may cite GR lines only - STD lines get their own sentence against STD references or none.

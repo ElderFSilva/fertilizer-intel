@@ -1,9 +1,10 @@
 // ── One call edit form, two entry points ──
 // Used by All Calls (inline under the card) and by the Overview demand popup,
 // so a trader edits the exact same fields the same way in both places.
-// Every field of a call is editable here: client, date, prices & trends,
-// demand rows (product / volume / port / target / laycan), notes, competitor
-// offers (competitor / product / price / port / laycan) and remarks.
+// Every field of a call is editable here: client, date, the client's price
+// idea and view, demand rows (product / volume / port / target / laycan),
+// competitor offers and done deals (competitor / product / price / port /
+// laycan) and remarks. Old demand notes show only where a call has them.
 // Trader-only by desk ruling (2026-09-18): admin never edits or deletes calls.
 
 import { PRODUCTS } from '../../data.js'
@@ -14,8 +15,8 @@ import styles from './CallEditForm.module.css'
 
 const TREND_OPTIONS = ['up', 'stable', 'down', 'none']
 const TREND_LABEL = { up: '↑ Up', stable: '↔ Stable', down: '↓ Down', none: '—' }
-const DEMAND_PRODUCTS = ['', 'Amsul GR', 'Amsul STD', 'Urea', 'N43 + 2.5S', 'MAP', 'SSP 20%', 'SSP 19%', 'MC 20%', 'TSP 45%', 'TSP 46%', 'NP 10-45', 'NP 11-44', 'NP 08-40', 'NP 08-40+5S']
-const COMP_PRODUCTS = ['Amsul GR', 'Amsul STD', 'Urea', 'N43 + 2.5S', 'MAP', 'SSP 20%', 'SSP 19%', 'MC 20%', 'TSP 45%', 'TSP 46%', 'NP 10-45', 'NP 11-44', 'NP 08-40', 'NP 08-40+5S']
+const DEMAND_PRODUCTS = ['', 'Amsul GR', 'Amsul STD', 'Urea', 'MAP', 'SSP 20%', 'SSP 19%', 'MC 20%', 'TSP 45%', 'TSP 46%', 'NP 10-45', 'NP 11-44', 'NP 08-40', 'NP 08-40+5S']
+const COMP_PRODUCTS = ['Amsul GR', 'Amsul STD', 'Urea', 'MAP', 'SSP 20%', 'SSP 19%', 'MC 20%', 'TSP 45%', 'TSP 46%', 'NP 10-45', 'NP 11-44', 'NP 08-40', 'NP 08-40+5S']
 const PRODUCT_GRADES = {
   Amsul: ['Amsul GR', 'Amsul STD'],
   SSP: ['SSP 20%', 'SSP 19%', 'MC 20%'],
@@ -23,6 +24,11 @@ const PRODUCT_GRADES = {
   NP: ['NP 10-45', 'NP 11-44', 'NP 08-40', 'NP 08-40+5S'],
 }
 const DEFAULT_GRADE = { Amsul: 'Amsul GR', SSP: 'SSP 20%', TSP: 'TSP 45%', NP: 'NP 10-45' }
+// Call form (desk ruling 2026-11-16): N43 + 2.5S is no longer offered here -
+// it stays on the sales form. A stored call that already carries it keeps
+// showing it, so editing an old call never hides or drops what it holds.
+const RETIRED_PRODUCT = 'N43 + 2.5S'
+const withStored = (list, value) => (value && !list.includes(value) ? [...list, value] : list)
 
 export function newDemandId() {
   return 'd_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7)
@@ -88,6 +94,14 @@ export default function CallEditForm({ form, setForm, knownClients = [], onSave,
   // Price sanity (warning only): malformed ranges and ±25% vs the desk's own
   // logged prices for that product/grade in the last 30 days (this call excluded).
   const warnFor = (label, val) => checkPrice(val, priceReference(calls, label, form.date, callId))
+  // The call as stored, before this edit: decides which retired fields still show.
+  const stored = calls.find(c => c.id === callId) || null
+  const storedRetired = stored?.prices?.[RETIRED_PRODUCT]
+  const priceProducts = PRODUCTS.filter(p => p !== RETIRED_PRODUCT
+    || !!storedRetired?.value || (storedRetired?.trend && storedRetired.trend !== 'none'))
+  // Demand notes were merged into Remarks (2026-11-16). The old box shows only
+  // on a call that already has notes, so that text stays readable and editable.
+  const hasOldNotes = !!(stored?.demand || '').trim()
 
   return (
     <div className={styles.form}>
@@ -106,8 +120,11 @@ export default function CallEditForm({ form, setForm, knownClients = [], onSave,
       </div>
 
       <div className={styles.field}>
-        <label className={styles.label}>Prices & Trends</label>
-        {PRODUCTS.map(p => (
+        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12 }}>
+          <label className={styles.label}>Client's price idea of the market</label>
+          <label className={styles.label}>View (client / trader)</label>
+        </div>
+        {priceProducts.map(p => (
           <div key={p} className={styles.priceRow}>
             {PRODUCT_GRADES[p] ? (
               <select className={styles.gradeSelect} value={form.prices[p].grade || DEFAULT_GRADE[p]} onChange={e => setPrice(p, 'grade', e.target.value)}>
@@ -116,8 +133,8 @@ export default function CallEditForm({ form, setForm, knownClients = [], onSave,
             ) : (
               <span className={styles.productLabel}>{p}</span>
             )}
-            <input className={styles.input} placeholder="Price" value={form.prices[p].value} onChange={e => setPrice(p, 'value', e.target.value)} />
-            <select className={styles.select} value={form.prices[p].trend} onChange={e => setPrice(p, 'trend', e.target.value)}>
+            <input className={styles.input} placeholder="Price idea" value={form.prices[p].value} onChange={e => setPrice(p, 'value', e.target.value)} />
+            <select className={styles.select} title="Where the price is heading: the client's view and the trader's" value={form.prices[p].trend} onChange={e => setPrice(p, 'trend', e.target.value)}>
               {TREND_OPTIONS.map(t => <option key={t} value={t}>{TREND_LABEL[t]}</option>)}
             </select>
             {warnFor(form.prices[p].grade || DEFAULT_GRADE[p] || p, form.prices[p].value) && (
@@ -151,7 +168,7 @@ export default function CallEditForm({ form, setForm, knownClients = [], onSave,
               <div className={styles.cell}>
                 <label className={styles.subLabel}>Product</label>
                 <select className={styles.input} value={row.product || ''} onChange={e => setRow(i, 'product', e.target.value)}>
-                  {DEMAND_PRODUCTS.map(p => <option key={p} value={p}>{p || '— Select —'}</option>)}
+                  {withStored(DEMAND_PRODUCTS, row.product).map(p => <option key={p} value={p}>{p || '— Select —'}</option>)}
                 </select>
               </div>
               <div className={styles.cell}>
@@ -181,15 +198,20 @@ export default function CallEditForm({ form, setForm, knownClients = [], onSave,
             )}
           </div>
         ))}
-        <textarea className={styles.textarea} rows={2} value={form.demand} onChange={e => set('demand', e.target.value)} placeholder={form.noDemand ? 'Why no demand? (optional)' : 'Additional demand notes...'} />
+        {hasOldNotes && (
+          <>
+            <label className={styles.subLabel} style={{ marginTop: 6 }}>Demand notes (older call)</label>
+            <textarea className={styles.textarea} rows={2} value={form.demand} onChange={e => set('demand', e.target.value)} />
+          </>
+        )}
       </div>
 
       <div className={styles.field}>
         <div className={styles.sectionHeader}>
-          <label className={styles.label}>Competitor Offers</label>
-          <button type="button" className={styles.addBtn} onClick={() => set('competitorOffers', [...offers, emptyCompOffer()])}>+ Add Offer</button>
+          <label className={styles.label}>Competitor Offers / Done Deals</label>
+          <button type="button" className={styles.addBtn} onClick={() => set('competitorOffers', [...offers, emptyCompOffer()])}>+ Add Offer / Deal</button>
         </div>
-        {offers.length === 0 && <p className={styles.empty}>No competitor offers recorded for this call.</p>}
+        {offers.length === 0 && <p className={styles.empty}>No competitor offers or done deals recorded for this call.</p>}
         {offers.map((o, i) => (
           <div key={i} className={styles.lineWrap}>
             <div className={styles.offerGrid}>
@@ -200,11 +222,15 @@ export default function CallEditForm({ form, setForm, knownClients = [], onSave,
               <div className={styles.cell}>
                 <label className={styles.subLabel}>Product</label>
                 <select className={styles.input} value={o.product || 'Amsul GR'} onChange={e => setOffer(i, 'product', e.target.value)}>
-                  {COMP_PRODUCTS.map(p => <option key={p} value={p}>{p}</option>)}
+                  {withStored(COMP_PRODUCTS, o.product).map(p => <option key={p} value={p}>{p}</option>)}
                 </select>
               </div>
               <div className={styles.cell}>
-                <label className={styles.subLabel}>Price</label>
+                <select className={styles.kindSelect} value={o.kind === 'deal' ? 'deal' : 'offer'} title="Offer = a price on the table. Done deal = business the competitor closed at this price."
+                  onChange={e => setOffer(i, 'kind', e.target.value === 'deal' ? 'deal' : undefined)}>
+                  <option value="offer">Offer price ▾</option>
+                  <option value="deal">Done deal ▾</option>
+                </select>
                 <input className={styles.input} value={o.price || ''} onChange={e => setOffer(i, 'price', e.target.value)} placeholder="e.g. 255 CFR" />
                 {warnFor(o.product, o.price) && <span className={styles.fieldWarn}>⚠ {warnFor(o.product, o.price)}</span>}
               </div>

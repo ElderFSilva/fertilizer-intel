@@ -288,13 +288,14 @@ export default function Calls({ calls, sales = [], onDelete, onEdit, role, trade
                   {c.remarks && <div className={styles.block}><span className={styles.blockLabel}>Remarks</span><p className={styles.blockText}>{c.remarks}</p></div>}
                   {c.competitorOffers?.length > 0 && (
                     <div className={styles.block}>
-                      <span className={styles.blockLabel}>Competitor Offers</span>
+                      <span className={styles.blockLabel}>Competitor Offers / Done Deals</span>
                       <div className={styles.compOfferList}>
                         {c.competitorOffers.map((o, i) => (
                           <div key={i} className={styles.compOfferRow}>
                             <span className={styles.compName}>{o.competitor}</span>
                             <span className={styles.compProduct}>{o.product}</span>
                             <span className={styles.compPrice}>{o.price}</span>
+                            {o.kind === 'deal' && <span className={styles.compPort} style={{ color: 'var(--accent)' }}>DONE DEAL</span>}
                             {o.port && <span className={styles.compPort}>{o.port}</span>}
                             {o.laycan && <span className={styles.compPort}>· {o.laycan}</span>}
                           </div>

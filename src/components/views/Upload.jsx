@@ -20,8 +20,12 @@ const DEFAULT_GRADE = {
   NP: 'NP 10-45',
 }
 const TREND_LABEL = { up: '↑ Up', stable: '↔ Stable', down: '↓ Down', none: '—' }
-const DEMAND_PRODUCTS = ['', 'Amsul GR', 'Amsul STD', 'Urea', 'N43 + 2.5S', 'MAP', 'SSP 20%', 'SSP 19%', 'MC 20%', 'TSP 45%', 'TSP 46%', 'NP 10-45', 'NP 11-44', 'NP 08-40', 'NP 08-40+5S']
-const COMP_PRODUCTS = ['Amsul GR', 'Amsul STD', 'Urea', 'N43 + 2.5S', 'MAP', 'SSP 20%', 'SSP 19%', 'MC 20%', 'TSP 45%', 'TSP 46%', 'NP 10-45', 'NP 11-44', 'NP 08-40', 'NP 08-40+5S']
+// Call form (desk ruling 2026-11-16): N43 + 2.5S is not offered on the call
+// form - price line, demand product, competitor product. It stays on the
+// sales form. Stored calls are untouched.
+const CALL_PRODUCTS = PRODUCTS.filter(p => p !== 'N43 + 2.5S')
+const DEMAND_PRODUCTS = ['', 'Amsul GR', 'Amsul STD', 'Urea', 'MAP', 'SSP 20%', 'SSP 19%', 'MC 20%', 'TSP 45%', 'TSP 46%', 'NP 10-45', 'NP 11-44', 'NP 08-40', 'NP 08-40+5S']
+const COMP_PRODUCTS = ['Amsul GR', 'Amsul STD', 'Urea', 'MAP', 'SSP 20%', 'SSP 19%', 'MC 20%', 'TSP 45%', 'TSP 46%', 'NP 10-45', 'NP 11-44', 'NP 08-40', 'NP 08-40+5S']
 
 function emptyPrices() {
   return Object.fromEntries(PRODUCTS.map(p => [p, { value: '', trend: 'none', grade: DEFAULT_GRADE[p] || '' }]))
@@ -78,15 +82,24 @@ function CompetitorOffersEditor({ offers, onChange, warnFor = () => null, refDat
   function updateOffer(i, field, val) {
     onChange(offers.map((o, idx) => idx === i ? { ...o, [field]: val } : o))
   }
+  // Offer (default, nothing stored) or done deal (kind: 'deal') - same idea
+  // as price target / firm bid on a demand row.
+  function setKind(i, kind) {
+    onChange(offers.map((o, idx) => {
+      if (idx !== i) return o
+      const { kind: _old, ...rest } = o
+      return kind === 'deal' ? { ...rest, kind: 'deal' } : rest
+    }))
+  }
 
   return (
     <div className={styles.compSection}>
       <div className={styles.compHeader}>
-        <label className={styles.label}>Competitor Offers</label>
-        <button type="button" className={styles.addOfferBtn} onClick={addOffer}>+ Add Offer</button>
+        <label className={styles.label}>Competitor Offers / Done Deals</label>
+        <button type="button" className={styles.addOfferBtn} onClick={addOffer}>+ Add Offer / Deal</button>
       </div>
       {offers.length === 0 && (
-        <p className={styles.compEmpty}>No competitor offers recorded for this call.</p>
+        <p className={styles.compEmpty}>No competitor offers or done deals recorded for this call.</p>
       )}
       {offers.map((o, i) => (
         <div key={i} className={styles.compRow}>
@@ -101,7 +114,11 @@ function CompetitorOffersEditor({ offers, onChange, warnFor = () => null, refDat
             </select>
           </div>
           <div className={styles.compFieldWrap}>
-            <span className={styles.compFieldLabel}>Price</span>
+            <select className={styles.kindSelect} style={{ marginBottom: 4 }} value={o.kind === 'deal' ? 'deal' : 'offer'} title="Offer = a price on the table. Done deal = business the competitor closed at this price."
+              onChange={e => setKind(i, e.target.value)}>
+              <option value="offer">Offer price ▾</option>
+              <option value="deal">Done deal ▾</option>
+            </select>
             <input className={styles.compInput} placeholder="e.g. 255 CFR" value={o.price} onChange={e => updateOffer(i, 'price', e.target.value)} />
             {warnFor(o.product, o.price) && <span className={styles.fieldWarn}>⚠ {warnFor(o.product, o.price)}</span>}
           </div>
@@ -288,9 +305,12 @@ export default function Upload({ onAdd, calls = [] }) {
         </div>
 
         <div className={styles.pricesSection}>
-          <label className={styles.label}>Prices & Trends</label>
+          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12 }}>
+            <label className={styles.label}>Client's price idea of the market</label>
+            <label className={styles.label}>View (client / trader)</label>
+          </div>
           <div className={styles.pricesGrid}>
-            {PRODUCTS.map(p => (
+            {CALL_PRODUCTS.map(p => (
               <div key={p} className={styles.priceRow}>
                 {PRODUCT_GRADES[p] ? (
                   <select className={styles.gradeSelect} value={form.prices[p].grade || DEFAULT_GRADE[p]} onChange={e => setPriceField(p, 'grade', e.target.value)}>
@@ -299,8 +319,8 @@ export default function Upload({ onAdd, calls = [] }) {
                 ) : (
                   <span className={styles.productLabel}>{p}</span>
                 )}
-                <input className={styles.priceInput} placeholder="Price" value={form.prices[p].value} onChange={e => setPriceField(p, 'value', e.target.value)} />
-                <select className={styles.trendSelect} value={form.prices[p].trend} onChange={e => setPriceField(p, 'trend', e.target.value)}>
+                <input className={styles.priceInput} placeholder="Price idea" value={form.prices[p].value} onChange={e => setPriceField(p, 'value', e.target.value)} />
+                <select className={styles.trendSelect} title="Where the price is heading: the client's view and the trader's" value={form.prices[p].trend} onChange={e => setPriceField(p, 'trend', e.target.value)}>
                   {TREND_OPTIONS.map(t => <option key={t} value={t}>{TREND_LABEL[t]}</option>)}
                 </select>
                 {warnFor(form.prices[p].grade || DEFAULT_GRADE[p] || p, form.prices[p].value) && (
@@ -401,12 +421,11 @@ export default function Upload({ onAdd, calls = [] }) {
               )}
             </div>
           ))}
-          <textarea className={styles.textarea} rows={2} value={form.demand} onChange={e => setField('demand', e.target.value)} placeholder={form.noDemand ? 'Why no demand? (optional)' : 'Additional demand notes...'} />
         </div>
 
         <div className={styles.field}>
           <label className={styles.label}>Remarks</label>
-          <textarea className={styles.textarea} rows={3} value={form.remarks} onChange={e => setField('remarks', e.target.value)} placeholder="Additional remarks..." />
+          <textarea className={styles.textarea} rows={3} value={form.remarks} onChange={e => setField('remarks', e.target.value)} placeholder="Everything else the client said - one box for all notes" />
         </div>
 
         <CompetitorOffersEditor offers={form.competitorOffers || []} onChange={setOffers} warnFor={warnFor} refDate={form.date} />
