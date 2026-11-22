@@ -1,16 +1,18 @@
 import { useState, useMemo, useEffect } from 'react'
 import styles from './Ops.module.css'
-import { opsCreateShipment, opsAllocate, opsErrorText, nextParcelNo, normVessel, num, fmtN, fmtSaleDate, saleDateOf } from '../../cloudOps.js'
+import { opsCreateShipment, opsAllocate, opsErrorText, normVessel, num, fmtN, fmtSaleDate, saleDateOf, laycanOptions, guessLaycan, shipmentLabel } from '../../cloudOps.js'
 
 const NEW = '__new__'
 
 // Every sale not yet on a shipment, grouped by the vessel text the trader
-// typed (e.g. "TBN November"). Ops ticks sales and pulls them into a shipment.
+// typed (e.g. "TBN November"). Ops ticks sales, allocates them to a vessel and
+// types each sale's own reference.
 export default function OpsUnallocated({ unallocated, shipments, parcelsByShipment, traderNames, onDone, onOpenShipment, initialTarget = '', standalone = false }) {
   const [selected, setSelected] = useState(() => new Set())
   const [target, setTarget] = useState(initialTarget)
   const [loadPort, setLoadPort] = useState('')
-  const [newShip, setNewShip] = useState({ ref: '', vessel: '', laycan: '', load_ports: '' })
+  const [newShip, setNewShip] = useState({ vessel: '', laycan: '' })
+  const [refs, setRefs] = useState({})   // { sale id: the reference ops typed }
   const [search, setSearch] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -62,33 +64,31 @@ export default function OpsUnallocated({ unallocated, shipments, parcelsByShipme
     setTarget(v); setError('')
     if (v === NEW) {
       const first = selectedSales[0]
-      setNewShip(n => ({ ...n, vessel: n.vessel || (first?.vessel || '').trim(), laycan: n.laycan || (first?.laycan || '').trim() }))
+      setNewShip(n => ({ vessel: n.vessel || (first?.vessel || '').trim(), laycan: n.laycan || guessLaycan(first?.laycan || first?.vessel, first ? saleDateOf(first) : '') }))
     }
   }
 
   async function allocate() {
     if (!selectedSales.length) return
-    if (!target) { setError('Choose the shipment to allocate to.'); return }
+    if (!target) { setError('Choose the vessel to allocate to.'); return }
     if (target === NEW) {
-      if (!newShip.ref.trim()) { setError('Shipment ref is required (e.g. LG261201).'); return }
-      if (!newShip.vessel.trim()) { setError('Vessel is required — type the TBN name if not nominated.'); return }
+      if (!newShip.vessel.trim()) { setError('Vessel name is required — type the TBN name if not nominated.'); return }
+      if (!newShip.laycan) { setError('Choose the laycan month.'); return }
     }
+    const typed = selectedSales.map(s => (refs[s.id] || '').trim().toLowerCase()).filter(Boolean)
+    if (new Set(typed).size !== typed.length) { setError('Two of the selected sales have the same reference.'); return }
     setBusy(true); setError('')
     try {
       let shipmentId = target
-      let ref = shipments.find(s => s.id === target)?.ref
+      let name = shipments.find(s => s.id === target)?.vessel
       if (target === NEW) {
         const sh = await opsCreateShipment(newShip)
-        shipmentId = sh.id; ref = sh.ref
+        shipmentId = sh.id; name = sh.vessel
       }
-      // Numbers follow the order the sales were made, oldest first.
-      const ordered = [...selectedSales].sort((a, b) =>
-        saleDateOf(a).localeCompare(saleDateOf(b)) || String(a.created_at).localeCompare(String(b.created_at)))
-      const start = nextParcelNo(parcelsByShipment[shipmentId] || [])
-      await opsAllocate(shipmentId, ordered.map((s, i) => ({ sale_id: s.id, parcel_no: start + i, load_port: loadPort })))
-      setDone(`✓ ${ordered.length} sale${ordered.length !== 1 ? 's' : ''} allocated to ${ref}.`)
-      setSelected(new Set()); setLoadPort(''); setNewShip({ ref: '', vessel: '', laycan: '', load_ports: '' })
-      setTarget(target === NEW ? shipmentId : target)
+      await opsAllocate(shipmentId, orderedSelected.map(s => ({ sale_id: s.id, ref: refs[s.id] || '', load_port: loadPort })))
+      setDone(`✓ ${orderedSelected.length} sale${orderedSelected.length !== 1 ? 's' : ''} allocated to ${name}.`)
+      setSelected(new Set()); setRefs({}); setLoadPort(''); setNewShip({ vessel: '', laycan: '' })
+      setTarget(shipmentId)
       await onDone()
     } catch (e) {
       setError(opsErrorText(e, 'Could not allocate the sales.'))
@@ -96,6 +96,10 @@ export default function OpsUnallocated({ unallocated, shipments, parcelsByShipme
     }
     setBusy(false)
   }
+
+  // Oldest sale first, the order ops will usually number them in
+  const orderedSelected = [...selectedSales].sort((a, b) =>
+    saleDateOf(a).localeCompare(saleDateOf(b)) || String(a.created_at).localeCompare(String(b.created_at)))
 
   const openFirst = [...shipments].sort((a, b) => (a.status === 'closed') - (b.status === 'closed') || String(b.created_at).localeCompare(String(a.created_at)))
   const setN = (k, v) => setNewShip(n => ({ ...n, [k]: v }))
@@ -161,7 +165,7 @@ export default function OpsUnallocated({ unallocated, shipments, parcelsByShipme
         })}
 
         {unallocated.length > 0 && (
-          <p className={styles.note}>Allocating gives each sale the next parcel number (-1, -2…) and writes the shipment's vessel name onto the sale. Numbers and the shipment ref can be retyped at any time.</p>
+          <p className={styles.note}>Allocating puts the sale on the vessel and writes that vessel name onto the sale. Each sale's reference can be typed now or later on the shipment page, and changed at any time.</p>
         )}
       </section>
 
@@ -170,40 +174,44 @@ export default function OpsUnallocated({ unallocated, shipments, parcelsByShipme
           <div className={styles.allocTop}>
             <span className={styles.allocCount}>{selectedSales.length} selected · {fmtN(selTons)} t →</span>
             <div className={styles.allocField}>
-              <label className={styles.label}>Allocate to shipment</label>
+              <label className={styles.label}>Allocate to vessel</label>
               <select className={styles.select} value={target} onChange={e => chooseTarget(e.target.value)}>
                 <option value="">Choose…</option>
-                {openFirst.map(s => <option key={s.id} value={s.id}>{s.ref} · {s.vessel}{s.status === 'closed' ? ' (closed)' : ''}</option>)}
+                {openFirst.map(s => <option key={s.id} value={s.id}>{shipmentLabel(s)}{s.status === 'closed' ? ' (closed)' : ''}</option>)}
                 <option value={NEW}>+ New shipment…</option>
               </select>
             </div>
+            {target === NEW && (
+              <>
+                <div className={styles.allocField}>
+                  <label className={styles.label}>Vessel name *</label>
+                  <input className={styles.input} placeholder="e.g. MV COTINGA or TBN December" value={newShip.vessel} onChange={e => setN('vessel', e.target.value)} />
+                </div>
+                <div className={styles.allocField}>
+                  <label className={styles.label}>Laycan *</label>
+                  <select className={styles.select} value={newShip.laycan} onChange={e => setN('laycan', e.target.value)}>
+                    <option value="">Choose month…</option>
+                    {laycanOptions(newShip.laycan).map(m => <option key={m} value={m}>{m}</option>)}
+                  </select>
+                </div>
+              </>
+            )}
             <div className={styles.allocField}>
-              <label className={styles.label}>Load port (can be changed per parcel later)</label>
+              <label className={styles.label}>Load port</label>
               <input className={styles.input} placeholder="e.g. Taizhou" value={loadPort} onChange={e => setLoadPort(e.target.value)} />
             </div>
             <button className={styles.btn} onClick={allocate} disabled={busy}>{busy ? 'Allocating…' : 'Allocate'}</button>
-            <button className={styles.ghost} onClick={() => { setSelected(new Set()); setError('') }} disabled={busy}>Clear</button>
+            <button className={styles.ghost} onClick={() => { setSelected(new Set()); setRefs({}); setError('') }} disabled={busy}>Clear</button>
           </div>
-          {target === NEW && (
-            <div className={styles.grid4}>
-              <div className={styles.field}>
-                <label className={styles.label}>New shipment ref *</label>
-                <input className={styles.input} placeholder="e.g. LG261201" value={newShip.ref} onChange={e => setN('ref', e.target.value)} />
+          <div className={styles.refList}>
+            <label className={styles.label}>Reference for each sale</label>
+            {orderedSelected.map(s => (
+              <div key={s.id} className={styles.refRow}>
+                <span><b>{s.client || '—'}</b> · {s.product || '—'} · {fmtN(num(s.volume))} t · {s.port || '—'} · {fmtSaleDate(saleDateOf(s))}</span>
+                <input className={styles.input} placeholder="e.g. LG261001-10" value={refs[s.id] || ''} onChange={e => setRefs(r => ({ ...r, [s.id]: e.target.value }))} />
               </div>
-              <div className={styles.field}>
-                <label className={styles.label}>Vessel *</label>
-                <input className={styles.input} placeholder="e.g. TBN December" value={newShip.vessel} onChange={e => setN('vessel', e.target.value)} />
-              </div>
-              <div className={styles.field}>
-                <label className={styles.label}>Laycan</label>
-                <input className={styles.input} placeholder="e.g. Dec 1-15" value={newShip.laycan} onChange={e => setN('laycan', e.target.value)} />
-              </div>
-              <div className={styles.field}>
-                <label className={styles.label}>Load ports</label>
-                <input className={styles.input} placeholder="e.g. Taizhou · Qinzhou" value={newShip.load_ports} onChange={e => setN('load_ports', e.target.value)} />
-              </div>
-            </div>
-          )}
+            ))}
+          </div>
           {error && <span className={styles.error}>{error}</span>}
         </div>
       )}

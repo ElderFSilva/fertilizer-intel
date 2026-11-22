@@ -23,5 +23,5 @@ export function exportBreakdownXlsx(shipment, rows) {
   const wb = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(wb, ws, 'Cargo Breakdown')
   const safe = s => String(s || '').replace(/[^A-Za-z0-9 _-]+/g, '').trim().replace(/\s+/g, '_')
-  XLSX.writeFile(wb, `${safe(shipment.ref)}_${safe(shipment.vessel)}_Cargo_Breakdown.xlsx`)
+  XLSX.writeFile(wb, `${[safe(shipment.vessel), safe(shipment.laycan)].filter(Boolean).join('_')}_Cargo_Breakdown.xlsx`)
 }

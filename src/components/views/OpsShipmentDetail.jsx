@@ -1,12 +1,12 @@
 import { useState } from 'react'
 import styles from './Ops.module.css'
-import { opsUpdateShipment, opsDeleteShipment, opsUpdateParcel, opsUnallocate, opsErrorText, isTBN, sumBy, fmtN, fmtP } from '../../cloudOps.js'
+import { opsUpdateShipment, opsDeleteShipment, opsUpdateParcel, opsUnallocate, opsErrorText, isTBN, sumBy, fmtN, fmtP, laycanOptions } from '../../cloudOps.js'
 import { exportBreakdownXlsx } from '../../opsExport.js'
 
 // One shipment: the header ops maintains, and the cargo breakdown built live
 // from the sales allocated to it.
 export default function OpsShipmentDetail({ shipment, rows, traderNames, onBack, onChanged, onAllocate }) {
-  const initial = { ref: shipment.ref || '', vessel: shipment.vessel || '', laycan: shipment.laycan || '', load_ports: shipment.load_ports || '', status: shipment.status || 'open' }
+  const initial = { vessel: shipment.vessel || '', laycan: shipment.laycan || '', status: shipment.status || 'open' }
   const [form, setForm] = useState(initial)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -20,11 +20,11 @@ export default function OpsShipmentDetail({ shipment, rows, traderNames, onBack,
   const totTons = rows.reduce((a, r) => a + r.tons, 0)
   const totUsd = rows.reduce((a, r) => a + r.total, 0)
   const ports = [...new Set(rows.map(r => r.port).filter(Boolean))]
+  const loads = [...new Set(rows.map(r => r.loadPort).filter(Boolean))]
   const byClient = sumBy(rows, 'client')
   const byProduct = sumBy(rows, 'product')
 
   async function save() {
-    if (!form.ref.trim()) { setError('Shipment ref cannot be empty.'); return }
     if (!form.vessel.trim()) { setError('Vessel cannot be empty — type the TBN name if not nominated.'); return }
     setBusy(true); setError('')
     try {
@@ -42,15 +42,14 @@ export default function OpsShipmentDetail({ shipment, rows, traderNames, onBack,
   }
 
   async function saveParcel(parcel, field, value) {
-    const current = field === 'parcel_no' ? String(parcel.parcel_no) : (parcel.load_port || '')
+    const current = field === 'parcel_no' ? (parcel.parcel_no || '') : (parcel.load_port || '')
     const next = String(value).trim()
     if (next === current) return
-    if (field === 'parcel_no' && !next) { setError('A parcel number cannot be empty.'); await onChanged(); return }
     setError('')
     try {
       await opsUpdateParcel(parcel.id, { [field]: next })
     } catch (e) {
-      setError(opsErrorText(e, 'Could not save the parcel.'))
+      setError(opsErrorText(e, 'Could not save the change.'))
     }
     await onChanged()
   }
@@ -61,7 +60,7 @@ export default function OpsShipmentDetail({ shipment, rows, traderNames, onBack,
       await opsUnallocate(parcel.id)
       setConfirmRemove(null)
     } catch (e) {
-      setError(opsErrorText(e, 'Could not remove the parcel.'))
+      setError(opsErrorText(e, 'Could not remove the sale from the shipment.'))
     }
     await onChanged()
   }
@@ -82,9 +81,9 @@ export default function OpsShipmentDetail({ shipment, rows, traderNames, onBack,
     <div className={styles.wrap}>
       <header className={styles.header}>
         <div>
-          <div className={styles.crumb}><button className={styles.linkBtn} onClick={onBack}>Operations › Shipments</button> › {shipment.ref}</div>
+          <div className={styles.crumb}><button className={styles.linkBtn} onClick={onBack}>Operations › Shipments</button> › {shipment.vessel}</div>
           <h1 className={styles.title}>{shipment.vessel}{isTBN(shipment.vessel) && <span className={`${styles.pill} ${styles.pillTbn}`} style={{ verticalAlign: 'middle' }}>TBN</span>}</h1>
-          <p className={styles.sub}>{ports.join(' – ') || 'No discharge port yet'} · {rows.length} parcel{rows.length !== 1 ? 's' : ''} · {fmtN(totTons)} t · USD {fmtN(totUsd)}</p>
+          <p className={styles.sub}>{shipment.laycan ? `Laycan ${shipment.laycan} · ` : ''}{ports.join(' – ') || 'No discharge port yet'} · {rows.length} sale{rows.length !== 1 ? 's' : ''} · {fmtN(totTons)} t · USD {fmtN(totUsd)}</p>
         </div>
         <div className={styles.headerBtns}>
           <button className={styles.ghost} onClick={() => exportBreakdownXlsx(shipment, rows)} disabled={!rows.length}>Export breakdown</button>
@@ -93,18 +92,17 @@ export default function OpsShipmentDetail({ shipment, rows, traderNames, onBack,
       </header>
 
       <div className={styles.card}>
-        <div className={styles.grid4}>
+        <div className={styles.grid3}>
           <div className={styles.field}>
-            <label className={styles.label}>Shipment ref</label>
-            <input className={styles.input} value={form.ref} onChange={e => set('ref', e.target.value)} />
-          </div>
-          <div className={styles.field}>
-            <label className={styles.label}>Vessel · renaming updates every allocated sale</label>
+            <label className={styles.label}>Vessel name · renaming updates every allocated sale</label>
             <input className={styles.input} value={form.vessel} onChange={e => set('vessel', e.target.value)} />
           </div>
           <div className={styles.field}>
             <label className={styles.label}>Laycan</label>
-            <input className={styles.input} value={form.laycan} onChange={e => set('laycan', e.target.value)} />
+            <select className={styles.select} value={form.laycan} onChange={e => set('laycan', e.target.value)}>
+              <option value="">Choose month…</option>
+              {laycanOptions(form.laycan).map(m => <option key={m} value={m}>{m}</option>)}
+            </select>
           </div>
           <div className={styles.field}>
             <label className={styles.label}>Status</label>
@@ -114,8 +112,8 @@ export default function OpsShipmentDetail({ shipment, rows, traderNames, onBack,
             </select>
           </div>
           <div className={styles.field}>
-            <label className={styles.label}>Load ports</label>
-            <input className={styles.input} placeholder="e.g. Taizhou · Qinzhou" value={form.load_ports} onChange={e => set('load_ports', e.target.value)} />
+            <label className={styles.label}>Load ports (from the sales below)</label>
+            <input className={`${styles.input} ${styles.readonly}`} value={loads.join(' · ') || '—'} readOnly />
           </div>
           <div className={styles.field}>
             <label className={styles.label}>Discharge ports (from the sales)</label>
@@ -153,7 +151,7 @@ export default function OpsShipmentDetail({ shipment, rows, traderNames, onBack,
               <thead>
                 <tr>
                   <th className={styles.th}>Client</th>
-                  <th className={styles.th}>LG ref</th>
+                  <th className={styles.th}>Reference</th>
                   <th className={styles.th}>Load</th>
                   <th className={styles.th}>Discharge</th>
                   <th className={styles.th}>Product</th>
@@ -168,13 +166,13 @@ export default function OpsShipmentDetail({ shipment, rows, traderNames, onBack,
                 {rows.map(r => (
                   <tr key={r.parcel.id} className={styles.tr}>
                     <td className={styles.td} style={{ fontWeight: 700 }}>{r.client}</td>
-                    <td className={`${styles.td} ${styles.ref}`}>
-                      {shipment.ref}-
+                    <td className={styles.td}>
                       <input
-                        key={`${r.parcel.id}-no-${r.parcel.parcel_no}`}
+                        key={`${r.parcel.id}-no-${r.parcel.parcel_no || ''}`}
                         className={`${styles.cell} ${styles.cellNo}`}
-                        defaultValue={r.parcel.parcel_no}
-                        title="Parcel number — type to change"
+                        defaultValue={r.parcel.parcel_no || ''}
+                        placeholder="type reference"
+                        title="This sale's reference — type to change"
                         onBlur={e => saveParcel(r.parcel, 'parcel_no', e.target.value)}
                         onKeyDown={e => { if (e.key === 'Enter') e.target.blur() }}
                       />
@@ -208,7 +206,7 @@ export default function OpsShipmentDetail({ shipment, rows, traderNames, onBack,
                   </tr>
                 ))}
                 <tr>
-                  <td className={`${styles.td} ${styles.tot}`} colSpan={5}>TOTAL · {rows.length} parcel{rows.length !== 1 ? 's' : ''}</td>
+                  <td className={`${styles.td} ${styles.tot}`} colSpan={5}>TOTAL · {rows.length} sale{rows.length !== 1 ? 's' : ''}</td>
                   <td className={`${styles.td} ${styles.tot} ${styles.r}`}>{fmtN(totTons)}</td>
                   <td className={`${styles.td} ${styles.tot}`}></td>
                   <td className={`${styles.td} ${styles.tot} ${styles.r}`}>{fmtN(totUsd)}</td>

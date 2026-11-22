@@ -1,15 +1,19 @@
 import { useState } from 'react'
 import styles from './Ops.module.css'
 import OpsUnallocated from './OpsUnallocated.jsx'
-import { opsCreateShipment, opsErrorText, isTBN, num, fmtN } from '../../cloudOps.js'
+import { opsCreateShipment, opsErrorText, isTBN, num, fmtN, laycanOptions } from '../../cloudOps.js'
 
-const EMPTY = { ref: '', vessel: '', laycan: '', load_ports: '' }
+const EMPTY = { vessel: '', laycan: '' }
 
+// A shipment is a vessel. It is created with the vessel name (or the TBN name)
+// and a laycan month; sales are then allocated to it.
 export default function OpsShipments({ shipments, rowsByShipment, unallocated, onOpen, onChanged, allocProps }) {
   const [showNew, setShowNew] = useState(false)
   const [form, setForm] = useState(EMPTY)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const [fVessel, setFVessel] = useState('')
+  const [fLaycan, setFLaycan] = useState('')
 
   const open = shipments.filter(s => s.status !== 'closed')
   const totals = id => {
@@ -29,9 +33,13 @@ export default function OpsShipments({ shipments, rowsByShipment, unallocated, o
   const sorted = [...shipments].sort((a, b) =>
     (a.status === 'closed') - (b.status === 'closed') || String(b.created_at).localeCompare(String(a.created_at)))
 
+  const vesselNames = [...new Set(shipments.map(s => s.vessel).filter(Boolean))].sort((a, b) => a.localeCompare(b))
+  const laycans = [...new Set(shipments.map(s => s.laycan).filter(Boolean))]
+  const shown = sorted.filter(s => (!fVessel || s.vessel === fVessel) && (!fLaycan || s.laycan === fLaycan))
+
   async function create() {
-    if (!form.ref.trim()) { setError('Shipment ref is required (e.g. LG261201).'); return }
-    if (!form.vessel.trim()) { setError('Vessel is required — type the TBN name if not nominated (e.g. TBN December).'); return }
+    if (!form.vessel.trim()) { setError('Vessel name is required — type the TBN name if not nominated (e.g. TBN December).'); return }
+    if (!form.laycan) { setError('Choose the laycan month.'); return }
     setBusy(true)
     try {
       const sh = await opsCreateShipment(form)
@@ -51,29 +59,24 @@ export default function OpsShipments({ shipments, rowsByShipment, unallocated, o
       <header className={styles.header}>
         <div>
           <h1 className={styles.title}>Operations</h1>
-          <p className={styles.sub}>Shipments · sales allocated by ops · the trader's sale is never edited here</p>
+          <p className={styles.sub}>Shipments by vessel · sales allocated by ops · the trader's sale is never edited here</p>
         </div>
         <button className={styles.btn} onClick={() => { setShowNew(v => !v); setError('') }}>{showNew ? 'Cancel' : '+ New shipment'}</button>
       </header>
 
       {showNew && (
         <div className={styles.card}>
-          <div className={styles.grid4}>
+          <div className={styles.grid3}>
             <div className={styles.field}>
-              <label className={styles.label}>Shipment ref *</label>
-              <input className={styles.input} placeholder="e.g. LG261201" value={form.ref} onChange={e => set('ref', e.target.value)} autoFocus />
+              <label className={styles.label}>Vessel name *</label>
+              <input className={styles.input} placeholder="e.g. MV COTINGA or TBN December" value={form.vessel} onChange={e => set('vessel', e.target.value)} autoFocus />
             </div>
             <div className={styles.field}>
-              <label className={styles.label}>Vessel *</label>
-              <input className={styles.input} placeholder="e.g. TBN December" value={form.vessel} onChange={e => set('vessel', e.target.value)} />
-            </div>
-            <div className={styles.field}>
-              <label className={styles.label}>Laycan</label>
-              <input className={styles.input} placeholder="e.g. Dec 1-15" value={form.laycan} onChange={e => set('laycan', e.target.value)} />
-            </div>
-            <div className={styles.field}>
-              <label className={styles.label}>Load ports</label>
-              <input className={styles.input} placeholder="e.g. Taizhou · Qinzhou" value={form.load_ports} onChange={e => set('load_ports', e.target.value)} />
+              <label className={styles.label}>Laycan *</label>
+              <select className={styles.select} value={form.laycan} onChange={e => set('laycan', e.target.value)}>
+                <option value="">Choose month…</option>
+                {laycanOptions().map(m => <option key={m} value={m}>{m}</option>)}
+              </select>
             </div>
           </div>
           <div className={styles.formRow}>
@@ -103,20 +106,36 @@ export default function OpsShipments({ shipments, rowsByShipment, unallocated, o
       </div>
 
       <section className={styles.section}>
-        <h2 className={styles.sectionTitle}>Shipments</h2>
+        <h2 className={styles.sectionTitle}>
+          <span>Shipments</span>
+          {shipments.length > 0 && (
+            <span className={styles.filters}>
+              <select className={`${styles.select} ${styles.filterSelect}`} value={fVessel} onChange={e => setFVessel(e.target.value)}>
+                <option value="">All vessels</option>
+                {vesselNames.map(v => <option key={v} value={v}>{v}</option>)}
+              </select>
+              <select className={`${styles.select} ${styles.filterSelect}`} value={fLaycan} onChange={e => setFLaycan(e.target.value)}>
+                <option value="">All laycans</option>
+                {laycans.map(l => <option key={l} value={l}>{l}</option>)}
+              </select>
+              {(fVessel || fLaycan) && <button className={styles.small} onClick={() => { setFVessel(''); setFLaycan('') }}>Clear</button>}
+            </span>
+          )}
+        </h2>
         {sorted.length === 0 ? (
-          <p className={styles.none}>No shipments yet. Create one with "+ New shipment", or tick sales below and allocate them to a new shipment.</p>
+          <p className={styles.none}>No shipments yet. Create one with "+ New shipment", or tick sales below and allocate them to a new vessel.</p>
+        ) : shown.length === 0 ? (
+          <p className={styles.none}>No shipment matches the filter.</p>
         ) : (
           <div className={styles.tableWrap}>
             <table className={styles.table}>
               <thead>
                 <tr>
-                  <th className={styles.th}>Ref</th>
                   <th className={styles.th}>Vessel</th>
                   <th className={styles.th}>Laycan</th>
                   <th className={styles.th}>Load</th>
                   <th className={styles.th}>Discharge</th>
-                  <th className={`${styles.th} ${styles.r}`}>Parcels</th>
+                  <th className={`${styles.th} ${styles.r}`}>Sales</th>
                   <th className={`${styles.th} ${styles.r}`}>Tons</th>
                   <th className={`${styles.th} ${styles.r}`}>USD</th>
                   <th className={styles.th}>Status</th>
@@ -124,14 +143,13 @@ export default function OpsShipments({ shipments, rowsByShipment, unallocated, o
                 </tr>
               </thead>
               <tbody>
-                {sorted.map(s => {
+                {shown.map(s => {
                   const t = totals(s.id)
                   return (
                     <tr key={s.id} className={`${styles.tr} ${styles.trClick}`} onClick={() => onOpen(s.id)}>
-                      <td className={`${styles.td} ${styles.ref}`}>{s.ref}</td>
-                      <td className={styles.td}>{s.vessel}{isTBN(s.vessel) && <span className={`${styles.pill} ${styles.pillTbn}`}>TBN</span>}</td>
+                      <td className={`${styles.td} ${styles.ref}`}>{s.vessel}{isTBN(s.vessel) && <span className={`${styles.pill} ${styles.pillTbn}`}>TBN</span>}</td>
                       <td className={styles.td}>{s.laycan || '—'}</td>
-                      <td className={styles.td}>{s.load_ports || t.loads || '—'}</td>
+                      <td className={styles.td}>{t.loads || '—'}</td>
                       <td className={styles.td}>{t.ports || '—'}</td>
                       <td className={`${styles.td} ${styles.r}`}>{t.n}</td>
                       <td className={`${styles.td} ${styles.r}`}>{fmtN(t.tons)}</td>

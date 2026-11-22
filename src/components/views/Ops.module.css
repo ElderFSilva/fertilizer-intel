@@ -91,7 +91,7 @@
 }
 .cell:hover { border-color: var(--border2); }
 .cell:focus { border-color: var(--accent); background: var(--bg3); }
-.cellNo { width: 48px; color: var(--accent); padding-left: 1px; display: inline-block; }
+.cellNo { width: 150px; color: var(--accent); }
 .cellPort { width: 120px; }
 .formRow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .error { color: var(--red); font-size: 13px; font-family: 'DM Mono', monospace; }
@@ -123,19 +123,40 @@
 }
 .allocTop { display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap; }
 .allocCount { font-family: 'DM Mono', monospace; font-size: 12px; color: var(--accent); padding-bottom: 11px; white-space: nowrap; }
-.allocField { display: flex; flex-direction: column; gap: 5px; min-width: 190px; flex: 1; }
+.allocField { display: flex; flex-direction: column; gap: 5px; min-width: 140px; flex: 1; }
 .select {
   background: var(--bg3); border: 1px solid var(--border2); border-radius: 8px;
   padding: 10px 12px; color: var(--text); font-size: 14px; outline: none; font-family: inherit; width: 100%; cursor: pointer;
 }
 .select:focus { border-color: var(--accent); }
 
+.grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.filters { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.filterSelect { width: auto; min-width: 160px; padding: 9px 12px; font-size: 13px; }
+.refList { display: flex; flex-direction: column; gap: 6px; max-height: 260px; overflow-y: auto; }
+.refRow {
+  display: grid; grid-template-columns: 1fr 240px; gap: 12px; align-items: center;
+  font-family: 'DM Mono', monospace; font-size: 12px; color: var(--text2);
+}
+.refRow b { color: var(--text); }
+
 .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; align-items: start; }
 
 @media (max-width: 900px) {
   .layout { flex-direction: column; }
   .main { padding: 20px; }
-  .statsGrid, .grid4 { grid-template-columns: 1fr 1fr; }
-  .grid2 { grid-template-columns: 1fr; }
+  .statsGrid, .grid4, .grid3 { grid-template-columns: 1fr 1fr; }
+  .refRow { grid-template-columns: 1fr; }
+  .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.filters { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.filterSelect { width: auto; min-width: 160px; padding: 9px 12px; font-size: 13px; }
+.refList { display: flex; flex-direction: column; gap: 6px; max-height: 260px; overflow-y: auto; }
+.refRow {
+  display: grid; grid-template-columns: 1fr 240px; gap: 12px; align-items: center;
+  font-family: 'DM Mono', monospace; font-size: 12px; color: var(--text2);
+}
+.refRow b { color: var(--text); }
+
+.grid2 { grid-template-columns: 1fr; }
   .search { width: 100%; }
 }
