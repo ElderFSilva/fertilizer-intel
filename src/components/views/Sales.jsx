@@ -200,7 +200,10 @@ export default function Sales({ calls, sales = [], onAddSale, onDeleteSale, onEd
       await onDeleteSale(id)
       if (id === editingId) cancelEdit()
     } catch (e) {
-      setError('Could not delete the sale.')
+      // A sale that operations has put on a shipment cannot be deleted
+      setError(/shipment_parcels/.test(String(e?.message || ''))
+        ? 'This sale is allocated to a shipment. Ask operations to remove it from the shipment first.'
+        : 'Could not delete the sale.')
     }
   }
 

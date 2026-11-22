@@ -85,6 +85,30 @@
 
 .logout:hover { border-color: var(--red); color: var(--red); }
 
+/* Environment switch (admin only) */
+.envSwitch {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 3px;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 3px;
+  margin: -12px 0 20px;
+}
+.envBtn {
+  border: none;
+  background: transparent;
+  color: var(--text3);
+  font-family: 'DM Mono', monospace;
+  font-size: 12px;
+  padding: 7px 0;
+  border-radius: 6px;
+  transition: all 0.15s;
+}
+.envBtn:hover { color: var(--text); }
+.envOn { background: var(--accent-dim); color: var(--accent) !important; }
+
 @media (max-width: 768px) {
   .sidebar {
     width: 100%;
@@ -102,4 +126,5 @@
   .logo { margin-bottom: 0; }
   .nav { flex-direction: row; flex: 0; }
   .logout { margin-left: auto; }
+  .envSwitch { margin: 0; width: 220px; }
 }

@@ -12,11 +12,20 @@ const NAV = [
   { id: 'backup', icon: '⊞', label: 'Data Backup' },
 ]
 
-export default function Sidebar({ view, setView, onLogout, signals, role }) {
+// The Operations environment has its own menu — none of the trading tabs.
+const NAV_OPS = [
+  { id: 'shipments', icon: '⚓', label: 'Shipments' },
+  { id: 'unallocated', icon: '⇥', label: 'Unallocated sales' },
+]
+
+export default function Sidebar({ view, setView, onLogout, signals = [], role, env = 'trading', onSwitchEnv, badges = {} }) {
   const isAdmin = role === 'admin'
+  const isOpsEnv = env === 'ops'
   // Admin runs a read-only aggregate environment — hide call entry (admin
   // cannot write calls; RLS would block it anyway).
-  const nav = NAV.filter(n => !(isAdmin && n.id === 'upload') && !(n.adminOnly && !isAdmin))
+  const nav = isOpsEnv
+    ? NAV_OPS
+    : NAV.filter(n => !(isAdmin && n.id === 'upload') && !(n.adminOnly && !isAdmin))
 
   return (
     <aside className={styles.sidebar}>
@@ -26,7 +35,18 @@ export default function Sidebar({ view, setView, onLogout, signals, role }) {
         {isAdmin && (
           <span style={{ marginLeft: 'auto', fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', color: 'var(--accent, #c8f060)', border: '1px solid var(--accent, #c8f060)', borderRadius: 4, padding: '2px 5px', fontFamily: 'DM Mono, monospace' }}>ADMIN</span>
         )}
+        {role === 'ops' && (
+          <span style={{ marginLeft: 'auto', fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', color: 'var(--accent, #c8f060)', border: '1px solid var(--accent, #c8f060)', borderRadius: 4, padding: '2px 5px', fontFamily: 'DM Mono, monospace' }}>OPS</span>
+        )}
       </div>
+
+      {/* Environment switch — admin only. Ops logins never see the trading side. */}
+      {isAdmin && onSwitchEnv && (
+        <div className={styles.envSwitch}>
+          <button className={`${styles.envBtn} ${!isOpsEnv ? styles.envOn : ''}`} onClick={() => onSwitchEnv('trading')}>Trading</button>
+          <button className={`${styles.envBtn} ${isOpsEnv ? styles.envOn : ''}`} onClick={() => onSwitchEnv('ops')}>Operations</button>
+        </div>
+      )}
 
       <nav className={styles.nav}>
         {nav.map(n => (
@@ -39,6 +59,9 @@ export default function Sidebar({ view, setView, onLogout, signals, role }) {
             <span>{n.label}</span>
             {n.id === 'overview' && signals.length > 0 && (
               <span className={styles.badge}>{signals.length}</span>
+            )}
+            {badges[n.id] > 0 && (
+              <span className={styles.badge}>{badges[n.id]}</span>
             )}
           </button>
         ))}

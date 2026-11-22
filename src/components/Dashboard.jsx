@@ -13,7 +13,7 @@ import MarketData from './views/MarketData.jsx'
 import TrackRecord from './views/TrackRecord.jsx'
 import Advisor from './views/Advisor.jsx'
 
-export default function Dashboard({ onLogout, user, profile, role }) {
+export default function Dashboard({ onLogout, user, profile, role, onSwitchEnv }) {
   const [view, setView] = useState('overview')
   const [calls, setCalls] = useState([])
   const [sales, setSales] = useState([])
@@ -184,7 +184,7 @@ export default function Dashboard({ onLogout, user, profile, role }) {
 
   return (
     <div className={styles.layout}>
-      <Sidebar view={view} setView={setView} onLogout={onLogout} signals={signals} role={role} />
+      <Sidebar view={view} setView={setView} onLogout={onLogout} signals={signals} role={role} env="trading" onSwitchEnv={onSwitchEnv} />
       <main className={styles.main}>
         {backupNotice && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16, padding: '10px 14px', background: 'var(--accent-dim, #c8f06022)', border: '1px solid var(--accent, #c8f060)', color: 'var(--text, #eaeadf)', borderRadius: 8, fontSize: 13, fontFamily: 'DM Mono, monospace' }}>

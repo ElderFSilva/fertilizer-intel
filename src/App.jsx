@@ -1,12 +1,21 @@
 import { useState, useEffect } from 'react'
 import Login from './components/Login.jsx'
 import Dashboard from './components/Dashboard.jsx'
+import Operations from './components/Operations.jsx'
 import { supabase, getProfile, signOut } from './supabaseClient.js'
 
 export default function App() {
   const [loading, setLoading] = useState(true)
   const [session, setSession] = useState(null)
   const [profile, setProfile] = useState(null)
+  // Admin works in two environments; remember the last one used on this device.
+  const [env, setEnv] = useState(() => {
+    try { return localStorage.getItem('fertintel_env') === 'ops' ? 'ops' : 'trading' } catch { return 'trading' }
+  })
+  function switchEnv(next) {
+    setEnv(next)
+    try { localStorage.setItem('fertintel_env', next) } catch {}
+  }
 
   // On load, check for an existing session and subscribe to auth changes
   useEffect(() => {
@@ -56,12 +65,26 @@ export default function App() {
     return <Login />
   }
 
+  const role = profile?.role || 'trader'
+
+  // Ops logins see Operations only. Admin switches between the two.
+  if (role === 'ops' || (role === 'admin' && env === 'ops')) {
+    return (
+      <Operations
+        onLogout={handleLogout}
+        role={role}
+        onSwitchEnv={role === 'admin' ? switchEnv : null}
+      />
+    )
+  }
+
   return (
     <Dashboard
       onLogout={handleLogout}
       user={session.user}
       profile={profile}
-      role={profile?.role || 'trader'}
+      role={role}
+      onSwitchEnv={role === 'admin' ? switchEnv : null}
     />
   )
 }
