@@ -16,6 +16,7 @@ const NAV = [
 const NAV_OPS = [
   { id: 'shipments', icon: '⚓', label: 'Shipments' },
   { id: 'unallocated', icon: '⇥', label: 'Unallocated sales' },
+  { id: 'invsettings', icon: '⚙', label: 'Invoice settings' },
 ]
 
 export default function Sidebar({ view, setView, onLogout, signals = [], role, env = 'trading', onSwitchEnv, badges = {} }) {

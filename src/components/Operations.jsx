@@ -3,6 +3,8 @@ import Sidebar from './Sidebar.jsx'
 import OpsShipments from './views/OpsShipments.jsx'
 import OpsUnallocated from './views/OpsUnallocated.jsx'
 import OpsShipmentDetail from './views/OpsShipmentDetail.jsx'
+import OpsInvoice from './views/OpsInvoice.jsx'
+import OpsInvoiceSettings from './views/OpsInvoiceSettings.jsx'
 import styles from './views/Ops.module.css'
 import { opsLoadAll, breakdownRows } from '../cloudOps.js'
 
@@ -21,10 +23,11 @@ function labelForProfile(p) {
 }
 
 export default function Operations({ onLogout, role, onSwitchEnv }) {
-  const [view, setView] = useState('shipments')   // 'shipments' | 'unallocated' | 'detail'
+  const [view, setView] = useState('shipments')   // 'shipments' | 'unallocated' | 'detail' | 'invoice' | 'invsettings'
+  const [invoiceParcelId, setInvoiceParcelId] = useState(null)
   const [openId, setOpenId] = useState(null)
   const [target, setTarget] = useState('')        // shipment preselected on the allocation bar
-  const [data, setData] = useState({ shipments: [], parcels: [], sales: [], profiles: [] })
+  const [data, setData] = useState({ shipments: [], parcels: [], sales: [], profiles: [], invoices: [], issues: [], presets: [], invoiceSettings: {}, invoicesReady: false })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
@@ -45,7 +48,7 @@ export default function Operations({ onLogout, role, onSwitchEnv }) {
     return () => { active = false }
   }, [])
 
-  const { shipments, parcels, sales, profiles } = data
+  const { shipments, parcels, sales, profiles, invoices, issues, presets, invoiceSettings, invoicesReady } = data
 
   const saleById = useMemo(() => {
     const m = {}; sales.forEach(s => { m[s.id] = s }); return m
@@ -73,10 +76,13 @@ export default function Operations({ onLogout, role, onSwitchEnv }) {
   }, [profiles])
 
   function openShipment(id) { setOpenId(id); setView('detail') }
+  function openInvoice(parcelId) { setInvoiceParcelId(parcelId); setView('invoice') }
   function goAllocate(shipmentId) { setTarget(shipmentId || ''); setView('unallocated') }
   function nav(v) { setTarget(''); setView(v) }
 
   const openShipmentRow = shipments.find(s => s.id === openId)
+  const invoiceParcel = parcels.find(p => p.id === invoiceParcelId)
+  const invoiceShipment = invoiceParcel && shipments.find(s => s.id === invoiceParcel.shipment_id)
 
   if (loading) {
     return (
@@ -91,7 +97,7 @@ export default function Operations({ onLogout, role, onSwitchEnv }) {
   return (
     <div className={styles.layout}>
       <Sidebar
-        view={view === 'detail' ? 'shipments' : view}
+        view={view === 'detail' || view === 'invoice' ? 'shipments' : view}
         setView={nav}
         onLogout={onLogout}
         role={role}
@@ -123,7 +129,31 @@ export default function Operations({ onLogout, role, onSwitchEnv }) {
             onBack={() => setView('shipments')}
             onChanged={reload}
             onAllocate={() => goAllocate(openShipmentRow.id)}
+            invoices={invoices}
+            issues={issues}
+            onInvoice={openInvoice}
           />
+        )}
+        {view === 'invoice' && invoiceParcel && invoiceShipment && (
+          <OpsInvoice
+            key={invoiceParcel.id}
+            parcel={invoiceParcel}
+            shipment={invoiceShipment}
+            sale={saleById[invoiceParcel.sale_id] || null}
+            parcels={parcels}
+            saleById={saleById}
+            invoices={invoices}
+            issues={issues}
+            presets={presets}
+            settings={invoiceSettings}
+            ready={invoicesReady}
+            onBack={() => openShipment(invoiceShipment.id)}
+            onChanged={reload}
+            onSettings={() => setView('invsettings')}
+          />
+        )}
+        {view === 'invsettings' && (
+          <OpsInvoiceSettings settings={invoiceSettings} ready={invoicesReady} onChanged={reload} />
         )}
         {view === 'detail' && !openShipmentRow && (
           <p className={styles.none}>Shipment not found. <button className={styles.linkBtn} onClick={() => setView('shipments')}>Back to shipments</button></p>

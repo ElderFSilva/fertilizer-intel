@@ -70,7 +70,53 @@ export async function opsLoadAll() {
     const { data } = await supabase.from('profiles').select('*')
     profiles = data || []
   } catch { /* trader labels fall back to a short id */ }
-  return { shipments: sh.data || [], parcels: pa.data || [], sales, profiles }
+  // Invoice tables: each read stands alone, so Operations still opens if the
+  // invoice SQL has not been run yet (invoicesReady tells the screens).
+  const safe = async q => { try { const { data, error } = await q; return error ? null : (data || []) } catch { return null } }
+  const [invoices, issues, presets, settingsRows] = await Promise.all([
+    safe(supabase.from('ops_invoices').select('*')),
+    safe(supabase.from('ops_invoice_issues').select('*').order('created_at', { ascending: true })),
+    safe(supabase.from('ops_invoice_presets').select('*').order('label', { ascending: true })),
+    safe(supabase.from('ops_settings').select('*')),
+  ])
+  const invoiceSettings = (settingsRows || []).find(r => r.key === 'invoice')?.value || {}
+  return {
+    shipments: sh.data || [], parcels: pa.data || [], sales, profiles,
+    invoices: invoices || [], issues: issues || [], presets: presets || [], invoiceSettings,
+    invoicesReady: invoices !== null && issues !== null && settingsRows !== null,
+  }
+}
+
+// ── Invoices ──
+
+export async function opsSaveInvoice(parcelId, data) {
+  const { error } = await supabase
+    .from('ops_invoices')
+    .upsert({ parcel_id: parcelId, data, updated_at: new Date().toISOString() }, { onConflict: 'parcel_id' })
+  if (error) throw error
+}
+
+// Freezes the invoice exactly as issued. Issued invoices are never edited or deleted.
+export async function opsIssueInvoice(parcelId, kind, issuedOn, snapshot) {
+  const { error } = await supabase
+    .from('ops_invoice_issues')
+    .insert({ parcel_id: parcelId, kind, issued_on: issuedOn, snapshot })
+  if (error) throw error
+}
+
+export async function opsSaveInvoiceSettings(value) {
+  const { error } = await supabase
+    .from('ops_settings')
+    .upsert({ key: 'invoice', value, updated_at: new Date().toISOString() }, { onConflict: 'key' })
+  if (error) throw error
+}
+
+// Latest stage reached by a sale's invoice: 'commercial' | 'proforma' | 'draft' | ''
+export function invoiceStage(parcelId, invoices, issues) {
+  const mine = issues.filter(i => i.parcel_id === parcelId)
+  if (mine.some(i => i.kind === 'commercial')) return 'commercial'
+  if (mine.some(i => i.kind === 'proforma')) return 'proforma'
+  return invoices.some(i => i.parcel_id === parcelId) ? 'draft' : ''
 }
 
 export async function opsCreateShipment({ vessel, laycan }) {
@@ -135,6 +181,7 @@ export function opsErrorText(e, fallback) {
   const m = String(e?.message || '')
   if (/shipment_parcels_shipment_id_parcel_no_key/.test(m)) return 'That reference is already used on this vessel.'
   if (/shipment_parcels_sale_id_key/.test(m)) return 'One of these sales is already allocated to a shipment. Reload and try again.'
+  if (/ops_invoice_issues/.test(m) && /violates foreign key/.test(m)) return 'This sale has an issued invoice, so it stays on this vessel.'
   if (/violates foreign key/.test(m) && /shipment_parcels/.test(m)) return 'This shipment still has sales on it. Remove them first.'
   if (/permission denied|row-level security|not allowed/i.test(m)) return 'This login has no access to Operations.'
   return fallback || 'Could not save to the cloud.'

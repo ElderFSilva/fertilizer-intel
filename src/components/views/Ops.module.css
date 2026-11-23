@@ -47,6 +47,7 @@
 .pill { display: inline-block; font-size: 10px; padding: 2px 8px; border-radius: 20px; font-family: 'DM Mono', monospace; letter-spacing: 0.04em; }
 .pillOpen { background: var(--accent-dim); color: var(--accent); }
 .pillClosed { background: var(--bg3); color: var(--text3); }
+.pillPro { background: var(--blue-dim); color: var(--blue); }
 .pillTbn { background: var(--amber-dim); color: var(--amber); margin-left: 8px; }
 
 /* Buttons */
@@ -142,6 +143,29 @@
 
 .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; align-items: start; }
 
+/* Invoice */
+.invLayout { display: block; }
+.invCol { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+.cardTitle { font-size: 11px; color: var(--text2); font-family: 'DM Mono', monospace; text-transform: uppercase; letter-spacing: 0.06em; }
+.gridForm { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.span2 { grid-column: span 2; }
+.textarea {
+  background: var(--bg3); border: 1px solid var(--border2); border-radius: 8px;
+  padding: 10px 12px; color: var(--text); font-size: 12px; line-height: 1.5; outline: none;
+  font-family: 'DM Mono', monospace; width: 100%; resize: vertical;
+}
+.textarea:focus { border-color: var(--accent); }
+.previewBox { width: 100%; overflow: hidden; border: 1px solid var(--border2); border-radius: 6px; background: #fff; }
+.preview { width: 1123px; height: 860px; border: none; background: #fff; transform-origin: top left; display: block; }
+.previewSticky { position: sticky; top: 16px; display: flex; flex-direction: column; gap: 8px; }
+.issueRow {
+  display: flex; align-items: center; gap: 12px; padding: 9px 12px; background: var(--bg3);
+  border-radius: 8px; font-family: 'DM Mono', monospace; font-size: 12px; color: var(--text2); flex-wrap: wrap;
+}
+.issueRow b { color: var(--text); }
+.warn { color: var(--amber); font-size: 12px; font-family: 'DM Mono', monospace; line-height: 1.5; }
+.dateInput { width: 170px; color-scheme: dark; }
+
 @media (max-width: 900px) {
   .layout { flex-direction: column; }
   .main { padding: 20px; }
@@ -157,6 +181,6 @@
 }
 .refRow b { color: var(--text); }
 
-.grid2 { grid-template-columns: 1fr; }
+.grid2, .invLayout { grid-template-columns: 1fr; }
   .search { width: 100%; }
 }

@@ -1,11 +1,11 @@
 import { useState } from 'react'
 import styles from './Ops.module.css'
-import { opsUpdateShipment, opsDeleteShipment, opsUpdateParcel, opsUnallocate, opsErrorText, isTBN, sumBy, fmtN, fmtP, laycanOptions } from '../../cloudOps.js'
+import { opsUpdateShipment, opsDeleteShipment, opsUpdateParcel, opsUnallocate, opsErrorText, isTBN, sumBy, fmtN, fmtP, laycanOptions, invoiceStage } from '../../cloudOps.js'
 import { exportBreakdownXlsx } from '../../opsExport.js'
 
 // One shipment: the header ops maintains, and the cargo breakdown built live
 // from the sales allocated to it.
-export default function OpsShipmentDetail({ shipment, rows, traderNames, onBack, onChanged, onAllocate }) {
+export default function OpsShipmentDetail({ shipment, rows, traderNames, onBack, onChanged, onAllocate, invoices = [], issues = [], onInvoice }) {
   const initial = { vessel: shipment.vessel || '', laycan: shipment.laycan || '', status: shipment.status || 'open' }
   const [form, setForm] = useState(initial)
   const [busy, setBusy] = useState(false)
@@ -159,6 +159,7 @@ export default function OpsShipmentDetail({ shipment, rows, traderNames, onBack,
                   <th className={`${styles.th} ${styles.r}`}>USD/t</th>
                   <th className={`${styles.th} ${styles.r}`}>Total USD</th>
                   <th className={styles.th}>Trader</th>
+                  <th className={styles.th}>Invoice</th>
                   <th className={styles.th}></th>
                 </tr>
               </thead>
@@ -194,6 +195,17 @@ export default function OpsShipmentDetail({ shipment, rows, traderNames, onBack,
                     <td className={`${styles.td} ${styles.r}`}>{fmtN(r.total)}</td>
                     <td className={`${styles.td} ${styles.dim}`}>{r.sale ? (traderNames[r.sale.trader_id] || 'Trader') : '—'}</td>
                     <td className={styles.td}>
+                      {(() => {
+                        const st = invoiceStage(r.parcel.id, invoices, issues)
+                        return (
+                          <span style={{ display: 'inline-flex', gap: 8, alignItems: 'center' }}>
+                            {st && <span className={`${styles.pill} ${st === 'commercial' ? styles.pillOpen : st === 'proforma' ? styles.pillPro : styles.pillClosed}`}>{st}</span>}
+                            <button className={styles.small} onClick={() => onInvoice && onInvoice(r.parcel.id)}>{st ? 'Open' : 'Invoice'}</button>
+                          </span>
+                        )
+                      })()}
+                    </td>
+                    <td className={styles.td}>
                       <button
                         className={`${styles.small} ${styles.danger} ${confirmRemove === r.parcel.id ? styles.dangerOn : ''}`}
                         title="Send this sale back to Unallocated. The sale itself is not deleted."
@@ -210,7 +222,7 @@ export default function OpsShipmentDetail({ shipment, rows, traderNames, onBack,
                   <td className={`${styles.td} ${styles.tot} ${styles.r}`}>{fmtN(totTons)}</td>
                   <td className={`${styles.td} ${styles.tot}`}></td>
                   <td className={`${styles.td} ${styles.tot} ${styles.r}`}>{fmtN(totUsd)}</td>
-                  <td className={`${styles.td} ${styles.tot}`} colSpan={2}></td>
+                  <td className={`${styles.td} ${styles.tot}`} colSpan={3}></td>
                 </tr>
               </tbody>
             </table>
