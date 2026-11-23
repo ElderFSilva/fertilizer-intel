@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import styles from './Ops.module.css'
-import { opsUpdateShipment, opsDeleteShipment, opsUpdateParcel, opsUnallocate, opsErrorText, isTBN, sumBy, fmtN, fmtP, laycanOptions, invoiceStage } from '../../cloudOps.js'
+import { opsUpdateShipment, opsDeleteShipment, opsUpdateParcel, opsUnallocate, opsErrorText, isTBN, sumBy, fmtN, fmtP, fmtQ, num, laycanOptions, invoiceStage } from '../../cloudOps.js'
 import { exportBreakdownXlsx } from '../../opsExport.js'
 
 // One shipment: the header ops maintains, and the cargo breakdown built live
@@ -17,7 +17,10 @@ export default function OpsShipmentDetail({ shipment, rows, traderNames, onBack,
   const dirty = Object.keys(initial).some(k => form[k] !== initial[k])
   const set = (k, v) => { setForm(f => ({ ...f, [k]: v })); setSaved('') }
 
+  const soldOf = {}
+  rows.forEach(r => { soldOf[r.parcel.id] = r.soldTons })
   const totTons = rows.reduce((a, r) => a + r.tons, 0)
+  const totSold = rows.reduce((a, r) => a + r.soldTons, 0)
   const totUsd = rows.reduce((a, r) => a + r.total, 0)
   const ports = [...new Set(rows.map(r => r.port).filter(Boolean))]
   const loads = [...new Set(rows.map(r => r.loadPort).filter(Boolean))]
@@ -42,6 +45,16 @@ export default function OpsShipmentDetail({ shipment, rows, traderNames, onBack,
   }
 
   async function saveParcel(parcel, field, value) {
+    if (field === 'final_qty') {
+      // typing the sold quantity, or clearing the cell, means "no change from the sale"
+      const typed = num(value), sold = num(soldOf[parcel.id])
+      const next = typed > 0 && typed !== sold ? typed : null
+      if (next === (num(parcel.final_qty) > 0 ? num(parcel.final_qty) : null)) return
+      setError('')
+      try { await opsUpdateParcel(parcel.id, { final_qty: next ?? '' }) } catch (e) { setError(opsErrorText(e, 'Could not save the quantity.')) }
+      await onChanged()
+      return
+    }
     const current = field === 'parcel_no' ? (parcel.parcel_no || '') : (parcel.load_port || '')
     const next = String(value).trim()
     if (next === current) return
@@ -141,7 +154,7 @@ export default function OpsShipmentDetail({ shipment, rows, traderNames, onBack,
       <section className={styles.section}>
         <h2 className={styles.sectionTitle}>
           <span>Cargo breakdown · one row per allocated sale</span>
-          <span className={styles.note}>client · product · tons · price · discharge port come from the trader's sale</span>
+          <span className={styles.note}>tons start as sold · type the final (BL) quantity in the Tons column when it differs</span>
         </h2>
         {rows.length === 0 ? (
           <p className={styles.none}>No sales on this shipment yet. <button className={styles.linkBtn} onClick={onAllocate}>Allocate sales →</button></p>
@@ -190,7 +203,18 @@ export default function OpsShipmentDetail({ shipment, rows, traderNames, onBack,
                     </td>
                     <td className={styles.td}>{r.port || '—'}</td>
                     <td className={styles.td}>{r.product || '—'}</td>
-                    <td className={`${styles.td} ${styles.r}`}>{fmtN(r.tons)}</td>
+                    <td className={`${styles.td} ${styles.r}`}>
+                      <input
+                        key={`${r.parcel.id}-q-${r.tons}`}
+                        className={`${styles.cell} ${styles.cellQty}`}
+                        defaultValue={fmtQ(r.tons)}
+                        inputMode="decimal"
+                        title="Final quantity — type the BL quantity when it differs from the sale"
+                        onBlur={e => saveParcel(r.parcel, 'final_qty', e.target.value)}
+                        onKeyDown={e => { if (e.key === 'Enter') e.target.blur() }}
+                      />
+                      {r.tons !== r.soldTons && <div className={styles.soldNote}>sold {fmtQ(r.soldTons)}</div>}
+                    </td>
                     <td className={`${styles.td} ${styles.r}`}>{fmtP(r.price)}</td>
                     <td className={`${styles.td} ${styles.r}`}>{fmtN(r.total)}</td>
                     <td className={`${styles.td} ${styles.dim}`}>{r.sale ? (traderNames[r.sale.trader_id] || 'Trader') : '—'}</td>
@@ -219,7 +243,7 @@ export default function OpsShipmentDetail({ shipment, rows, traderNames, onBack,
                 ))}
                 <tr>
                   <td className={`${styles.td} ${styles.tot}`} colSpan={5}>TOTAL · {rows.length} sale{rows.length !== 1 ? 's' : ''}</td>
-                  <td className={`${styles.td} ${styles.tot} ${styles.r}`}>{fmtN(totTons)}</td>
+                  <td className={`${styles.td} ${styles.tot} ${styles.r}`}>{fmtQ(totTons)}{totTons !== totSold && <div className={styles.soldNote}>sold {fmtQ(totSold)}</div>}</td>
                   <td className={`${styles.td} ${styles.tot}`}></td>
                   <td className={`${styles.td} ${styles.tot} ${styles.r}`}>{fmtN(totUsd)}</td>
                   <td className={`${styles.td} ${styles.tot}`} colSpan={3}></td>

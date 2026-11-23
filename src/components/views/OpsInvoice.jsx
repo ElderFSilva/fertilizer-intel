@@ -1,11 +1,12 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
 import styles from './Ops.module.css'
-import { opsSaveInvoice, opsIssueInvoice, opsErrorText, num, fmtN, fmtP } from '../../cloudOps.js'
+import { opsSaveInvoice, opsIssueInvoice, opsUpdateParcel, opsErrorText, num, fmtN, fmtP, fmtQ } from '../../cloudOps.js'
 import { PAYMENT_TERMS, INVOICE_PAGE, prefillInvoice, buildInvoiceModel, missingForIssue, renderInvoiceHTML, printInvoice, todayYMD, fmtInvDate } from '../../opsInvoice.js'
 
 // The invoice of one allocated sale: proforma first, commercial once the BL
-// exists. Quantity, price, product, discharge port and vessel are the sale's
-// own and cannot be changed here — the trader corrects the sale if needed.
+// exists. Client, product, discharge port and vessel are the sale's own.
+// Quantity and CFR price default to the sale's, and ops may override them for
+// this invoice only — the trader's sale is never changed.
 export default function OpsInvoice({ parcel, shipment, sale, parcels, saleById, invoices, issues, presets, settings, ready, onBack, onChanged, onSettings }) {
   const saved = invoices.find(i => i.parcel_id === parcel.id)
   const myIssues = issues.filter(i => i.parcel_id === parcel.id)
@@ -19,6 +20,11 @@ export default function OpsInvoice({ parcel, shipment, sale, parcels, saleById, 
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const [form, setForm] = useState(starting)
+  // Final quantity lives on the allocated sale (shared with the cargo breakdown), not on the invoice
+  const savedQty = parcel.final_qty != null ? String(parcel.final_qty) : ''
+  const [finalQty, setFinalQty] = useState(savedQty)
+  const [qtyBase, setQtyBase] = useState(savedQty)
+  const liveParcel = { ...parcel, final_qty: num(finalQty) > 0 ? num(finalQty) : null }
   const [baseline, setBaseline] = useState(saved ? starting : null)
   const [previewKind, setPreviewKind] = useState(myIssues.some(i => i.kind === 'proforma') ? 'commercial' : 'proforma')
   const [issueDate, setIssueDate] = useState(todayYMD())
@@ -40,11 +46,11 @@ export default function OpsInvoice({ parcel, shipment, sale, parcels, saleById, 
   }, [])
 
   const set = (k, v) => { setForm(f => ({ ...f, [k]: v })); setNote('') }
-  const dirty = !baseline || Object.keys(form).some(k => String(form[k] ?? '') !== String(baseline[k] ?? ''))
+  const dirty = !baseline || finalQty !== qtyBase || Object.keys(form).some(k => String(form[k] ?? '') !== String(baseline[k] ?? ''))
 
-  const model = buildInvoiceModel({ kind: previewKind, date: issueDate, shipment, parcel, sale, data: form, settings })
+  const model = buildInvoiceModel({ kind: previewKind, date: issueDate, shipment, parcel: liveParcel, sale, data: form, settings })
   const previewHtml = useMemo(() => renderInvoiceHTML(model), [JSON.stringify(model)]) // eslint-disable-line react-hooks/exhaustive-deps
-  const missing = kind => missingForIssue(kind, buildInvoiceModel({ kind, date: issueDate, shipment, parcel, sale, data: form, settings }), settings)
+  const missing = kind => missingForIssue(kind, buildInvoiceModel({ kind, date: issueDate, shipment, parcel: liveParcel, sale, data: form, settings }), settings)
 
   // Saved consignees/buyers and goods descriptions: the starting list plus everything used on earlier invoices
   const partyOptions = useMemo(() => {
@@ -91,9 +97,16 @@ export default function OpsInvoice({ parcel, shipment, sale, parcels, saleById, 
   const firstLine = t => String(t || '').split('\n')[0]
   const tail = (t, n) => { const x = String(t || '').replace(/\s+/g, ' ').trim(); return x.length > n ? '…' + x.slice(-n) : x }
 
+  async function saveQty() {
+    if (finalQty === qtyBase) return
+    await opsUpdateParcel(parcel.id, { final_qty: finalQty })
+    setQtyBase(finalQty)
+  }
+
   async function save() {
     setBusy(true); setError('')
     try {
+      await saveQty()
       await opsSaveInvoice(parcel.id, form)
       setBaseline(form); setNote('✓ Saved.')
       await onChanged()
@@ -107,7 +120,8 @@ export default function OpsInvoice({ parcel, shipment, sale, parcels, saleById, 
     if (!issueDate) { setError('Choose the invoice date.'); return }
     setBusy(true); setError('')
     try {
-      const snapshot = buildInvoiceModel({ kind, date: issueDate, shipment, parcel, sale, data: form, settings })
+      const snapshot = buildInvoiceModel({ kind, date: issueDate, shipment, parcel: liveParcel, sale, data: form, settings })
+      await saveQty()
       await opsSaveInvoice(parcel.id, form)
       await opsIssueInvoice(parcel.id, kind, issueDate, snapshot)
       setBaseline(form)
@@ -125,7 +139,7 @@ export default function OpsInvoice({ parcel, shipment, sale, parcels, saleById, 
   // An issued invoice no longer matches the sale (trader changed tons/price, or the reference was retyped)
   const last = myIssues[myIssues.length - 1]
   const drift = last && (
-    Number(last.snapshot.quantity) !== num(sale?.volume) || Number(last.snapshot.cfr) !== num(sale?.donePrice) ||
+    Number(last.snapshot.quantity) !== (num(finalQty) || num(sale?.volume)) || Number(last.snapshot.cfr) !== (num(form.cfr_override) || num(sale?.donePrice)) ||
     (last.snapshot.number || '') !== (parcel.parcel_no || '').trim() || (last.snapshot.vessel || '') !== (shipment.vessel || ''))
 
   if (!ready) {
@@ -148,7 +162,11 @@ export default function OpsInvoice({ parcel, shipment, sale, parcels, saleById, 
       <input className={styles.input} placeholder={ph || ''} value={form[key] ?? ''} onChange={e => set(key, e.target.value)} />
     </div>
   )
-  const cfr = num(sale?.donePrice), fr = num(form.freight)
+  const saleQty = num(sale?.volume), saleCfr = num(sale?.donePrice)
+  const invQty = num(finalQty) || saleQty
+  const cfr = num(form.cfr_override) || saleCfr
+  const fr = num(form.freight)
+  const overridden = (num(finalQty) && num(finalQty) !== saleQty) || (num(form.cfr_override) && num(form.cfr_override) !== saleCfr)
 
   return (
     <div className={styles.wrap}>
@@ -156,7 +174,7 @@ export default function OpsInvoice({ parcel, shipment, sale, parcels, saleById, 
         <div>
           <div className={styles.crumb}><button className={styles.linkBtn} onClick={onBack}>Operations › Shipments › {shipment.vessel}</button> › {parcel.parcel_no || 'no reference yet'}</div>
           <h1 className={styles.title}>Invoice {parcel.parcel_no || ''}</h1>
-          <p className={styles.sub}>{sale?.client || '—'} · {fmtN(num(sale?.volume))} t {sale?.product || ''} · CFR {sale?.port || '—'} {fmtP(cfr)}</p>
+          <p className={styles.sub}>{sale?.client || '—'} · {fmtQ(invQty)} t {sale?.product || ''} · CFR {sale?.port || '—'} {fmtP(cfr)}</p>
         </div>
         <button className={styles.ghost} onClick={onBack}>← Back to the shipment</button>
       </header>
@@ -169,17 +187,26 @@ export default function OpsInvoice({ parcel, shipment, sale, parcels, saleById, 
       <div className={styles.invLayout}>
         <div className={styles.invCol}>
           <div className={styles.card}>
-            <div className={styles.cardTitle}>From the sale · read only · the trader corrects the sale if wrong</div>
+            <div className={styles.cardTitle}>From the sale · ops sets the final quantity and, if needed, the invoice price</div>
             <div className={styles.grid4}>
               {ro('Client', sale?.client || '—')}
               {ro('Product', sale?.product || '—')}
-              {ro('Quantity', `${fmtN(num(sale?.volume))} MT`)}
-              {ro('CFR price', fmtP(cfr))}
+              <div className={styles.field}>
+                <label className={styles.label}>Final quantity (MT)</label>
+                <input className={styles.input} inputMode="decimal" placeholder={`${fmtQ(saleQty)} (sold)`} value={finalQty} onChange={e => { setFinalQty(e.target.value); setNote('') }} />
+              </div>
+              <div className={styles.field}>
+                <label className={styles.label}>Invoice CFR price</label>
+                <input className={styles.input} inputMode="decimal" placeholder={`${fmtP(saleCfr)} (from the sale)`} value={form.cfr_override ?? ''} onChange={e => set('cfr_override', e.target.value)} />
+              </div>
               {ro('Discharge port', sale?.port || '—')}
               {ro('Vessel', shipment.vessel)}
               {ro('FOB = CFR − freight', fr ? fmtP(cfr - fr) : '—')}
-              {ro('Total USD', fmtN(cfr * num(sale?.volume)))}
+              {ro('Total USD', fmtP(cfr * invQty))}
             </div>
+            {overridden
+              ? <span className={styles.warn}>Sold as {fmtQ(saleQty)} t @ {fmtP(saleCfr)}. The final quantity also shows in the cargo breakdown; the trader's sale is not changed. Clear a field to go back to the sale's figure.</span>
+              : <span className={styles.note}>Leave empty to use the sale's figures ({fmtQ(saleQty)} t @ {fmtP(saleCfr)}). The final quantity is the same one shown in the cargo breakdown.</span>}
           </div>
 
           <div className={styles.card}>
@@ -283,7 +310,7 @@ export default function OpsInvoice({ parcel, shipment, sale, parcels, saleById, 
                 <div className={styles.cardTitle} style={{ marginTop: 6 }}>Issued · kept exactly as issued</div>
                 {[...myIssues].reverse().map(i => (
                   <div key={i.id} className={styles.issueRow}>
-                    <span><b>{i.kind === 'commercial' ? 'Commercial' : 'Proforma'}</b> · {i.snapshot.number} · {fmtInvDate(i.issued_on)} · {fmtN(i.snapshot.quantity)} t @ {fmtP(i.snapshot.cfr)} · USD {fmtN(i.snapshot.total)}</span>
+                    <span><b>{i.kind === 'commercial' ? 'Commercial' : 'Proforma'}</b> · {i.snapshot.number} · {fmtInvDate(i.issued_on)} · {fmtQ(i.snapshot.quantity)} t @ {fmtP(i.snapshot.cfr)} · USD {fmtN(i.snapshot.total)}</span>
                     <button className={styles.small} style={{ marginLeft: 'auto' }} onClick={() => print(i.snapshot)}>Print / PDF</button>
                   </div>
                 ))}
@@ -301,5 +328,6 @@ function prefillBlank() {
   return {
     consignee: '', buyer: '', payment_terms: '', payment_method: '', buyer_ref: '', packing: '', provenance: '', acquisition: '',
     load_port_text: '', disch_port_text: '', incoterm: '', ncm: '', description: '', origin: '', manufacturer: '', freight: '', bl_no: '', bl_date: '',
+    cfr_override: '',
   }
 }

@@ -1,7 +1,9 @@
 // ── Invoices (proforma → commercial) for the Operations environment ──
 // Layout and fields follow the desk's shipment workbook (one invoice per sale).
-// Quantity, CFR price, product, discharge port and vessel always come from the
-// trader's sale; everything else is filled by ops. An issued invoice is stored
+// Client, product, discharge port and vessel come from the trader's sale.
+// Quantity is the final quantity ops set for the sale (else the quantity sold);
+// CFR price is the sale's unless ops overrides it on the invoice. The sale itself
+// is never changed. Everything else is filled by ops. An issued invoice is stored
 // as a frozen snapshot and printed from that snapshot.
 
 import { num } from './cloudOps.js'
@@ -66,6 +68,7 @@ export function prefillInvoice({ parcel, sale, shipmentParcelIds, invoices, sale
     origin: goods.origin || s.provenance || 'China',
     manufacturer: goods.manufacturer || '',
     freight: sameVessel?.data?.freight ?? '',
+    cfr_override: '',
     bl_no: '',
     bl_date: '',
   }
@@ -74,8 +77,11 @@ export function prefillInvoice({ parcel, sale, shipmentParcelIds, invoices, sale
 // Everything printed on one invoice, in one flat object. This is what gets frozen at issue.
 export function buildInvoiceModel({ kind, date, shipment, parcel, sale, data, settings }) {
   const s = settings || {}
-  const quantity = num(sale?.volume)
-  const cfr = num(sale?.donePrice)
+  // Quantity = the final quantity ops set for this sale (the same figure the cargo
+  // breakdown shows), else the quantity sold. Price = the sale's, unless ops
+  // overrides it on this invoice.
+  const quantity = num(parcel.final_qty) || num(sale?.volume)
+  const cfr = num(data.cfr_override) || num(sale?.donePrice)
   const freight = num(data.freight)
   const r2 = n => Math.round(n * 100) / 100
   const fob = r2(cfr - freight)
@@ -103,8 +109,8 @@ export function missingForIssue(kind, model, settings) {
   const miss = []
   if (!model.number) miss.push("the sale's reference (type it on the shipment page)")
   if (!(settings?.company) || !(settings?.bank_info)) miss.push('seller and bank details (Invoice settings)')
-  if (!model.quantity) miss.push('quantity on the sale')
-  if (!model.cfr) miss.push('done price on the sale')
+  if (!model.quantity) miss.push('quantity')
+  if (!model.cfr) miss.push('CFR price')
   if (!model.consignee.trim()) miss.push('consignee')
   if (!model.payment_terms.trim()) miss.push('payment terms')
   if (!model.load_port.trim()) miss.push('load port')

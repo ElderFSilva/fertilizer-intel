@@ -94,6 +94,8 @@
 .cell:focus { border-color: var(--accent); background: var(--bg3); }
 .cellNo { width: 150px; color: var(--accent); }
 .cellPort { width: 120px; }
+.cellQty { width: 96px; text-align: right; }
+.soldNote { font-size: 10px; color: var(--amber); padding-right: 6px; font-weight: 400; }
 .formRow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .error { color: var(--red); font-size: 13px; font-family: 'DM Mono', monospace; }
 .success { color: var(--accent); font-size: 13px; font-family: 'DM Mono', monospace; }

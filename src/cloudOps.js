@@ -166,6 +166,8 @@ export async function opsUpdateParcel(id, patch) {
   const clean = {}
   if (patch.parcel_no !== undefined) clean.parcel_no = String(patch.parcel_no || '').trim() || null
   if (patch.load_port !== undefined) clean.load_port = (patch.load_port || '').trim() || null
+  // Final (BL) quantity set by ops; empty = use the quantity sold
+  if (patch.final_qty !== undefined) clean.final_qty = num(patch.final_qty) > 0 ? num(patch.final_qty) : null
   const { error } = await supabase.from('shipment_parcels').update(clean).eq('id', id)
   if (error) throw error
 }
@@ -183,6 +185,7 @@ export function opsErrorText(e, fallback) {
   if (/shipment_parcels_sale_id_key/.test(m)) return 'One of these sales is already allocated to a shipment. Reload and try again.'
   if (/ops_invoice_issues/.test(m) && /violates foreign key/.test(m)) return 'This sale has an issued invoice, so it stays on this vessel.'
   if (/violates foreign key/.test(m) && /shipment_parcels/.test(m)) return 'This shipment still has sales on it. Remove them first.'
+  if (/final_qty/.test(m)) return 'Final quantities are not set up in the database yet (run 6-operations-final-quantity.sql).'
   if (/permission denied|row-level security|not allowed/i.test(m)) return 'This login has no access to Operations.'
   return fallback || 'Could not save to the cloud.'
 }
@@ -191,6 +194,7 @@ export function opsErrorText(e, fallback) {
 
 export const fmtN = n => (Number(n) || 0).toLocaleString('en-US', { maximumFractionDigits: 0 })
 export const fmtP = n => (Number(n) || 0).toLocaleString('en-US', { maximumFractionDigits: 2 })
+export const fmtQ = n => (Number(n) || 0).toLocaleString('en-US', { maximumFractionDigits: 3 })
 
 export function fmtSaleDate(d) {
   if (!d) return '—'
@@ -200,12 +204,15 @@ export function fmtSaleDate(d) {
 
 export const saleDateOf = s => s.date || (s.created_at ? String(s.created_at).slice(0, 10) : '')
 
-// One breakdown row per allocated sale. Client, product, tons, price and discharge
-// port are read live from the trader's sale — they are never copied.
+// One breakdown row per allocated sale. Client, product, price and discharge
+// port are read live from the trader's sale. Tons are the sale's too, until ops
+// sets the final quantity for that sale (the sale itself is never changed).
 export function breakdownRows(shipment, parcels, saleById) {
   return [...parcels].sort(byParcelNo).map(p => {
     const s = saleById[p.sale_id] || null
-    const tons = s ? num(s.volume) : 0
+    // Tons = the final quantity ops set for this sale, else the quantity sold
+    const soldTons = s ? num(s.volume) : 0
+    const tons = num(p.final_qty) > 0 ? num(p.final_qty) : soldTons
     const price = s ? num(s.donePrice) : 0
     return {
       parcel: p, sale: s,
@@ -214,7 +221,7 @@ export function breakdownRows(shipment, parcels, saleById) {
       loadPort: p.load_port || '',
       port: s?.port || '',
       product: s?.product || '',
-      tons, price, total: tons * price,
+      tons, soldTons, price, total: tons * price,
     }
   })
 }
